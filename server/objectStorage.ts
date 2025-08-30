@@ -11,33 +11,24 @@ import {
   setObjectAclPolicy,
 } from "./objectAcl";
 
-// AWS S3 client configuration with multiple fallback approaches
+// AWS S3 client configuration - simplified approach
 export const s3Client = new S3Client({
   region: process.env.AWS_REGION || 'us-east-1',
   credentials: {
     accessKeyId: process.env.AWS_ACCESS_KEY_ID || '',
     secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY || '',
   },
-  // Try with explicit endpoint configuration
-  endpoint: `https://s3.${process.env.AWS_REGION || 'us-east-1'}.amazonaws.com`,
-  forcePathStyle: false, // Use virtual-hosted-style URLs
-  requestHandler: {
-    requestTimeout: 30000, // 30 seconds
-    httpsAgent: undefined,
-  },
 });
 
-// Alternative S3 client with path-style URLs
-export const s3ClientPathStyle = new S3Client({
+// Alternative S3 client with different configuration
+export const s3ClientAlt = new S3Client({
   region: process.env.AWS_REGION || 'us-east-1',
   credentials: {
     accessKeyId: process.env.AWS_ACCESS_KEY_ID || '',
     secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY || '',
   },
-  forcePathStyle: true, // Use path-style URLs
-  requestHandler: {
-    requestTimeout: 30000,
-  },
+  forcePathStyle: true,
+  maxAttempts: 3,
 });
 
 export class ObjectNotFoundError extends Error {
@@ -176,7 +167,7 @@ export class ObjectStorageService {
     try {
       console.log('Approach 2: Path-style URLs...');
       const command = new HeadBucketCommand({ Bucket: this.bucketName });
-      await s3ClientPathStyle.send(command);
+      await s3ClientAlt.send(command);
       console.log('✓ S3 bucket is accessible (path-style)');
       return;
     } catch (error: any) {
@@ -289,7 +280,7 @@ export class ObjectStorageService {
     // Try multiple approaches for generating presigned URL
     const approaches = [
       { name: 'Standard S3 Client', client: s3Client },
-      { name: 'Path-style S3 Client', client: s3ClientPathStyle }
+      { name: 'Path-style S3 Client', client: s3ClientAlt }
     ];
     
     for (const approach of approaches) {
@@ -336,7 +327,7 @@ export class ObjectStorageService {
     const objectKey = `${entityDir}${entityId}`;
     
     // Try with different S3 clients
-    const clients = [s3Client, s3ClientPathStyle];
+    const clients = [s3Client, s3ClientAlt];
     
     for (const client of clients) {
       try {
@@ -428,7 +419,7 @@ export class ObjectStorageService {
     // Try with different S3 clients
     const clients = [
       { name: 'Standard Client', client: s3Client },
-      { name: 'Path-style Client', client: s3ClientPathStyle }
+      { name: 'Path-style Client', client: s3ClientAlt }
     ];
     
     for (const approach of clients) {
@@ -476,37 +467,21 @@ export class ObjectStorageService {
     return `/uploads/${uniqueFileName}`;
   }
   
-  // Universal upload method that tries multiple approaches
+  // Universal upload method that tries multiple approaches (no Replit object storage)
   async uploadWithFallbacks(fileBuffer: Buffer, fileName: string, contentType: string): Promise<string> {
-    console.log('Starting upload with multiple fallback approaches...');
+    console.log('Starting upload with AWS S3 and local fallback approaches...');
     
-    // Approach 1: Try presigned URL method
+    // Approach 1: Try direct S3 upload (skip presigned URLs since they're failing)
     try {
-      const uploadUrl = await this.getObjectEntityUploadURL();
-      const uploadResponse = await fetch(uploadUrl, {
-        method: 'PUT',
-        body: fileBuffer,
-        headers: { 'Content-Type': contentType },
-      });
-      
-      if (uploadResponse.ok) {
-        console.log('✓ Presigned URL upload successful');
-        const objectPath = this.normalizeObjectEntityPath(uploadUrl);
-        return objectPath;
-      }
-    } catch (error: any) {
-      console.log('✗ Presigned URL upload failed:', error.message);
-    }
-    
-    // Approach 2: Try direct S3 upload
-    try {
+      console.log('Attempting direct S3 upload...');
       return await this.directUploadToS3(fileBuffer, fileName, contentType);
     } catch (error: any) {
       console.log('✗ Direct S3 upload failed:', error.message);
     }
     
-    // Approach 3: Fall back to local storage
+    // Approach 2: Fall back to local storage (guaranteed to work)
     try {
+      console.log('Falling back to local storage...');
       return await this.fallbackToLocalStorage(fileBuffer, fileName);
     } catch (error: any) {
       console.log('✗ Local storage fallback failed:', error.message);
