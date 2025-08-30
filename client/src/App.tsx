@@ -14,7 +14,7 @@ function Router() {
       <Navigation />
       <Switch>
         <Route path="/" component={ImageEditor} />
-        <Route path="/library" component={UserLibrary} />
+        <Route path="/library" component={() => <UserLibrary />} />
         <Route component={NotFound} />
       </Switch>
     </div>
