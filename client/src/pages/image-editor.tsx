@@ -3,7 +3,6 @@ import { useQuery } from '@tanstack/react-query';
 import { Settings, Wand2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import ChatInterface from '@/components/chat-interface';
-import ImagePreview from '@/components/image-preview';
 import ModelConfig from '@/components/model-config';
 import UserLibraryPanel from '@/components/user-library-panel';
 import { getModelDisplayName } from '@/lib/openrouter';
@@ -73,12 +72,6 @@ export default function ImageEditor() {
           conversationId={currentConversation?.id || null}
           onConversationCreate={handleConversationCreate}
           onImageProcessed={handleImageProcessed}
-        />
-
-        {/* Image Preview */}
-        <ImagePreview
-          originalImageUrl={originalImageUrl}
-          processedImageUrl={processedImageUrl}
         />
 
         {/* User Library Panel */}
