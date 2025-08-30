@@ -25,6 +25,7 @@ export default function ChatInterface({
   const [input, setInput] = useState('');
   const [uploadedImage, setUploadedImage] = useState<UploadedImage | null>(null);
   const [isUploading, setIsUploading] = useState(false);
+  const [isDragOver, setIsDragOver] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   // Fetch messages for current conversation
@@ -164,6 +165,59 @@ export default function ChatInterface({
     setInput(action);
   };
 
+  // Handle image paste from clipboard
+  const handlePaste = async (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
+    const items = Array.from(e.clipboardData.items);
+    const imageItem = items.find(item => item.type.startsWith('image/'));
+    
+    if (imageItem) {
+      e.preventDefault(); // Prevent default paste behavior
+      
+      const file = imageItem.getAsFile();
+      if (file) {
+        // Show immediate feedback
+        toast({
+          title: 'Image pasted!',
+          description: 'Uploading your image...',
+        });
+        
+        // Use existing upload flow
+        handleImageUpload(file);
+      }
+    }
+  };
+
+  // Handle drag over for textarea
+  const handleDragOver = (e: React.DragEvent<HTMLTextAreaElement>) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'copy';
+    setIsDragOver(true);
+  };
+
+  // Handle drag leave for textarea  
+  const handleDragLeave = (e: React.DragEvent<HTMLTextAreaElement>) => {
+    e.preventDefault();
+    setIsDragOver(false);
+  };
+
+  // Handle drop on textarea
+  const handleDrop = (e: React.DragEvent<HTMLTextAreaElement>) => {
+    e.preventDefault();
+    setIsDragOver(false);
+    
+    const files = Array.from(e.dataTransfer.files);
+    const imageFile = files.find(file => file.type.startsWith('image/'));
+    
+    if (imageFile) {
+      toast({
+        title: 'Image dropped!',
+        description: 'Uploading your image...',
+      });
+      
+      handleImageUpload(imageFile);
+    }
+  };
+
   // Auto-scroll to bottom
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -282,10 +336,12 @@ export default function ChatInterface({
         <div className="flex gap-3">
           <div className="flex-1 relative">
             <Textarea
-              placeholder="Describe how you want to enhance your image..."
+              placeholder="Describe how you want to enhance your image... (You can also paste or drag images directly here)"
               value={input}
               onChange={(e) => setInput(e.target.value)}
-              className="resize-none pr-12"
+              className={`resize-none pr-12 transition-all ${
+                isDragOver ? 'border-blue-500 border-2 bg-blue-50 dark:bg-blue-950/20' : ''
+              }`}
               rows={3}
               maxLength={500}
               onKeyDown={(e) => {
@@ -294,6 +350,10 @@ export default function ChatInterface({
                   handleSendMessage();
                 }
               }}
+              onPaste={handlePaste}
+              onDragOver={handleDragOver}
+              onDragLeave={handleDragLeave}
+              onDrop={handleDrop}
               data-testid="message-input"
             />
             <div className="absolute bottom-2 right-2 text-xs text-muted-foreground">
