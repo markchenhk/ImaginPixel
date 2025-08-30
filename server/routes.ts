@@ -99,8 +99,8 @@ async function processImageWithOpenRouter(
     if (model.includes('google/gemini-2.5-flash-image-preview')) {
       console.log('[Processing] Using Gemini 2.5 Flash Image for image generation');
       
-      // Use a more detailed and specific prompt to trigger image generation
-      const generationPrompt = `Generate a high-quality, detailed image: ${prompt}. Create a photorealistic digital artwork with vibrant colors and clear details.`;
+      // Use a more detailed and specific prompt that references the base image
+      const generationPrompt = `Based on the provided image, ${prompt}. Use the uploaded image as the foundation and apply the requested changes while preserving the original subject and composition. Generate a high-quality, detailed result that builds upon the source image.`;
 
       const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
         method: 'POST',
@@ -116,7 +116,18 @@ async function processImageWithOpenRouter(
           messages: [
             {
               role: 'user',
-              content: generationPrompt
+              content: [
+                {
+                  type: 'text',
+                  text: generationPrompt
+                },
+                {
+                  type: 'image_url',
+                  image_url: {
+                    url: fullImageUrl
+                  }
+                }
+              ]
             }
           ],
           max_tokens: 4000
