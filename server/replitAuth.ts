@@ -78,10 +78,17 @@ export async function setupAuth(app: Express) {
     tokens: client.TokenEndpointResponse & client.TokenEndpointResponseHelpers,
     verified: passport.AuthenticateCallback
   ) => {
-    const user = {};
-    updateUserSession(user, tokens);
-    await upsertUser(tokens.claims());
-    verified(null, user);
+    try {
+      console.log('🎯 Verifying user with claims:', tokens.claims());
+      const user = {};
+      updateUserSession(user, tokens);
+      await upsertUser(tokens.claims());
+      console.log('✅ User verification successful');
+      verified(null, user);
+    } catch (error) {
+      console.error('🚨 User verification failed:', error);
+      verified(error, null);
+    }
   };
 
   for (const domain of process.env
@@ -102,6 +109,7 @@ export async function setupAuth(app: Express) {
   passport.deserializeUser((user: Express.User, cb) => cb(null, user));
 
   app.get("/api/login", (req, res, next) => {
+    console.log(`🔐 Login attempt from ${req.hostname}`);
     passport.authenticate(`replitauth:${req.hostname}`, {
       prompt: "login consent",
       scope: ["openid", "email", "profile", "offline_access"],
@@ -109,6 +117,7 @@ export async function setupAuth(app: Express) {
   });
 
   app.get("/api/callback", (req, res, next) => {
+    console.log(`🔄 OAuth callback from ${req.hostname}`);
     passport.authenticate(`replitauth:${req.hostname}`, {
       successReturnToOrRedirect: "/",
       failureRedirect: "/api/login",
