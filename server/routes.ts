@@ -773,11 +773,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Update model configuration (admin only)
   app.post("/api/model-config", isAuthenticated, isAdmin, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      // More defensive access to user ID
+      const userId = req.user?.claims?.sub || req.user?.id || 'default';
+      console.log('[Config] Saving for user:', userId, 'Data:', req.body);
+      
       const validatedData = insertModelConfigurationSchema.parse({...req.body, userId});
       const config = await storage.createOrUpdateModelConfiguration(validatedData);
       res.json(config);
     } catch (error) {
+      console.error('[Config] Save error:', error);
       res.status(400).json({ 
         message: error instanceof Error ? error.message : "Failed to update model configuration" 
       });
