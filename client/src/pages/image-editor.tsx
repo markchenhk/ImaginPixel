@@ -6,6 +6,7 @@ import { useToast } from '@/hooks/use-toast';
 import ChatInterface from '@/components/chat-interface';
 import ModelConfig from '@/components/model-config';
 import UserLibraryPanel from '@/components/user-library-panel';
+import { LeftSidebar } from '@/components/left-sidebar';
 import { getModelDisplayName } from '@/lib/openrouter';
 import type { Conversation, ModelConfiguration } from '@shared/schema';
 
@@ -74,6 +75,9 @@ export default function ImageEditor() {
 
       {/* Main Content Area */}
       <div className="flex-1 flex overflow-hidden">
+        {/* Left Sidebar */}
+        <LeftSidebar onSettingsClick={() => setConfigOpen(true)} />
+        
         {/* Chat Interface */}
         <ChatInterface
           conversationId={currentConversation?.id || null}
