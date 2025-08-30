@@ -35,7 +35,7 @@ export default function ChatInterface({
     staleTime: 0, // Always fetch fresh data
     refetchInterval: (data) => {
       // Keep polling if any message is still processing
-      const hasProcessing = data?.some(msg => msg.processingStatus === 'processing');
+      const hasProcessing = Array.isArray(data) && data.some(msg => msg.processingStatus === 'processing');
       return hasProcessing ? 2000 : false;
     },
   });
