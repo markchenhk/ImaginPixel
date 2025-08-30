@@ -32,6 +32,12 @@ export default function ChatInterface({
   const { data: messages = [], isLoading: messagesLoading } = useQuery<Message[]>({
     queryKey: ['/api/conversations', conversationId, 'messages'],
     enabled: !!conversationId,
+    staleTime: 0, // Always fetch fresh data
+    refetchInterval: (data) => {
+      // Keep polling if any message is still processing
+      const hasProcessing = data?.some(msg => msg.processingStatus === 'processing');
+      return hasProcessing ? 2000 : false;
+    },
   });
 
   // Create conversation mutation
@@ -85,7 +91,7 @@ export default function ChatInterface({
   const processImageMutation = useMutation({
     mutationFn: async ({ conversationId, imageUrl, prompt }: { 
       conversationId: string; 
-      imageUrl: string; 
+      imageUrl?: string; 
       prompt: string; 
     }) => {
       const response = await apiRequest('POST', '/api/process-image', {
@@ -98,21 +104,35 @@ export default function ChatInterface({
     onSuccess: (result) => {
       queryClient.invalidateQueries({ queryKey: ['/api/conversations', conversationId, 'messages'] });
       
-      // Start polling for processing job completion
+      // Start optimized polling for processing job completion
+      let pollCount = 0;
       const pollJob = () => {
         queryClient.fetchQuery({
           queryKey: ['/api/processing-jobs', result.aiMessage.id],
         }).then((job: any) => {
-          if (job.status === 'completed' && job.processedImageUrl) {
-            onImageProcessed(job.originalImageUrl, job.processedImageUrl);
+          if (job.status === 'completed') {
+            if (job.processedImageUrl) {
+              onImageProcessed(job.originalImageUrl, job.processedImageUrl);
+            }
+            // Force refresh messages to show updated AI response
             queryClient.invalidateQueries({ queryKey: ['/api/conversations', conversationId, 'messages'] });
+            queryClient.refetchQueries({ queryKey: ['/api/conversations', conversationId, 'messages'] });
           } else if (job.status === 'processing') {
-            setTimeout(pollJob, 2000); // Poll every 2 seconds
+            pollCount++;
+            // Adaptive polling: start fast, then slow down
+            const delay = pollCount < 3 ? 1000 : pollCount < 10 ? 3000 : 5000;
+            setTimeout(pollJob, delay);
+          }
+        }).catch(() => {
+          // Stop polling on error after a few retries
+          if (pollCount < 5) {
+            setTimeout(pollJob, 5000);
+            pollCount++;
           }
         });
       };
       
-      setTimeout(pollJob, 1000);
+      setTimeout(pollJob, 500); // Start faster
     },
     onError: (error: Error) => {
       toast({

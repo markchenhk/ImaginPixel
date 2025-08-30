@@ -13,11 +13,17 @@ export default function ImagePreview({
   processedImageUrl, 
   processingJobId 
 }: ImagePreviewProps) {
-  // Poll for processing job updates
+  // Poll for processing job updates with smart intervals
   const { data: processingJob } = useQuery<ImageProcessingJob>({
     queryKey: ['/api/processing-jobs', processingJobId],
     enabled: !!processingJobId,
-    refetchInterval: processingJobId ? 2000 : false, // Poll every 2 seconds if there's a job
+    refetchInterval: (data) => {
+      if (!processingJobId || data?.status === 'completed' || data?.status === 'error') {
+        return false; // Stop polling when done or on error
+      }
+      return 3000; // Reduced from 2000ms to 3000ms to reduce server load
+    },
+    staleTime: 1000, // Cache for 1 second to reduce unnecessary requests
   });
 
   const currentProcessedUrl = processingJob?.processedImageUrl || processedImageUrl;
