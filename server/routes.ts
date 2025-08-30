@@ -106,11 +106,12 @@ async function processImageWithOpenRouter(
   imageUrl: string, 
   prompt: string, 
   model: string,
-  apiKey?: string
+  apiKey?: string,
+  timeoutSeconds: number = 120
 ): Promise<{ processedImageUrl: string; enhancementsApplied: string[]; processingTime: number }> {
   const startTime = Date.now();
   
-  console.log(`[Processing] Model: ${model}, Prompt: "${prompt}"`);
+  console.log(`[Processing] Model: ${model}, Prompt: "${prompt}", Timeout: ${timeoutSeconds}s`);
   
   try {
     const keyToUse = apiKey || process.env.OPENROUTER_API_KEY || process.env.OPENROUTER_KEY;
@@ -145,6 +146,12 @@ This is product image enhancement, not product generation. Work with what's prov
       
       console.log('[Debug] Generation prompt:', generationPrompt);
 
+      // Create AbortController for timeout
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => {
+        controller.abort();
+      }, timeoutSeconds * 1000);
+
       const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
         method: 'POST',
         headers: {
@@ -174,8 +181,11 @@ This is product image enhancement, not product generation. Work with what's prov
             }
           ],
           max_tokens: 4000
-        })
+        }),
+        signal: controller.signal
       });
+      
+      clearTimeout(timeoutId);
       
       console.log('[Debug] Request sent to OpenRouter with image URL and prompt');
 
@@ -230,6 +240,12 @@ This is product image enhancement, not product generation. Work with what's prov
     
     const analysisPrompt = `Analyze this image and provide detailed suggestions for: ${prompt}. Explain what changes could be made to achieve this effect, but note that this is analysis only - no actual image generation will occur.`;
     
+    // Create AbortController for timeout (vision models)
+    const visionController = new AbortController();
+    const visionTimeoutId = setTimeout(() => {
+      visionController.abort();
+    }, timeoutSeconds * 1000);
+
     const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
       method: 'POST',
       headers: {
@@ -258,8 +274,11 @@ This is product image enhancement, not product generation. Work with what's prov
           }
         ],
         max_tokens: 1000
-      })
+      }),
+      signal: visionController.signal
     });
+    
+    clearTimeout(visionTimeoutId);
 
     if (!response.ok) {
       const errorBody = await response.text();
@@ -277,6 +296,14 @@ This is product image enhancement, not product generation. Work with what's prov
     };
     
   } catch (error) {
+    const processingTime = Math.round((Date.now() - startTime) / 1000);
+    console.error('[Processing] Error:', error);
+    
+    // Check if it's a timeout error
+    if (error instanceof Error && error.name === 'AbortError') {
+      throw new Error(`Request timed out after ${timeoutSeconds} seconds`);
+    }
+    
     throw new Error(`Failed to process image: ${error instanceof Error ? error.message : 'Unknown error'}`);
   }
 }
@@ -584,9 +611,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Process image asynchronously
       try {
-        // Get user's API key if available
+        // Get user's API key and timeout configuration
         const userApiKey = modelConfig?.apiKey || undefined;
-        const result = await processImageWithOpenRouter(finalImageUrl, prompt, selectedModel, userApiKey);
+        const timeoutSeconds = modelConfig?.timeout || 120;
+        const result = await processImageWithOpenRouter(finalImageUrl, prompt, selectedModel, userApiKey, timeoutSeconds);
         
         // Update processing job
         await storage.updateImageProcessingJob(processingJob.id, {
