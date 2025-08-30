@@ -10,6 +10,7 @@ import {
 import multer from "multer";
 import path from "path";
 import fs from "fs";
+import crypto from "crypto";
 
 interface MulterRequest extends Request {
   file?: Express.Multer.File;
@@ -35,6 +36,42 @@ const upload = multer({
     }
   },
 });
+
+// Helper function to save generated images from base64 data
+async function saveGeneratedImage(imageData: any, prompt: string): Promise<string> {
+  try {
+    let base64Data: string;
+    
+    // Handle different image data formats
+    if (imageData.b64_json) {
+      base64Data = imageData.b64_json;
+    } else if (imageData.url && imageData.url.startsWith('data:image/')) {
+      // Extract base64 from data URL
+      base64Data = imageData.url.split(',')[1];
+    } else if (typeof imageData === 'string' && imageData.startsWith('data:image/')) {
+      base64Data = imageData.split(',')[1];
+    } else {
+      console.log('[SaveImage] Unsupported image data format:', imageData);
+      throw new Error('Unsupported image data format');
+    }
+    
+    // Generate unique filename
+    const hash = crypto.createHash('md5').update(base64Data + prompt).digest('hex');
+    const filename = `enhanced_${hash}.png`;
+    const filepath = path.join(uploadDir, filename);
+    
+    // Save base64 data to file
+    const buffer = Buffer.from(base64Data, 'base64');
+    fs.writeFileSync(filepath, buffer);
+    
+    console.log(`[SaveImage] Generated image saved: ${filename}`);
+    return `/api/images/${filename}`;
+    
+  } catch (error) {
+    console.error('[SaveImage] Error saving generated image:', error);
+    throw error;
+  }
+}
 
 async function processImageWithOpenRouter(
   imageUrl: string, 
@@ -70,13 +107,14 @@ async function processImageWithOpenRouter(
       },
       body: JSON.stringify({
         model,
+        modalities: ["text", "image"], // Enable image generation
         messages: [
           {
             role: 'user',
             content: [
               {
                 type: 'text',
-                text: `Please analyze and enhance this image based on the following request: ${prompt}. Provide a detailed description of the enhancements you would apply.`
+                text: `Based on this reference image, generate a new enhanced image with the following modifications: ${prompt}. Create an improved version that applies these changes while maintaining the overall composition and subject matter.`
               },
               {
                 type: 'image_url',
@@ -101,16 +139,43 @@ async function processImageWithOpenRouter(
     const result = await response.json();
     const processingTime = Math.round((Date.now() - startTime) / 1000);
     
-    // For demo purposes, we'll return the original image as processed
-    // In a real implementation, this would be the enhanced image URL
-    const enhancementsApplied = [
-      'Color saturation enhanced',
-      'Contrast optimization applied',
-      'Image sharpening performed'
-    ];
+    console.log('[OpenRouter] LLM Response:', JSON.stringify(result, null, 2));
+    
+    // Check if the response contains generated images
+    const choice = result.choices?.[0];
+    const message = choice?.message;
+    
+    // Look for generated images in the response
+    let generatedImageUrl = imageUrl; // Default to original
+    let enhancementsApplied = ['Analysis provided'];
+    
+    if (message?.content) {
+      // Check if content contains image data or if there are attachments
+      if (Array.isArray(message.content)) {
+        // Look for image content in array format
+        const imageContent = message.content.find((item: any) => item.type === 'image' || item.type === 'image_url');
+        if (imageContent) {
+          generatedImageUrl = await saveGeneratedImage(imageContent, prompt);
+          enhancementsApplied = [`Generated enhanced image based on: ${prompt}`];
+        } else {
+          enhancementsApplied = [`LLM Response: ${JSON.stringify(message.content)}`];
+        }
+      } else if (typeof message.content === 'string') {
+        enhancementsApplied = [`LLM Analysis: ${message.content}`];
+      }
+    }
+    
+    // Check for images in other response formats
+    if (result.data && Array.isArray(result.data)) {
+      const imageData = result.data.find((item: any) => item.url || item.b64_json);
+      if (imageData) {
+        generatedImageUrl = await saveGeneratedImage(imageData, prompt);
+        enhancementsApplied = [`Generated enhanced image: ${prompt}`];
+      }
+    }
 
     return {
-      processedImageUrl: imageUrl, // In real implementation, this would be the enhanced image
+      processedImageUrl: generatedImageUrl,
       enhancementsApplied,
       processingTime
     };
