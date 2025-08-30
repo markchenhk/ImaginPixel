@@ -50,14 +50,18 @@ async function processImageWithOpenRouter(
   }
 
   try {
-    // For this implementation, we'll simulate the OpenRouter API call
-    // In a real implementation, you would call the actual OpenRouter API
+    // Convert local image URL to full URL that OpenRouter can access
+    const baseUrl = process.env.REPLIT_DOMAINS?.split(',')[0] || 'http://localhost:5000';
+    const fullImageUrl = imageUrl.startsWith('http') ? imageUrl : `${baseUrl}${imageUrl}`;
+    
+    console.log(`[OpenRouter] Processing image: ${fullImageUrl} with model: ${model}`);
+    
     const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${keyToUse}`,
         'Content-Type': 'application/json',
-        'HTTP-Referer': process.env.REPLIT_DOMAINS?.split(',')[0] || 'http://localhost:5000',
+        'HTTP-Referer': baseUrl,
         'X-Title': 'AI Image Editor'
       },
       body: JSON.stringify({
@@ -73,7 +77,7 @@ async function processImageWithOpenRouter(
               {
                 type: 'image_url',
                 image_url: {
-                  url: imageUrl
+                  url: fullImageUrl
                 }
               }
             ]
@@ -84,7 +88,10 @@ async function processImageWithOpenRouter(
     });
 
     if (!response.ok) {
-      throw new Error(`OpenRouter API error: ${response.statusText}`);
+      const errorBody = await response.text();
+      console.error(`[OpenRouter] API Error ${response.status}: ${response.statusText}`);
+      console.error(`[OpenRouter] Error body: ${errorBody}`);
+      throw new Error(`OpenRouter API error: ${response.statusText} - ${errorBody}`);
     }
 
     const result = await response.json();
