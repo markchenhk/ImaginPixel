@@ -68,38 +68,24 @@ async function saveGeneratedImageToS3(imageData: any, prompt: string): Promise<s
     const hash = crypto.createHash('md5').update(base64Data + prompt).digest('hex');
     const filename = `enhanced_${hash}.png`;
     
-    // Save to temporary file first
-    const tempFilepath = path.join(uploadDir, filename);
+    // Convert base64 to buffer
     const buffer = Buffer.from(base64Data, 'base64');
-    fs.writeFileSync(tempFilepath, buffer);
     
-    // Upload to S3 and get object path
-    const uploadUrl = await objectStorageService.getObjectEntityUploadURL();
+    // Use the fallback upload system (S3 + local storage fallback)
+    console.log('[SaveImage] Uploading generated image with fallback system...');
+    const objectPath = await objectStorageService.uploadWithFallbacks(
+      buffer,
+      filename,
+      'image/png'
+    );
     
-    // Upload to S3 using the presigned URL
-    const uploadResponse = await fetch(uploadUrl, {
-      method: 'PUT',
-      body: buffer,
-      headers: {
-        'Content-Type': 'image/png',
-      },
-    });
-    
-    if (!uploadResponse.ok) {
-      throw new Error(`Failed to upload to S3: ${uploadResponse.statusText}`);
+    // Set ACL policy for public access if using S3 (generated images are public)
+    if (objectPath.startsWith('/objects/')) {
+      await objectStorageService.trySetObjectEntityAclPolicy(objectPath, {
+        owner: 'system', // System-generated images
+        visibility: 'public',
+      });
     }
-    
-    // Get the object path from the upload URL
-    const objectPath = objectStorageService.normalizeObjectEntityPath(uploadUrl);
-    
-    // Set ACL policy for public access (generated images are public)
-    await objectStorageService.trySetObjectEntityAclPolicy(uploadUrl, {
-      owner: 'system', // System-generated images
-      visibility: 'public',
-    });
-    
-    // Clean up temporary file
-    fs.unlinkSync(tempFilepath);
     
     console.log(`[SaveImage] Generated image saved to S3: ${objectPath}`);
     return objectPath;
