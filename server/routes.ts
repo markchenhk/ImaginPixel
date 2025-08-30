@@ -96,6 +96,10 @@ async function processImageWithOpenRouter(
     console.log(`[OpenRouter] Debug - BaseURL: ${baseUrl}`);
     console.log(`[OpenRouter] Debug - ImageURL: ${imageUrl}`);
     console.log(`[OpenRouter] Processing image: ${fullImageUrl} with model: ${model}`);
+    console.log(`[OpenRouter] User prompt: "${prompt}"`);
+    
+    const fullPrompt = `Using this reference image as inspiration, create a dramatically enhanced and improved version with these specific changes: ${prompt}. Make the enhancements clearly visible and impactful. Transform the image significantly while keeping the core subject recognizable. Apply bold improvements that create a striking before/after difference.`;
+    console.log(`[OpenRouter] Full prompt sent to AI: "${fullPrompt}"`);
     
     const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
       method: 'POST',
@@ -114,7 +118,7 @@ async function processImageWithOpenRouter(
             content: [
               {
                 type: 'text',
-                text: `Using this reference image as inspiration, create a dramatically enhanced and improved version with these specific changes: ${prompt}. Make the enhancements clearly visible and impactful. Transform the image significantly while keeping the core subject recognizable. Apply bold improvements that create a striking before/after difference.`
+                text: fullPrompt
               },
               {
                 type: 'image_url',
