@@ -74,50 +74,54 @@ export default function ImageEditor() {
 
       {/* Main Content Area */}
       <div className="flex-1 flex overflow-hidden">
-        {/* Chat Interface */}
-        <ChatInterface
-          conversationId={currentConversation?.id || null}
-          onConversationCreate={handleConversationCreate}
-          onImageProcessed={handleImageProcessed}
-          onSaveToLibrary={async (imageUrl, title) => {
-            try {
-              const response = await fetch('/api/library/save', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                  userId: 'default',
-                  title,
-                  objectPath: imageUrl,
-                  prompt: 'AI enhanced image',
-                  tags: ['ai-generated']
-                })
-              });
+        {/* Centered Chat Interface */}
+        <div className="flex-1 flex justify-center bg-slate-50/30 dark:bg-slate-800/30">
+          <div className="w-full max-w-4xl">
+            <ChatInterface
+              conversationId={currentConversation?.id || null}
+              onConversationCreate={handleConversationCreate}
+              onImageProcessed={handleImageProcessed}
+              onSaveToLibrary={async (imageUrl, title) => {
+                try {
+                  const response = await fetch('/api/library/save', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                      userId: 'default',
+                      title,
+                      objectPath: imageUrl,
+                      prompt: 'AI enhanced image',
+                      tags: ['ai-generated']
+                    })
+                  });
 
-              if (!response.ok) {
-                throw new Error('Failed to save image');
-              }
+                  if (!response.ok) {
+                    throw new Error('Failed to save image');
+                  }
 
-              // Update the processed image URL for the library panel
-              setProcessedImageUrl(imageUrl);
-              
-              // Refresh the library to show the new saved image
-              queryClient.invalidateQueries({ queryKey: ['/api/library', 'default'] });
-              
-              // Show success message
-              toast({
-                title: "Success",
-                description: "Image saved to library",
-              });
-            } catch (error) {
-              console.error('Error saving image:', error);
-              toast({
-                title: "Error",
-                description: "Failed to save image to library",
-                variant: "destructive",
-              });
-            }
-          }}
-        />
+                  // Update the processed image URL for the library panel
+                  setProcessedImageUrl(imageUrl);
+                  
+                  // Refresh the library to show the new saved image
+                  queryClient.invalidateQueries({ queryKey: ['/api/library', 'default'] });
+                  
+                  // Show success message
+                  toast({
+                    title: "Success",
+                    description: "Image saved to library",
+                  });
+                } catch (error) {
+                  console.error('Error saving image:', error);
+                  toast({
+                    title: "Error",
+                    description: "Failed to save image to library",
+                    variant: "destructive",
+                  });
+                }
+              }}
+            />
+          </div>
+        </div>
 
         {/* User Library Panel */}
         <UserLibraryPanel
