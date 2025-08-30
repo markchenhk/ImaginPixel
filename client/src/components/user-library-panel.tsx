@@ -131,7 +131,7 @@ export default function UserLibraryPanel({
   };
 
   return (
-    <div className="w-64 h-full border-l border-border bg-gradient-to-b from-card to-muted/10 flex flex-col">
+    <div className="w-80 h-full border-l border-border bg-gradient-to-b from-card to-muted/10 flex flex-col">
       {/* Header */}
       <div className="p-6 border-b border-border/50">
         <div className="flex items-center justify-between mb-4">

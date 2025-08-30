@@ -253,7 +253,7 @@ export default function ChatInterface({
   }, [messages]);
 
   return (
-    <div className="flex-1 border-r border-border flex flex-col">
+    <div className="w-1/2 border-r border-border flex flex-col bg-gradient-to-b from-background to-muted/20">
       {/* Chat Messages */}
       <ScrollArea className="flex-1 p-6">
         <div className="space-y-6">
