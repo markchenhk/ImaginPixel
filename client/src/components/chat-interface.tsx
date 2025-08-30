@@ -110,6 +110,7 @@ export default function ChatInterface({
         queryClient.fetchQuery({
           queryKey: ['/api/processing-jobs', result.aiMessage.id],
         }).then((job: any) => {
+          console.log('Polling job:', result.aiMessage.id, 'Status:', job?.status);
           if (job.status === 'completed') {
             if (job.processedImageUrl) {
               onImageProcessed(job.originalImageUrl, job.processedImageUrl);
@@ -123,16 +124,28 @@ export default function ChatInterface({
             const delay = pollCount < 3 ? 1000 : pollCount < 10 ? 3000 : 5000;
             setTimeout(pollJob, delay);
           }
-        }).catch(() => {
+        }).catch((error) => {
+          console.log('Polling error:', error);
           // Stop polling on error after a few retries
           if (pollCount < 5) {
             setTimeout(pollJob, 5000);
             pollCount++;
+          } else {
+            console.log('Stopped polling after 5 retries');
+            // Force refresh messages anyway in case job completed but polling failed
+            queryClient.invalidateQueries({ queryKey: ['/api/conversations', conversationId, 'messages'] });
+            queryClient.refetchQueries({ queryKey: ['/api/conversations', conversationId, 'messages'] });
           }
         });
       };
       
       setTimeout(pollJob, 500); // Start faster
+      
+      // Also schedule a safety refresh in case polling fails
+      setTimeout(() => {
+        queryClient.invalidateQueries({ queryKey: ['/api/conversations', conversationId, 'messages'] });
+        queryClient.refetchQueries({ queryKey: ['/api/conversations', conversationId, 'messages'] });
+      }, 15000); // Safety refresh after 15 seconds
     },
     onError: (error: Error) => {
       toast({
