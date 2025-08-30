@@ -31,6 +31,8 @@ Preferred communication style: Simple, everyday language.
 - **Messages**: Store user and assistant messages with image URLs and processing status
 - **Image Processing Jobs**: Track async image processing with status, timing, and enhancement details
 - **Model Configurations**: Store user preferences for AI models and processing settings
+- **Database Relations**: Fully linked schema with conversations→messages→jobs relationships
+- **User Context API**: Endpoints for retrieving conversation history with full message context
 
 ### Image Processing Pipeline
 - **Upload Handling**: Local file storage with type validation (JPEG, PNG, WebP)
@@ -39,7 +41,8 @@ Preferred communication style: Simple, everyday language.
 - **Comparison Interface**: Side-by-side before/after image viewer with slider control
 
 ### Development Environment
-- **Memory Storage**: In-memory data storage for development (production-ready for database migration)
+- **Database Storage**: PostgreSQL with Drizzle ORM for persistent data storage
+- **User Context**: Full conversation history tracking with message relationships
 - **Hot Reloading**: Vite development server with HMR
 - **Type Safety**: Shared TypeScript schemas between frontend and backend
 - **Error Handling**: Comprehensive error boundaries and API error management

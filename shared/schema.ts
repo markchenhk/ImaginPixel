@@ -1,4 +1,4 @@
-import { sql } from "drizzle-orm";
+import { sql, relations } from "drizzle-orm";
 import { pgTable, text, varchar, timestamp, json, integer } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
@@ -80,3 +80,32 @@ export type InsertImageProcessingJob = z.infer<typeof insertImageProcessingJobSc
 
 export type ModelConfiguration = typeof modelConfigurations.$inferSelect;
 export type InsertModelConfiguration = z.infer<typeof insertModelConfigurationSchema>;
+
+// Relations for user context functionality
+export const conversationsRelations = relations(conversations, ({ many }) => ({
+  messages: many(messages),
+}));
+
+export const messagesRelations = relations(messages, ({ one, many }) => ({
+  conversation: one(conversations, {
+    fields: [messages.conversationId],
+    references: [conversations.id],
+  }),
+  imageProcessingJobs: many(imageProcessingJobs),
+}));
+
+export const imageProcessingJobsRelations = relations(imageProcessingJobs, ({ one }) => ({
+  message: one(messages, {
+    fields: [imageProcessingJobs.messageId],
+    references: [messages.id],
+  }),
+}));
+
+// User Context Types for better conversation handling
+export type ConversationWithMessages = Conversation & {
+  messages: Message[];
+};
+
+export type MessageWithJob = Message & {
+  imageProcessingJobs?: ImageProcessingJob[];
+};

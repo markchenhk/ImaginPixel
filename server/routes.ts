@@ -223,6 +223,52 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // User Context API endpoints - 用户上下文功能
+  
+  // Get conversation with full message history and context
+  app.get("/api/conversations/:id/context", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const conversationWithMessages = await storage.getConversationWithMessages(id);
+      
+      if (!conversationWithMessages) {
+        return res.status(404).json({ message: "Conversation not found" });
+      }
+      
+      res.json(conversationWithMessages);
+    } catch (error) {
+      res.status(500).json({ 
+        message: error instanceof Error ? error.message : "Failed to fetch conversation context" 
+      });
+    }
+  });
+
+  // Get recent conversations with messages for user context
+  app.get("/api/conversations/recent", async (req, res) => {
+    try {
+      const limit = parseInt(req.query.limit as string) || 10;
+      const recentConversations = await storage.getRecentConversationsWithMessages(limit);
+      res.json(recentConversations);
+    } catch (error) {
+      res.status(500).json({ 
+        message: error instanceof Error ? error.message : "Failed to fetch recent conversations" 
+      });
+    }
+  });
+
+  // Get user conversation history with full context
+  app.get("/api/user/conversations", async (req, res) => {
+    try {
+      const userId = req.query.userId as string || "default";
+      const conversationHistory = await storage.getUserConversationHistory(userId);
+      res.json(conversationHistory);
+    } catch (error) {
+      res.status(500).json({ 
+        message: error instanceof Error ? error.message : "Failed to fetch user conversation history" 
+      });
+    }
+  });
+
   // Upload image endpoint
   app.post("/api/upload", upload.single('image'), async (req: MulterRequest, res) => {
     try {

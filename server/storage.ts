@@ -6,9 +6,16 @@ import {
   type ImageProcessingJob,
   type InsertImageProcessingJob,
   type ModelConfiguration,
-  type InsertModelConfiguration
+  type InsertModelConfiguration,
+  type ConversationWithMessages,
+  type MessageWithJob,
+  conversations,
+  messages,
+  imageProcessingJobs,
+  modelConfigurations
 } from "@shared/schema";
-import { randomUUID } from "crypto";
+import { db } from "./db";
+import { eq, desc } from "drizzle-orm";
 
 export interface IStorage {
   // Conversations
@@ -32,159 +39,186 @@ export interface IStorage {
   // Model Configuration
   getModelConfiguration(userId?: string): Promise<ModelConfiguration | undefined>;
   createOrUpdateModelConfiguration(config: InsertModelConfiguration): Promise<ModelConfiguration>;
+
+  // User Context Functions - 用户上下文功能
+  getConversationWithMessages(conversationId: string): Promise<ConversationWithMessages | undefined>;
+  getRecentConversationsWithMessages(limit?: number): Promise<ConversationWithMessages[]>;
+  getUserConversationHistory(userId?: string): Promise<ConversationWithMessages[]>;
 }
 
-export class MemStorage implements IStorage {
-  private conversations: Map<string, Conversation>;
-  private messages: Map<string, Message>;
-  private imageProcessingJobs: Map<string, ImageProcessingJob>;
-  private modelConfigurations: Map<string, ModelConfiguration>;
 
-  constructor() {
-    this.conversations = new Map();
-    this.messages = new Map();
-    this.imageProcessingJobs = new Map();
-    this.modelConfigurations = new Map();
-  }
-
+export class DatabaseStorage implements IStorage {
   // Conversations
   async getConversations(): Promise<Conversation[]> {
-    return Array.from(this.conversations.values()).sort((a, b) => 
-      new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-    );
+    return await db.select().from(conversations).orderBy(desc(conversations.createdAt));
   }
 
   async getConversation(id: string): Promise<Conversation | undefined> {
-    return this.conversations.get(id);
+    const [conversation] = await db.select().from(conversations).where(eq(conversations.id, id));
+    return conversation;
   }
 
   async createConversation(insertConversation: InsertConversation): Promise<Conversation> {
-    const id = randomUUID();
-    const conversation: Conversation = {
-      ...insertConversation,
-      id,
-      createdAt: new Date(),
-    };
-    this.conversations.set(id, conversation);
+    const [conversation] = await db
+      .insert(conversations)
+      .values(insertConversation)
+      .returning();
     return conversation;
   }
 
   async deleteConversation(id: string): Promise<boolean> {
-    return this.conversations.delete(id);
+    const result = await db.delete(conversations).where(eq(conversations.id, id));
+    return result.rowCount ? result.rowCount > 0 : false;
   }
 
   // Messages
   async getMessagesByConversation(conversationId: string): Promise<Message[]> {
-    return Array.from(this.messages.values())
-      .filter(message => message.conversationId === conversationId)
-      .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+    return await db
+      .select()
+      .from(messages)
+      .where(eq(messages.conversationId, conversationId))
+      .orderBy(messages.createdAt);
   }
 
   async getMessage(id: string): Promise<Message | undefined> {
-    return this.messages.get(id);
+    const [message] = await db.select().from(messages).where(eq(messages.id, id));
+    return message;
   }
 
   async createMessage(insertMessage: InsertMessage): Promise<Message> {
-    const id = randomUUID();
-    const message: Message = {
-      ...insertMessage,
-      id,
-      createdAt: new Date(),
-      imageUrl: insertMessage.imageUrl || null,
-      processingStatus: insertMessage.processingStatus || null,
-    };
-    this.messages.set(id, message);
+    const [message] = await db
+      .insert(messages)
+      .values(insertMessage)
+      .returning();
     return message;
   }
 
   async updateMessage(id: string, updates: Partial<Message>): Promise<Message | undefined> {
-    const message = this.messages.get(id);
-    if (!message) return undefined;
-    
-    const updatedMessage = { ...message, ...updates };
-    this.messages.set(id, updatedMessage);
-    return updatedMessage;
+    const [message] = await db
+      .update(messages)
+      .set(updates)
+      .where(eq(messages.id, id))
+      .returning();
+    return message;
   }
 
   // Image Processing Jobs
   async getImageProcessingJob(id: string): Promise<ImageProcessingJob | undefined> {
-    return this.imageProcessingJobs.get(id);
+    const [job] = await db.select().from(imageProcessingJobs).where(eq(imageProcessingJobs.id, id));
+    return job;
   }
 
   async getImageProcessingJobByMessage(messageId: string): Promise<ImageProcessingJob | undefined> {
-    return Array.from(this.imageProcessingJobs.values()).find(job => job.messageId === messageId);
+    const [job] = await db
+      .select()
+      .from(imageProcessingJobs)
+      .where(eq(imageProcessingJobs.messageId, messageId));
+    return job;
   }
 
   async createImageProcessingJob(insertJob: InsertImageProcessingJob): Promise<ImageProcessingJob> {
-    const id = randomUUID();
-    const job: ImageProcessingJob = {
-      ...insertJob,
-      id,
-      status: insertJob.status || 'processing', // Fix: ensure status is always a string
-      createdAt: new Date(),
-      completedAt: null,
-      processedImageUrl: null,
-      processingTime: null,
-      errorMessage: null,
-      enhancementsApplied: null,
-    };
-    this.imageProcessingJobs.set(id, job);
+    const [job] = await db
+      .insert(imageProcessingJobs)
+      .values({
+        messageId: insertJob.messageId,
+        originalImageUrl: insertJob.originalImageUrl,
+        prompt: insertJob.prompt,
+        model: insertJob.model,
+        status: insertJob.status || 'pending'
+      })
+      .returning();
     return job;
   }
 
   async updateImageProcessingJob(id: string, updates: Partial<ImageProcessingJob>): Promise<ImageProcessingJob | undefined> {
-    const job = this.imageProcessingJobs.get(id);
-    if (!job) return undefined;
-    
-    const updatedJob = { ...job, ...updates };
+    const setData: any = { ...updates };
     if (updates.status === 'completed' || updates.status === 'error') {
-      updatedJob.completedAt = new Date();
+      setData.completedAt = new Date();
     }
-    this.imageProcessingJobs.set(id, updatedJob);
-    return updatedJob;
+    
+    const [job] = await db
+      .update(imageProcessingJobs)
+      .set(setData)
+      .where(eq(imageProcessingJobs.id, id))
+      .returning();
+    return job;
   }
 
   // Model Configuration
   async getModelConfiguration(userId: string = "default"): Promise<ModelConfiguration | undefined> {
-    return this.modelConfigurations.get(userId);
+    const [config] = await db
+      .select()
+      .from(modelConfigurations)
+      .where(eq(modelConfigurations.userId, userId));
+    return config;
   }
 
   async createOrUpdateModelConfiguration(insertConfig: InsertModelConfiguration): Promise<ModelConfiguration> {
     const userId = insertConfig.userId || "default";
-    const existing = this.modelConfigurations.get(userId);
     
-    if (existing) {
-      const updated: ModelConfiguration = {
-        id: existing.id,
-        userId: insertConfig.userId || existing.userId,
-        selectedModel: insertConfig.selectedModel || existing.selectedModel,
-        outputQuality: insertConfig.outputQuality || existing.outputQuality,
-        maxResolution: insertConfig.maxResolution || existing.maxResolution,
-        timeout: insertConfig.timeout || existing.timeout,
-        apiKey: insertConfig.apiKey !== undefined ? insertConfig.apiKey : existing.apiKey,
-        apiKeyConfigured: insertConfig.apiKeyConfigured || existing.apiKeyConfigured,
-        updatedAt: new Date(),
-      };
-      console.log('Updating model configuration:', updated);
-      this.modelConfigurations.set(userId, updated);
-      return updated;
-    } else {
-      const id = randomUUID();
-      const config: ModelConfiguration = {
-        id,
+    // Try to update existing configuration
+    const [updatedConfig] = await db
+      .insert(modelConfigurations)
+      .values({
+        ...insertConfig,
         userId,
-        selectedModel: insertConfig.selectedModel || 'openai/gpt-4o',
-        outputQuality: insertConfig.outputQuality || 'high',
-        maxResolution: insertConfig.maxResolution || 2048,
-        timeout: insertConfig.timeout || 120,
-        apiKey: insertConfig.apiKey || null,
-        apiKeyConfigured: insertConfig.apiKeyConfigured || 'false',
-        updatedAt: new Date(),
-      };
-      this.modelConfigurations.set(userId, config);
-      return config;
-    }
+        updatedAt: new Date()
+      })
+      .onConflictDoUpdate({
+        target: modelConfigurations.userId,
+        set: {
+          ...insertConfig,
+          updatedAt: new Date()
+        }
+      })
+      .returning();
+    
+    return updatedConfig;
+  }
+
+  // User Context Functions - 用户上下文功能
+  async getConversationWithMessages(conversationId: string): Promise<ConversationWithMessages | undefined> {
+    // Get conversation with all messages and their image processing jobs
+    const conversation = await this.getConversation(conversationId);
+    if (!conversation) return undefined;
+
+    const conversationMessages = await db.query.messages.findMany({
+      where: eq(messages.conversationId, conversationId),
+      orderBy: [messages.createdAt],
+      with: {
+        imageProcessingJobs: true,
+      },
+    });
+
+    return {
+      ...conversation,
+      messages: conversationMessages as MessageWithJob[],
+    };
+  }
+
+  async getRecentConversationsWithMessages(limit: number = 10): Promise<ConversationWithMessages[]> {
+    // Get recent conversations with their messages for context
+    const recentConversations = await db.query.conversations.findMany({
+      orderBy: [desc(conversations.createdAt)],
+      limit,
+      with: {
+        messages: {
+          orderBy: [messages.createdAt],
+          with: {
+            imageProcessingJobs: true,
+          },
+        },
+      },
+    });
+
+    return recentConversations as ConversationWithMessages[];
+  }
+
+  async getUserConversationHistory(userId: string = "default"): Promise<ConversationWithMessages[]> {
+    // Get all conversations for a user with full context
+    // For now, returning all conversations since we don't have user-specific conversations yet
+    return this.getRecentConversationsWithMessages(50);
   }
 }
 
-export const storage = new MemStorage();
+export const storage = new DatabaseStorage();
