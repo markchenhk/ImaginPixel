@@ -638,9 +638,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Process image with AI
-  app.post("/api/process-image", async (req, res) => {
+  app.post("/api/process-image", isAuthenticated, async (req: any, res) => {
     try {
       const { conversationId, imageUrl, prompt } = req.body;
+      const userId = req.user?.claims?.sub || req.user?.id || 'default';
+      console.log('[Processing] Request from user:', userId);
       
       if (!conversationId || !prompt) {
         return res.status(400).json({ 
@@ -659,8 +661,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
 
-      // Get model configuration
-      const modelConfig = await storage.getModelConfiguration();
+      // Get model configuration for the authenticated user
+      const modelConfig = await storage.getModelConfiguration(userId);
+      console.log('[Processing] Model config retrieved:', JSON.stringify(modelConfig, null, 2));
       const selectedModel = modelConfig?.selectedModel || 'gpt-4-vision';
 
       // Create user message (only include imageUrl if it's a new upload)
