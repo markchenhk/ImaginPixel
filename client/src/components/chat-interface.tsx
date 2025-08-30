@@ -253,7 +253,8 @@ export default function ChatInterface({
   }, [messages]);
 
   return (
-    <div className="flex-1 border-r border-[#2a2a2a] flex flex-col bg-[#1e1e1e]">
+    <div className="flex-1 flex justify-center bg-[#1e1e1e]">
+      <div className="w-1/2 border-r border-[#2a2a2a] flex flex-col bg-[#1e1e1e]">
       {/* Chat Messages */}
       <ScrollArea className="flex-1 p-6">
         <div className="space-y-6">
@@ -470,6 +471,7 @@ export default function ChatInterface({
           ))}
         </div>
       </div>
+    </div>
     </div>
   );
 }
