@@ -367,7 +367,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Auth routes
   app.get('/api/auth/user', isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.user?.claims?.sub || req.user?.id || 'default';
       const user = await storage.getUser(userId);
       res.json(user);
     } catch (error) {
@@ -379,7 +379,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Get all conversations for authenticated user
   app.get("/api/conversations", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.user?.claims?.sub || req.user?.id || 'default';
       const conversations = await storage.getConversations(userId);
       res.json(conversations);
     } catch (error) {
@@ -392,11 +392,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Create a new conversation (requires authentication)
   app.post("/api/conversations", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      // More defensive access to user ID
+      const userId = req.user?.claims?.sub || req.user?.id || 'default';
+      console.log('[Conversation] Creating for user:', userId, 'Body:', req.body);
+      
       const validatedData = insertConversationSchema.parse({...req.body, userId});
       const conversation = await storage.createConversation(validatedData);
       res.status(201).json(conversation);
     } catch (error) {
+      console.error('[Conversation] Creation error:', error);
       res.status(400).json({ 
         message: error instanceof Error ? error.message : "Failed to create conversation" 
       });
