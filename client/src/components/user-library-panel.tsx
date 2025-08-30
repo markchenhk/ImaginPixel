@@ -131,14 +131,17 @@ export default function UserLibraryPanel({
   };
 
   return (
-    <div className="w-80 h-full border-l border-border bg-card flex flex-col">
+    <div className="w-80 h-full border-l border-border bg-gradient-to-b from-card to-muted/10 flex flex-col">
       {/* Header */}
-      <div className="p-4 border-b border-border">
-        <div className="flex items-center justify-between mb-3">
-          <h2 className="font-semibold">My Library</h2>
-          <div className="flex items-center gap-1 text-xs text-muted-foreground">
-            <ImageIcon className="w-3 h-3" />
-            <span>{filteredImages.length}</span>
+      <div className="p-6 border-b border-border/50">
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <h2 className="text-lg font-semibold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">My Library</h2>
+            <p className="text-xs text-muted-foreground">Generated images will appear here</p>
+          </div>
+          <div className="flex items-center gap-2 text-sm bg-secondary/50 rounded-full px-3 py-1">
+            <ImageIcon className="w-3 h-3 text-blue-500" />
+            <span className="font-medium">{filteredImages.length}</span>
           </div>
         </div>
         
@@ -147,8 +150,8 @@ export default function UserLibraryPanel({
           <Button 
             onClick={handleSaveCurrentImage}
             disabled={saveImageMutation.isPending}
-            size="sm"
-            className="w-full mb-3"
+            size="default"
+            className="w-full mb-4 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white shadow-lg"
             data-testid="button-save-to-library"
           >
             <Plus className="w-4 h-4 mr-2" />
@@ -184,9 +187,11 @@ export default function UserLibraryPanel({
             ))}
           </div>
         ) : filteredImages.length === 0 ? (
-          <div className="text-center py-8">
-            <ImageIcon className="w-8 h-8 mx-auto text-muted-foreground mb-2" />
-            <p className="text-xs text-muted-foreground mb-2">
+          <div className="text-center py-12">
+            <div className="w-16 h-16 mx-auto mb-4 bg-gradient-to-br from-blue-100 to-purple-100 rounded-full flex items-center justify-center">
+              <ImageIcon className="w-8 h-8 text-blue-500" />
+            </div>
+            <p className="text-sm font-medium text-foreground mb-1">
               {searchTerm ? "No matches found" : "No saved images yet"}
             </p>
             {!searchTerm && (

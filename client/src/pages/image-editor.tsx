@@ -34,36 +34,40 @@ export default function ImageEditor() {
   return (
     <div className="h-screen flex flex-col bg-background text-foreground">
       {/* Header */}
-      <header className="border-b border-border px-6 py-4 flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-purple-600 rounded-lg flex items-center justify-center">
-            <Wand2 className="w-4 h-4 text-white" />
+      <header className="border-b border-border/50 px-6 py-5 flex items-center justify-between bg-gradient-to-r from-background to-muted/20 backdrop-blur-sm">
+        <div className="flex items-center gap-4">
+          <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-purple-600 rounded-xl flex items-center justify-center shadow-lg">
+            <Wand2 className="w-5 h-5 text-white" />
           </div>
           <div>
-            <h1 className="text-lg font-semibold">AI Image Editor</h1>
-            <p className="text-xs text-muted-foreground">Powered by LLM Models</p>
+            <h1 className="text-xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+              AI Image Editor
+            </h1>
+            <p className="text-sm text-muted-foreground">Powered by LLM Models</p>
           </div>
         </div>
         
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-6">
           {/* Model Status Indicator */}
-          <div className="flex items-center gap-2 text-sm">
-            <div className={`w-2 h-2 rounded-full ${
+          <div className="flex items-center gap-3 bg-card/50 rounded-full px-4 py-2 border border-border/30">
+            <div className={`w-2 h-2 rounded-full animate-pulse ${
               modelConfig?.apiKeyConfigured === 'true' ? 'bg-green-500' : 'bg-yellow-500'
             }`} />
-            <span className="text-muted-foreground" data-testid="selected-model">
+            <span className="text-sm font-medium text-foreground" data-testid="selected-model">
               {getModelDisplayName(modelConfig?.selectedModel || 'openai/gpt-4o')}
             </span>
           </div>
           
           {/* Settings Button */}
           <Button
-            variant="secondary"
-            size="sm"
+            variant="outline"
+            size="default"
             onClick={() => setConfigOpen(true)}
             data-testid="settings-button"
+            className="bg-card/50 hover:bg-card border-border/30 shadow-sm"
           >
-            <Settings className="w-4 h-4" />
+            <Settings className="w-4 h-4 mr-2" />
+            Settings
           </Button>
         </div>
       </header>

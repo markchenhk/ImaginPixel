@@ -253,21 +253,21 @@ export default function ChatInterface({
   }, [messages]);
 
   return (
-    <div className="w-1/2 border-r border-border flex flex-col">
+    <div className="w-1/2 border-r border-border flex flex-col bg-gradient-to-b from-background to-muted/20">
       {/* Chat Messages */}
       <ScrollArea className="flex-1 p-6">
-        <div className="space-y-4">
+        <div className="space-y-6">
           {/* Welcome Message */}
           {messages.length === 0 && (
-            <div className="chat-message">
-              <div className="flex items-start gap-3">
-                <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center flex-shrink-0">
-                  <Bot className="w-4 h-4 text-white" />
+            <div className="chat-message animate-in fade-in-0 slide-in-from-bottom-2 duration-500">
+              <div className="flex items-start gap-4">
+                <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center flex-shrink-0 shadow-lg">
+                  <Bot className="w-5 h-5 text-white" />
                 </div>
-                <div className="bg-secondary rounded-lg p-4 max-w-sm">
-                  <p className="text-sm">
+                <div className="bg-gradient-to-br from-secondary to-secondary/80 rounded-2xl p-5 max-w-md shadow-sm border border-border/50">
+                  <p className="text-sm leading-relaxed text-foreground/90">
                     Welcome! Upload an image and tell me how you'd like to enhance or modify it. 
-                    I can help with color correction, style transfer, object removal, and much more.
+                    I can help with <span className="font-medium text-blue-600">color correction</span>, <span className="font-medium text-purple-600">style transfer</span>, <span className="font-medium text-green-600">object removal</span>, and much more.
                   </p>
                 </div>
               </div>
@@ -275,32 +275,35 @@ export default function ChatInterface({
           )}
 
           {/* Messages */}
-          {messages.map((message) => (
-            <div key={message.id} className="chat-message">
-              <div className={`flex items-start gap-3 ${message.role === 'user' ? 'justify-end' : ''}`}>
+          {messages.map((message, index) => (
+            <div key={message.id} className="chat-message animate-in fade-in-0 slide-in-from-bottom-1 duration-300" style={{animationDelay: `${index * 50}ms`}}>
+              <div className={`flex items-start gap-4 ${message.role === 'user' ? 'justify-end' : ''}`}>
                 {message.role === 'assistant' && (
-                  <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center flex-shrink-0">
-                    <Bot className="w-4 h-4 text-white" />
+                  <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center flex-shrink-0 shadow-lg">
+                    <Bot className="w-5 h-5 text-white" />
                   </div>
                 )}
                 
-                <div className={`rounded-lg p-4 max-w-sm ${
+                <div className={`rounded-2xl p-5 max-w-md shadow-sm border transition-all hover:shadow-md ${
                   message.role === 'user' 
-                    ? 'bg-blue-600 text-white' 
-                    : 'bg-secondary'
+                    ? 'bg-gradient-to-br from-blue-600 to-blue-700 text-white border-blue-500/20' 
+                    : 'bg-gradient-to-br from-secondary to-secondary/80 border-border/50'
                 }`}>
                   {message.imageUrl && (
-                    <div className="mb-3">
-                      <img 
-                        src={message.imageUrl} 
-                        alt="Generated image" 
-                        className="rounded-lg w-full max-w-xs mb-2"
-                        data-testid={`message-image-${message.id}`}
-                      />
+                    <div className="mb-4">
+                      <div className="relative group">
+                        <img 
+                          src={message.imageUrl} 
+                          alt="Generated image" 
+                          className="rounded-xl w-full max-w-sm mb-3 transition-transform hover:scale-[1.02] shadow-lg border border-border/20"
+                          data-testid={`message-image-${message.id}`}
+                        />
+                        <div className="absolute inset-0 bg-black/0 hover:bg-black/5 rounded-xl transition-colors" />
+                      </div>
                       {message.role === 'assistant' && message.processingStatus === 'completed' && (
-                        <div className="flex gap-2 mt-2">
+                        <div className="flex gap-2">
                           <Button
-                            variant="outline"
+                            variant="secondary"
                             size="sm"
                             onClick={() => {
                               const link = document.createElement('a');
@@ -311,13 +314,13 @@ export default function ChatInterface({
                               document.body.removeChild(link);
                             }}
                             data-testid={`download-image-${message.id}`}
-                            className="text-xs"
+                            className="text-xs bg-white/10 hover:bg-white/20 border-white/20 text-foreground shadow-sm transition-all"
                           >
                             <Download className="w-3 h-3 mr-1" />
                             Download
                           </Button>
                           <Button
-                            variant="outline"
+                            variant="secondary" 
                             size="sm"
                             onClick={() => {
                               if (onSaveToLibrary && message.imageUrl) {
@@ -325,7 +328,7 @@ export default function ChatInterface({
                               }
                             }}
                             data-testid={`save-image-${message.id}`}
-                            className="text-xs"
+                            className="text-xs bg-white/10 hover:bg-white/20 border-white/20 text-foreground shadow-sm transition-all"
                           >
                             <Heart className="w-3 h-3 mr-1" />
                             Save
@@ -337,23 +340,23 @@ export default function ChatInterface({
                   
                   <div className="text-sm">
                     {message.processingStatus === 'processing' && (
-                      <div className="flex items-center gap-2 mb-2">
+                      <div className="flex items-center gap-3 mb-3">
                         <div className="loading-dots">
                           <span></span>
                           <span></span>
                           <span></span>
                         </div>
-                        <span className="font-medium">Processing image...</span>
+                        <span className="font-medium text-blue-600 animate-pulse">Processing image...</span>
                       </div>
                     )}
                     
-                    <p className="whitespace-pre-wrap">{message.content}</p>
+                    <p className="whitespace-pre-wrap leading-relaxed">{message.content}</p>
                   </div>
                 </div>
 
                 {message.role === 'user' && (
-                  <div className="w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center flex-shrink-0">
-                    <User className="w-4 h-4 text-white" />
+                  <div className="w-10 h-10 bg-gradient-to-br from-blue-600 to-blue-700 rounded-full flex items-center justify-center flex-shrink-0 shadow-lg">
+                    <User className="w-5 h-5 text-white" />
                   </div>
                 )}
               </div>
@@ -365,24 +368,27 @@ export default function ChatInterface({
       </ScrollArea>
 
       {/* Chat Input */}
-      <div className="border-t border-border p-4">
+      <div className="border-t border-border/50 p-6 bg-gradient-to-t from-muted/10 to-background">
         {/* Image Upload Zone */}
 
         {/* Uploaded Image Preview */}
         {uploadedImage && (
-          <div className="mb-4 p-3 bg-secondary rounded-lg flex items-center gap-3">
-            <ImageIcon className="w-5 h-5 text-muted-foreground" />
+          <div className="mb-4 p-4 bg-gradient-to-r from-secondary/80 to-secondary rounded-xl border border-border/30 flex items-center gap-4 shadow-sm">
+            <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
+              <ImageIcon className="w-5 h-5 text-blue-600" />
+            </div>
             <div className="flex-1">
               <p className="text-sm font-medium">{uploadedImage.originalName}</p>
               <p className="text-xs text-muted-foreground">
-                {(uploadedImage.size / 1024 / 1024).toFixed(2)} MB
+                {(uploadedImage.size / 1024 / 1024).toFixed(2)} MB • Ready to process
               </p>
             </div>
             <Button
-              variant="ghost"
+              variant="outline"
               size="sm"
               onClick={() => setUploadedImage(null)}
               data-testid="remove-image-button"
+              className="bg-white/50 hover:bg-white/80 border-border/30"
             >
               Remove
             </Button>
@@ -391,9 +397,9 @@ export default function ChatInterface({
 
         {/* Context Indicator */}
         {!uploadedImage && messages.length > 0 && (
-          <div className="mb-2 p-2 bg-blue-50 dark:bg-blue-950/20 rounded-lg border border-blue-200 dark:border-blue-800">
-            <p className="text-xs text-blue-700 dark:text-blue-300 flex items-center gap-1">
-              <ImageIcon className="w-3 h-3" />
+          <div className="mb-4 p-3 bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-950/20 dark:to-purple-950/20 rounded-xl border border-blue-200/50 dark:border-blue-800/50 shadow-sm">
+            <p className="text-sm text-blue-700 dark:text-blue-300 flex items-center gap-2 font-medium">
+              <ImageIcon className="w-4 h-4" />
               Using latest image from conversation context
             </p>
           </div>
