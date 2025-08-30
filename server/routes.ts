@@ -691,6 +691,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         model: selectedModel,
         status: 'processing'
       });
+      
+      console.log('[Processing] Created job:', processingJob.id);
 
       res.json({ 
         userMessage, 
@@ -699,40 +701,58 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
 
       // Process image asynchronously
-      try {
-        // Get timeout configuration
-        const timeoutSeconds = modelConfig?.timeout || 120;
-        const result = await processImageWithFailover(finalImageUrl, prompt, modelConfig, timeoutSeconds);
-        
-        // Update processing job (include model used)
-        await storage.updateImageProcessingJob(processingJob.id, {
-          status: 'completed',
-          processedImageUrl: result.processedImageUrl,
-          processingTime: result.processingTime,
-          enhancementsApplied: result.enhancementsApplied,
-          model: result.modelUsed // Update the model field with the actually used model
-        });
+      setImmediate(async () => {
+        try {
+          console.log('[Processing] Starting async processing for job:', processingJob.id);
+          
+          // Get timeout configuration
+          const timeoutSeconds = modelConfig?.timeout || 120;
+          const result = await processImageWithFailover(finalImageUrl, prompt, modelConfig, timeoutSeconds);
+          
+          console.log('[Processing] Failover completed, updating job:', processingJob.id);
+          
+          // Update processing job (include model used)
+          await storage.updateImageProcessingJob(processingJob.id, {
+            status: 'completed',
+            processedImageUrl: result.processedImageUrl,
+            processingTime: result.processingTime,
+            enhancementsApplied: result.enhancementsApplied,
+            model: result.modelUsed // Update the model field with the actually used model
+          });
 
-        // Update AI message
-        await storage.updateMessage(aiMessage.id, {
-          content: `✨ Image enhanced successfully`,
-          imageUrl: result.processedImageUrl, // Add the processed image URL for before/after comparison
-          processingStatus: 'completed'
-        });
+          console.log('[Processing] Job updated successfully:', processingJob.id);
 
-      } catch (error) {
-        // Update processing job with error
-        await storage.updateImageProcessingJob(processingJob.id, {
-          status: 'error',
-          errorMessage: error instanceof Error ? error.message : 'Unknown error'
-        });
+          // Update AI message
+          await storage.updateMessage(aiMessage.id, {
+            content: `✨ Image enhanced successfully`,
+            imageUrl: result.processedImageUrl, // Add the processed image URL for before/after comparison
+            processingStatus: 'completed'
+          });
 
-        // Update AI message with error
-        await storage.updateMessage(aiMessage.id, {
-          content: `Sorry, I encountered an error while processing your image: ${error instanceof Error ? error.message : 'Unknown error'}`,
-          processingStatus: 'error'
-        });
-      }
+          console.log('[Processing] Message updated successfully for job:', processingJob.id);
+
+        } catch (error) {
+          console.error('[Processing] Error during async processing:', error);
+          
+          try {
+            // Update processing job with error
+            await storage.updateImageProcessingJob(processingJob.id, {
+              status: 'error',
+              errorMessage: error instanceof Error ? error.message : 'Unknown error'
+            });
+
+            // Update AI message with error
+            await storage.updateMessage(aiMessage.id, {
+              content: `Sorry, I encountered an error while processing your image: ${error instanceof Error ? error.message : 'Unknown error'}`,
+              processingStatus: 'error'
+            });
+            
+            console.log('[Processing] Error status updated for job:', processingJob.id);
+          } catch (updateError) {
+            console.error('[Processing] Failed to update error status:', updateError);
+          }
+        }
+      });
 
     } catch (error) {
       res.status(500).json({ 
