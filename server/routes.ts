@@ -96,7 +96,7 @@ async function processImageWithOpenRouter(
     const fullImageUrl = imageUrl.startsWith('http') ? imageUrl : `${baseUrl}${imageUrl}`;
     
     // Check if this is Gemini 2.5 Flash Image (image generation model)
-    if (model === 'google/gemini-2.5-flash-image') {
+    if (model.includes('google/gemini-2.5-flash-image-preview')) {
       console.log('[Processing] Using Gemini 2.5 Flash Image for image generation');
       
       const generationPrompt = `Using this reference image as inspiration, create a dramatically enhanced and improved version with these specific changes: ${prompt}. 
@@ -119,6 +119,7 @@ Generate the enhanced image now.`;
         },
         body: JSON.stringify({
           model,
+          modalities: ["image", "text"], // REQUIRED for image generation
           messages: [
             {
               role: 'user',
@@ -147,38 +148,29 @@ Generate the enhanced image now.`;
       }
 
       const result = await response.json();
-      console.log('[Gemini] LLM Response:', JSON.stringify(result, null, 2));
+      console.log('[Gemini] Full Response:', JSON.stringify(result, null, 2));
       
-      // Check if the response contains generated images
       const choice = result.choices?.[0];
       const message = choice?.message;
       
       let generatedImageUrl = imageUrl; // Default to original
       let enhancementsApplied = ['Image generation attempted'];
       
-      if (message?.content) {
-        if (Array.isArray(message.content)) {
-          // Look for image content in array format
-          const imageContent = message.content.find((item: any) => 
-            item.type === 'image' || item.type === 'image_url' || item.url || item.b64_json
-          );
-          if (imageContent) {
-            generatedImageUrl = await saveGeneratedImage(imageContent, prompt);
-            enhancementsApplied = [`Generated enhanced image with Gemini 2.5 Flash: ${prompt}`];
-          } else {
-            enhancementsApplied = [`Gemini Response: ${JSON.stringify(message.content)}`];
-          }
-        } else if (typeof message.content === 'string') {
-          enhancementsApplied = [`Gemini Analysis: ${message.content}`];
-        }
-      }
-      
-      // Check for images in other response formats
-      if (result.data && Array.isArray(result.data)) {
-        const imageData = result.data.find((item: any) => item.url || item.b64_json);
-        if (imageData) {
-          generatedImageUrl = await saveGeneratedImage(imageData, prompt);
+      // Check for generated images in the correct field
+      if (message?.images && Array.isArray(message.images)) {
+        console.log('[Gemini] Found generated images:', message.images.length);
+        // Take the first generated image
+        const imageDataUrl = message.images[0];
+        if (imageDataUrl && imageDataUrl.startsWith('data:image/')) {
+          generatedImageUrl = await saveGeneratedImage(imageDataUrl, prompt);
           enhancementsApplied = [`Generated enhanced image with Gemini 2.5 Flash: ${prompt}`];
+          console.log('[Gemini] Successfully saved generated image');
+        }
+      } else {
+        console.log('[Gemini] No images found in response');
+        console.log('[Gemini] Available message fields:', Object.keys(message || {}));
+        if (message?.content) {
+          enhancementsApplied = [`Gemini Response: ${message.content}`];
         }
       }
 
