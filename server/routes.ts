@@ -114,7 +114,7 @@ async function processImageWithOpenRouter(
             content: [
               {
                 type: 'text',
-                text: `Based on this reference image, generate a new enhanced image with the following modifications: ${prompt}. Create an improved version that applies these changes while maintaining the overall composition and subject matter.`
+                text: `Using this reference image as inspiration, create a dramatically enhanced and improved version with these specific changes: ${prompt}. Make the enhancements clearly visible and impactful. Transform the image significantly while keeping the core subject recognizable. Apply bold improvements that create a striking before/after difference.`
               },
               {
                 type: 'image_url',
