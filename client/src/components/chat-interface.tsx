@@ -261,13 +261,13 @@ export default function ChatInterface({
           {messages.length === 0 && (
             <div className="chat-message animate-in fade-in-0 slide-in-from-bottom-2 duration-500">
               <div className="flex items-start gap-4">
-                <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center flex-shrink-0 shadow-lg">
-                  <Bot className="w-5 h-5 text-white" />
+                <div className="w-10 h-10 bg-[#ffd700] rounded-full flex items-center justify-center flex-shrink-0">
+                  <Bot className="w-5 h-5 text-black" />
                 </div>
-                <div className="bg-gradient-to-br from-secondary to-secondary/80 rounded-2xl p-5 max-w-md shadow-sm border border-border/50">
-                  <p className="text-sm leading-relaxed text-foreground/90">
+                <div className="bg-[#2a2a2a] rounded-2xl p-5 max-w-md border border-[#3a3a3a]">
+                  <p className="text-sm leading-relaxed text-[#e0e0e0]">
                     Welcome! Upload an image and tell me how you'd like to enhance or modify it. 
-                    I can help with <span className="font-medium text-blue-600">color correction</span>, <span className="font-medium text-purple-600">style transfer</span>, <span className="font-medium text-green-600">object removal</span>, and much more.
+                    I can help with <span className="font-medium text-[#ffd700]">color correction</span>, <span className="font-medium text-[#ffd700]">style transfer</span>, <span className="font-medium text-[#ffd700]">object removal</span>, and much more.
                   </p>
                 </div>
               </div>
@@ -397,8 +397,8 @@ export default function ChatInterface({
 
         {/* Context Indicator */}
         {!uploadedImage && messages.length > 0 && (
-          <div className="mb-4 p-3 bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-950/20 dark:to-purple-950/20 rounded-xl border border-blue-200/50 dark:border-blue-800/50 shadow-sm">
-            <p className="text-sm text-blue-700 dark:text-blue-300 flex items-center gap-2 font-medium">
+          <div className="mb-4 p-3 bg-[#2a2a2a] rounded-xl border border-[#3a3a3a]">
+            <p className="text-sm text-[#ffd700] flex items-center gap-2 font-medium">
               <ImageIcon className="w-4 h-4" />
               Using latest image from conversation context
             </p>
@@ -434,7 +434,7 @@ export default function ChatInterface({
               onDrop={handleDrop}
               data-testid="message-input"
             />
-            <div className="absolute bottom-2 right-2 text-xs text-muted-foreground">
+            <div className="absolute bottom-2 right-2 text-xs text-[#888888]">
               {input.length}/500
             </div>
           </div>
@@ -442,7 +442,7 @@ export default function ChatInterface({
           <Button
             onClick={handleSendMessage}
             disabled={!input.trim() || processImageMutation.isPending}
-            className="bg-blue-600 hover:bg-blue-700"
+            className="bg-[#ffd700] hover:bg-[#ffd700]/90 text-black font-medium"
             data-testid="send-message-button"
           >
             <Send className="w-4 h-4" />
@@ -459,9 +459,9 @@ export default function ChatInterface({
           ].map((action) => (
             <Button
               key={action}
-              variant="secondary"
+              variant="ghost"
               size="sm"
-              className="text-xs"
+              className="text-xs bg-[#2a2a2a] hover:bg-[#3a3a3a] text-[#e0e0e0] border border-[#3a3a3a]"
               onClick={() => handleQuickAction(action)}
               data-testid={`quick-action-${action.toLowerCase().replace(' ', '-')}`}
             >

@@ -184,14 +184,14 @@ export default function UserLibraryPanel({
           </div>
         ) : filteredImages.length === 0 ? (
           <div className="text-center py-12">
-            <div className="w-16 h-16 mx-auto mb-4 bg-gradient-to-br from-blue-100 to-purple-100 rounded-full flex items-center justify-center">
-              <ImageIcon className="w-8 h-8 text-blue-500" />
+            <div className="w-16 h-16 mx-auto mb-4 bg-[#2a2a2a] rounded-full flex items-center justify-center">
+              <ImageIcon className="w-8 h-8 text-[#888888]" />
             </div>
-            <p className="text-sm font-medium text-foreground mb-1">
+            <p className="text-sm font-medium text-white mb-1">
               {searchTerm ? "No matches found" : "No saved images yet"}
             </p>
             {!searchTerm && (
-              <p className="text-xs text-muted-foreground">
+              <p className="text-xs text-[#888888]">
                 Generated images will appear here
               </p>
             )}

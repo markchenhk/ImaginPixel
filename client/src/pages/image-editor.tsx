@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Settings, Wand2 } from 'lucide-react';
+import { useLocation } from 'wouter';
+import { Settings, Wand2, Home, ArrowLeft } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import ChatInterface from '@/components/chat-interface';
@@ -13,6 +14,7 @@ import type { Conversation, ModelConfiguration } from '@shared/schema';
 export default function ImageEditor() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const [, setLocation] = useLocation();
   const [currentConversation, setCurrentConversation] = useState<Conversation | null>(null);
   const [configOpen, setConfigOpen] = useState(false);
   const [originalImageUrl, setOriginalImageUrl] = useState<string | null>(null);
@@ -37,10 +39,21 @@ export default function ImageEditor() {
       {/* Header */}
       <header className="border-b border-[#2a2a2a] px-6 py-4 flex items-center justify-between bg-[#1a1a1a]">
         <div className="flex items-center gap-4">
-          <div className="w-8 h-8 bg-[#ffd700] rounded-lg flex items-center justify-center">
-            <Wand2 className="w-4 h-4 text-black" />
-          </div>
-          <div>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setLocation('/')}
+            className="text-[#e0e0e0] hover:bg-[#2a2a2a] hover:text-white"
+            data-testid="button-home"
+          >
+            <ArrowLeft className="w-4 h-4 mr-2" />
+            Home
+          </Button>
+          <div className="w-px h-6 bg-[#2a2a2a]" />
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 bg-[#ffd700] rounded-lg flex items-center justify-center">
+              <Wand2 className="w-4 h-4 text-black" />
+            </div>
             <h1 className="text-lg font-semibold text-white">
               AI Image Editor
             </h1>
