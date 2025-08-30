@@ -131,17 +131,13 @@ export default function UserLibraryPanel({
   };
 
   return (
-    <div className="w-56 h-full border-l border-border bg-gradient-to-b from-card to-muted/10 flex flex-col">
+    <div className="w-56 h-full border-l border-[#2a2a2a] bg-[#1a1a1a] flex flex-col">
       {/* Header */}
-      <div className="p-6 border-b border-border/50">
+      <div className="p-4 border-b border-[#2a2a2a]">
         <div className="flex items-center justify-between mb-4">
           <div>
-            <h2 className="text-lg font-semibold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">My Library</h2>
-            <p className="text-xs text-muted-foreground">Generated images will appear here</p>
-          </div>
-          <div className="flex items-center gap-2 text-sm bg-secondary/50 rounded-full px-3 py-1">
-            <ImageIcon className="w-3 h-3 text-blue-500" />
-            <span className="font-medium">{filteredImages.length}</span>
+            <h2 className="font-semibold text-white">Library</h2>
+            <p className="text-xs text-[#888888]">{filteredImages.length} images</p>
           </div>
         </div>
         
@@ -150,23 +146,23 @@ export default function UserLibraryPanel({
           <Button 
             onClick={handleSaveCurrentImage}
             disabled={saveImageMutation.isPending}
-            size="default"
-            className="w-full mb-4 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white shadow-lg"
+            size="sm"
+            className="w-full mb-3 bg-[#ffd700] hover:bg-[#ffd700]/90 text-black font-medium"
             data-testid="button-save-to-library"
           >
             <Plus className="w-4 h-4 mr-2" />
-            Save Current Image
+            Save Current
           </Button>
         )}
 
         {/* Search */}
         <div className="relative">
-          <Search className="absolute left-2 top-1/2 transform -translate-y-1/2 w-3 h-3 text-muted-foreground" />
+          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-[#888888]" />
           <Input
             placeholder="Search images..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="pl-7 h-8 text-xs"
+            className="pl-10 h-8 text-sm bg-[#2a2a2a] border-[#3a3a3a] text-white placeholder:text-[#888888] focus:bg-[#2a2a2a] focus:border-[#ffd700]"
             data-testid="input-search-library"
           />
         </div>

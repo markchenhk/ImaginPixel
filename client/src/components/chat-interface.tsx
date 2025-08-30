@@ -253,7 +253,7 @@ export default function ChatInterface({
   }, [messages]);
 
   return (
-    <div className="flex-1 border-r border-border flex flex-col bg-gradient-to-b from-background to-muted/20">
+    <div className="flex-1 border-r border-[#2a2a2a] flex flex-col bg-[#1e1e1e]">
       {/* Chat Messages */}
       <ScrollArea className="flex-1 p-6">
         <div className="space-y-6">
@@ -368,7 +368,7 @@ export default function ChatInterface({
       </ScrollArea>
 
       {/* Chat Input */}
-      <div className="border-t border-border/50 p-6 bg-gradient-to-t from-muted/10 to-background">
+      <div className="border-t border-[#2a2a2a] p-6 bg-[#1a1a1a]">
         {/* Image Upload Zone */}
 
         {/* Uploaded Image Preview */}
