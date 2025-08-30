@@ -39,8 +39,9 @@ export default function UserLibraryPanel({
   const { data: savedImages = [], isLoading, error } = useQuery({
     queryKey: ['/api/library', userId],
     queryFn: async () => {
-      const response = await apiRequest(`/api/library/${userId}`, 'GET');
-      return Array.isArray(response) ? response : [];
+      const response = await apiRequest('GET', `/api/library/${userId}`);
+      const data = await response.json();
+      return Array.isArray(data) ? data : [];
     },
   });
 
@@ -51,11 +52,12 @@ export default function UserLibraryPanel({
       objectPath: string; 
       prompt?: string; 
     }) => {
-      return await apiRequest(`/api/library`, 'POST', {
+      const response = await apiRequest('POST', '/api/library', {
         userId,
         ...imageData,
         tags: ['ai-generated']
       });
+      return await response.json();
     },
     onSuccess: () => {
       toast({
@@ -77,7 +79,8 @@ export default function UserLibraryPanel({
   // Delete image mutation
   const deleteImageMutation = useMutation({
     mutationFn: async (imageId: string) => {
-      return await apiRequest(`/api/library/${imageId}?userId=${userId}`, 'DELETE');
+      const response = await apiRequest('DELETE', `/api/library/${imageId}?userId=${userId}`);
+      return await response.json();
     },
     onSuccess: () => {
       toast({

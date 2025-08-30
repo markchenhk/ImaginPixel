@@ -41,15 +41,17 @@ export default function UserLibrary({ userId = 'default' }: UserLibraryProps) {
       const url = `/api/library/${userId}${
         params.toString() ? `?${params.toString()}` : ''
       }`;
-      const response = await apiRequest(url, 'GET');
-      return Array.isArray(response) ? response : [];
+      const response = await apiRequest('GET', url);
+      const data = await response.json();
+      return Array.isArray(data) ? data : [];
     },
   });
 
   // Delete image mutation
   const deleteImageMutation = useMutation({
     mutationFn: async (imageId: string) => {
-      return await apiRequest(`/api/library/${imageId}?userId=${userId}`, 'DELETE');
+      const response = await apiRequest('DELETE', `/api/library/${imageId}?userId=${userId}`);
+      return await response.json();
     },
     onSuccess: () => {
       toast({
