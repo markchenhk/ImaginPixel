@@ -26,6 +26,7 @@ export default function ModelConfig({ isOpen, onClose }: ModelConfigProps) {
   const [isLoadingModels, setIsLoadingModels] = useState(false);
   const [customModelName, setCustomModelName] = useState('');
   const [useCustomModel, setUseCustomModel] = useState(false);
+  const [hasValidSavedKey, setHasValidSavedKey] = useState(false);
 
   // Fetch current configuration
   const { data: config, isLoading } = useQuery<ModelConfiguration>({
@@ -52,7 +53,7 @@ export default function ModelConfig({ isOpen, onClose }: ModelConfigProps) {
       }
       return response.json();
     },
-    enabled: shouldFetchModels && !!apiKey && apiKey !== '***hidden***',
+    enabled: shouldFetchModels && (hasValidSavedKey || (!!apiKey && apiKey !== '***hidden***')),
     retry: false,
     staleTime: 5 * 60 * 1000, // 5 minutes
   });
@@ -86,6 +87,7 @@ export default function ModelConfig({ isOpen, onClose }: ModelConfigProps) {
       // Don't set actual API key for security, but show if configured
       if (config.apiKey) {
         setApiKey('***hidden***');
+        setHasValidSavedKey(true);
         setShouldFetchModels(true); // Enable fetching if API key exists
       }
       
@@ -110,6 +112,7 @@ export default function ModelConfig({ isOpen, onClose }: ModelConfigProps) {
       const data = await response.json();
       
       if (response.ok && data.apiKeyValid) {
+        setHasValidSavedKey(false); // Clear saved key status since we're testing a new one
         setShouldFetchModels(true);
         toast({
           title: 'API key valid',
@@ -120,6 +123,7 @@ export default function ModelConfig({ isOpen, onClose }: ModelConfigProps) {
       }
     } catch (error) {
       setShouldFetchModels(false);
+      setHasValidSavedKey(false);
       toast({
         title: 'API key test failed',
         description: error instanceof Error ? error.message : 'Unknown error',
@@ -235,16 +239,16 @@ export default function ModelConfig({ isOpen, onClose }: ModelConfigProps) {
                 </div>
 
                 <div className={`flex items-center gap-2 p-3 rounded-lg border ${
-                  modelsData?.apiKeyValid
+                  (modelsData?.apiKeyValid || hasValidSavedKey)
                     ? 'bg-green-500/10 border-green-500/20' 
                     : 'bg-yellow-500/10 border-yellow-500/20'
                 }`}>
                   <div className={`w-2 h-2 rounded-full ${
-                    modelsData?.apiKeyValid ? 'bg-green-500' : 'bg-yellow-500'
+                    (modelsData?.apiKeyValid || hasValidSavedKey) ? 'bg-green-500' : 'bg-yellow-500'
                   }`} />
                   <span className="text-sm">
-                    {modelsData?.apiKeyValid
-                      ? `Connected - ${modelsData.total} models available` 
+                    {(modelsData?.apiKeyValid || hasValidSavedKey)
+                      ? `Connected - ${modelsData?.total || 'Loading...'} models available` 
                       : 'API key not validated'}
                   </span>
                 </div>
@@ -297,7 +301,7 @@ export default function ModelConfig({ isOpen, onClose }: ModelConfigProps) {
                 ) : !modelsData?.data || modelsData.data.length === 0 ? (
                   <div className="text-center py-4">
                     <p className="text-sm text-muted-foreground">
-                      {apiKey ? 'No models found. Please check your API key.' : 'Enter your API key to load available models'}
+                      {(apiKey && apiKey !== '***hidden***') || hasValidSavedKey ? 'No models found. Please check your API key.' : 'Enter your API key to load available models'}
                     </p>
                   </div>
                 ) : filteredModels.length === 0 ? (
@@ -481,7 +485,7 @@ export default function ModelConfig({ isOpen, onClose }: ModelConfigProps) {
                 <div className="flex justify-between items-center p-3 bg-secondary rounded-lg">
                   <span className="text-sm text-muted-foreground">API Key Status</span>
                   <span className="font-medium text-green-400" data-testid="api-key-status">
-                    {modelsData?.apiKeyValid ? 'Valid' : apiKey ? 'Not validated' : 'Not provided'}
+                    {(modelsData?.apiKeyValid || hasValidSavedKey) ? 'Valid' : apiKey ? 'Not validated' : 'Not provided'}
                   </span>
                 </div>
                 <div className="flex justify-between items-center p-3 bg-secondary rounded-lg">
