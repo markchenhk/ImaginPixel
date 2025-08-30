@@ -99,8 +99,8 @@ async function processImageWithOpenRouter(
     if (model.includes('google/gemini-2.5-flash-image-preview')) {
       console.log('[Processing] Using Gemini 2.5 Flash Image for image generation');
       
-      // Try pure image generation without reference image first
-      const generationPrompt = `Create an image: ${prompt}`;
+      // Use a more detailed and specific prompt to trigger image generation
+      const generationPrompt = `Generate a high-quality, detailed image: ${prompt}. Create a photorealistic digital artwork with vibrant colors and clear details.`;
 
       const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
         method: 'POST',
@@ -138,15 +138,19 @@ async function processImageWithOpenRouter(
       let generatedImageUrl = imageUrl; // Default to original
       let enhancementsApplied = ['Image generation attempted'];
       
-      // Check for generated images in the correct field
+      // Check for generated images in the correct field (OpenRouter format)
       if (message?.images && Array.isArray(message.images)) {
         console.log('[Gemini] Found generated images:', message.images.length);
-        // Take the first generated image
-        const imageDataUrl = message.images[0];
+        // Take the first generated image - OpenRouter format has image_url.url structure
+        const imageObject = message.images[0];
+        const imageDataUrl = imageObject?.image_url?.url || imageObject?.url || imageObject;
+        
         if (imageDataUrl && imageDataUrl.startsWith('data:image/')) {
           generatedImageUrl = await saveGeneratedImage(imageDataUrl, prompt);
           enhancementsApplied = [`Generated enhanced image with Gemini 2.5 Flash: ${prompt}`];
           console.log('[Gemini] Successfully saved generated image');
+        } else {
+          console.log('[Gemini] Image found but not in expected format:', imageObject);
         }
       } else {
         console.log('[Gemini] No images found in response');
