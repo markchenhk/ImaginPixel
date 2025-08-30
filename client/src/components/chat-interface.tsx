@@ -6,7 +6,6 @@ import { Textarea } from '@/components/ui/textarea';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useToast } from '@/hooks/use-toast';
 import { apiRequest, queryClient } from '@/lib/queryClient';
-import UploadZone from './upload-zone';
 import type { Message, Conversation } from '@shared/schema';
 import { UploadedImage } from '@/types';
 
@@ -331,13 +330,6 @@ export default function ChatInterface({
       {/* Chat Input */}
       <div className="border-t border-border p-4">
         {/* Image Upload Zone */}
-        {!uploadedImage && (
-          <UploadZone 
-            onImageUpload={handleImageUpload}
-            isUploading={isUploading}
-            className="mb-4"
-          />
-        )}
 
         {/* Uploaded Image Preview */}
         {uploadedImage && (
