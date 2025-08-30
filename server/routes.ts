@@ -100,8 +100,20 @@ async function processImageWithOpenRouter(
       console.log('[Processing] Using Gemini 2.5 Flash Image for image generation');
       console.log('[Debug] Image URL being sent:', fullImageUrl);
       
-      // Use a more detailed and specific prompt that references the base image
-      const generationPrompt = `Based on the provided image, ${prompt}. Use the uploaded image as the foundation and apply the requested changes while preserving the original subject and composition. Generate a high-quality, detailed result that builds upon the source image.`;
+      // Use a highly specific prompt for product image enhancement (not generation)
+      const generationPrompt = `IMPORTANT: You are editing/enhancing the EXACT product shown in this image. DO NOT create a new product. DO NOT replace the product. 
+
+Your task: ${prompt}
+
+Rules you MUST follow:
+1. Keep the EXACT same product/device/object from the uploaded image
+2. Preserve the product's shape, design, colors, and features exactly as shown
+3. Only modify the background, lighting, environment, or apply effects around the product
+4. The product itself should remain identical to the original
+5. If asked to change the product's appearance, only make subtle enhancements while keeping its core identity
+6. Focus on enhancing the scene around the product, not replacing it
+
+This is product image enhancement, not product generation. Work with what's provided.`;
       
       console.log('[Debug] Generation prompt:', generationPrompt);
 
