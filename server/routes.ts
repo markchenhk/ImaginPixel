@@ -5,19 +5,25 @@ import {
   insertConversationSchema, 
   insertMessageSchema, 
   insertImageProcessingJobSchema,
-  insertModelConfigurationSchema 
+  insertModelConfigurationSchema,
+  insertSavedImageSchema 
 } from "@shared/schema";
 import multer from "multer";
 import path from "path";
 import fs from "fs";
 import crypto from "crypto";
+import {
+  ObjectStorageService,
+  ObjectNotFoundError,
+} from "./objectStorage.js";
+import { ObjectPermission } from "./objectAcl.js";
 
 interface MulterRequest extends Request {
   file?: Express.Multer.File;
 }
 
-// Setup multer for file uploads
-const uploadDir = path.join(process.cwd(), 'uploads');
+// Setup multer for temporary file uploads (before S3 upload)
+const uploadDir = path.join(process.cwd(), 'temp_uploads');
 if (!fs.existsSync(uploadDir)) {
   fs.mkdirSync(uploadDir, { recursive: true });
 }
@@ -37,8 +43,11 @@ const upload = multer({
   },
 });
 
-// Helper function to save generated images from base64 data
-async function saveGeneratedImage(imageData: any, prompt: string): Promise<string> {
+// Initialize object storage service
+const objectStorageService = new ObjectStorageService();
+
+// Helper function to save generated images to S3 object storage
+async function saveGeneratedImageToS3(imageData: any, prompt: string): Promise<string> {
   try {
     let base64Data: string;
     
@@ -58,19 +67,52 @@ async function saveGeneratedImage(imageData: any, prompt: string): Promise<strin
     // Generate unique filename
     const hash = crypto.createHash('md5').update(base64Data + prompt).digest('hex');
     const filename = `enhanced_${hash}.png`;
-    const filepath = path.join(uploadDir, filename);
     
-    // Save base64 data to file
+    // Save to temporary file first
+    const tempFilepath = path.join(uploadDir, filename);
     const buffer = Buffer.from(base64Data, 'base64');
-    fs.writeFileSync(filepath, buffer);
+    fs.writeFileSync(tempFilepath, buffer);
     
-    console.log(`[SaveImage] Generated image saved: ${filename}`);
-    return `/api/images/${filename}`;
+    // Upload to S3 and get object path
+    const uploadUrl = await objectStorageService.getObjectEntityUploadURL();
+    
+    // Upload to S3 using the presigned URL
+    const uploadResponse = await fetch(uploadUrl, {
+      method: 'PUT',
+      body: buffer,
+      headers: {
+        'Content-Type': 'image/png',
+      },
+    });
+    
+    if (!uploadResponse.ok) {
+      throw new Error(`Failed to upload to S3: ${uploadResponse.statusText}`);
+    }
+    
+    // Get the object path from the upload URL
+    const objectPath = objectStorageService.normalizeObjectEntityPath(uploadUrl);
+    
+    // Set ACL policy for public access (generated images are public)
+    await objectStorageService.trySetObjectEntityAclPolicy(uploadUrl, {
+      owner: 'system', // System-generated images
+      visibility: 'public',
+    });
+    
+    // Clean up temporary file
+    fs.unlinkSync(tempFilepath);
+    
+    console.log(`[SaveImage] Generated image saved to S3: ${objectPath}`);
+    return objectPath;
     
   } catch (error) {
-    console.error('[SaveImage] Error saving generated image:', error);
+    console.error('[SaveImage] Error saving generated image to S3:', error);
     throw error;
   }
+}
+
+// Legacy function for backward compatibility
+async function saveGeneratedImage(imageData: any, prompt: string): Promise<string> {
+  return saveGeneratedImageToS3(imageData, prompt);
 }
 
 
@@ -174,7 +216,7 @@ This is product image enhancement, not product generation. Work with what's prov
         const imageDataUrl = imageObject?.image_url?.url || imageObject?.url || imageObject;
         
         if (imageDataUrl && imageDataUrl.startsWith('data:image/')) {
-          generatedImageUrl = await saveGeneratedImage(imageDataUrl, prompt);
+          generatedImageUrl = await saveGeneratedImageToS3(imageDataUrl, prompt);
           enhancementsApplied = [`Generated enhanced image with Gemini 2.5 Flash: ${prompt}`];
           console.log('[Gemini] Successfully saved generated image');
         } else {
@@ -338,30 +380,134 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Upload image endpoint
+  // Object storage upload endpoint - get presigned URL
+  app.post("/api/objects/upload", async (req, res) => {
+    try {
+      const uploadURL = await objectStorageService.getObjectEntityUploadURL();
+      res.json({ uploadURL });
+    } catch (error) {
+      console.error('Error getting upload URL:', error);
+      res.status(500).json({ 
+        message: error instanceof Error ? error.message : "Failed to get upload URL" 
+      });
+    }
+  });
+
+  // Process uploaded file and set ACL policy
+  app.put("/api/objects/process-upload", async (req, res) => {
+    try {
+      const { uploadURL, userId = 'anonymous' } = req.body;
+      
+      if (!uploadURL) {
+        return res.status(400).json({ error: "uploadURL is required" });
+      }
+      
+      // Set ACL policy for the uploaded image
+      const objectPath = await objectStorageService.trySetObjectEntityAclPolicy(
+        uploadURL,
+        {
+          owner: userId,
+          visibility: "public", // Uploaded images are public for processing
+        }
+      );
+      
+      res.json({ objectPath });
+    } catch (error) {
+      console.error('Error processing upload:', error);
+      res.status(500).json({ 
+        message: error instanceof Error ? error.message : "Failed to process upload" 
+      });
+    }
+  });
+
+  // Legacy upload endpoint for backward compatibility
   app.post("/api/upload", upload.single('image'), async (req: MulterRequest, res) => {
     try {
       if (!req.file) {
         return res.status(400).json({ message: "No image file provided" });
       }
 
-      // Generate URL for the uploaded file
-      const imageUrl = `/api/images/${req.file.filename}`;
+      // Read the uploaded file
+      const fileBuffer = fs.readFileSync(req.file.path);
+      
+      // Upload to S3
+      const uploadUrl = await objectStorageService.getObjectEntityUploadURL();
+      
+      const uploadResponse = await fetch(uploadUrl, {
+        method: 'PUT',
+        body: fileBuffer,
+        headers: {
+          'Content-Type': req.file.mimetype,
+        },
+      });
+      
+      if (!uploadResponse.ok) {
+        throw new Error(`Failed to upload to S3: ${uploadResponse.statusText}`);
+      }
+      
+      // Set ACL policy for public access
+      const objectPath = await objectStorageService.trySetObjectEntityAclPolicy(uploadUrl, {
+        owner: 'user',
+        visibility: 'public',
+      });
+      
+      // Clean up temporary file
+      fs.unlinkSync(req.file.path);
       
       res.json({ 
-        imageUrl,
+        imageUrl: objectPath,
         originalName: req.file.originalname,
         size: req.file.size,
         mimeType: req.file.mimetype
       });
     } catch (error) {
+      console.error('Error in legacy upload:', error);
       res.status(500).json({ 
         message: error instanceof Error ? error.message : "Failed to upload image" 
       });
     }
   });
 
-  // Serve uploaded images
+  // Serve images from object storage
+  app.get("/objects/:objectPath(*)", async (req, res) => {
+    try {
+      const objectFile = await objectStorageService.getObjectEntityFile(
+        req.path,
+      );
+      const canAccess = await objectStorageService.canAccessObjectEntity({
+        objectFile,
+        userId: undefined, // For now, allow public access - can be extended with auth
+        requestedPermission: ObjectPermission.READ,
+      });
+      if (!canAccess) {
+        return res.sendStatus(401);
+      }
+      objectStorageService.downloadObject(objectFile, res);
+    } catch (error) {
+      console.error("Error serving object:", error);
+      if (error instanceof ObjectNotFoundError) {
+        return res.sendStatus(404);
+      }
+      return res.sendStatus(500);
+    }
+  });
+
+  // Serve public objects (backward compatibility for existing assets)
+  app.get("/public-objects/:filePath(*)", async (req, res) => {
+    const filePath = req.params.filePath;
+    try {
+      const file = await objectStorageService.searchPublicObject(filePath);
+      if (!file) {
+        return res.status(404).json({ error: "File not found" });
+      }
+      objectStorageService.downloadObject(file, res);
+    } catch (error) {
+      console.error("Error searching for public object:", error);
+      return res.status(500).json({ error: "Internal server error" });
+    }
+  });
+  
+  // Legacy image serving endpoint
   app.get("/api/images/:filename", (req, res) => {
     const { filename } = req.params;
     const filePath = path.join(uploadDir, filename);
@@ -573,11 +719,95 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Save generated image to user library
+  app.post("/api/library/save", async (req, res) => {
+    try {
+      const validatedData = insertSavedImageSchema.parse(req.body);
+      const savedImage = await storage.createSavedImage(validatedData);
+      res.json(savedImage);
+    } catch (error) {
+      console.error('Error saving image to library:', error);
+      res.status(500).json({ 
+        message: error instanceof Error ? error.message : "Failed to save image to library" 
+      });
+    }
+  });
+
+  // Get user's saved images
+  app.get("/api/library/:userId", async (req, res) => {
+    try {
+      const { userId } = req.params;
+      const { page = '1', limit = '20', tags } = req.query;
+      
+      const pageNum = parseInt(page as string);
+      const limitNum = parseInt(limit as string);
+      const tagsArray = tags ? (tags as string).split(',') : undefined;
+      
+      const savedImages = await storage.getUserSavedImages(userId, {
+        page: pageNum,
+        limit: limitNum,
+        tags: tagsArray
+      });
+      
+      res.json(savedImages);
+    } catch (error) {
+      console.error('Error fetching user library:', error);
+      res.status(500).json({ 
+        message: error instanceof Error ? error.message : "Failed to fetch user library" 
+      });
+    }
+  });
+
+  // Delete saved image from library
+  app.delete("/api/library/:imageId", async (req, res) => {
+    try {
+      const { imageId } = req.params;
+      const { userId } = req.query;
+      
+      if (!userId) {
+        return res.status(400).json({ message: "userId is required" });
+      }
+      
+      const success = await storage.deleteSavedImage(imageId, userId as string);
+      
+      if (!success) {
+        return res.status(404).json({ message: "Image not found or not authorized" });
+      }
+      
+      res.json({ message: "Image deleted successfully" });
+    } catch (error) {
+      console.error('Error deleting saved image:', error);
+      res.status(500).json({ 
+        message: error instanceof Error ? error.message : "Failed to delete saved image" 
+      });
+    }
+  });
+
+  // Get saved image details
+  app.get("/api/library/image/:imageId", async (req, res) => {
+    try {
+      const { imageId } = req.params;
+      const savedImage = await storage.getSavedImage(imageId);
+      
+      if (!savedImage) {
+        return res.status(404).json({ message: "Saved image not found" });
+      }
+      
+      res.json(savedImage);
+    } catch (error) {
+      console.error('Error fetching saved image details:', error);
+      res.status(500).json({ 
+        message: error instanceof Error ? error.message : "Failed to fetch saved image details" 
+      });
+    }
+  });
+
   // Health check endpoint
   app.get("/api/health", (req, res) => {
     res.json({ 
       status: "healthy", 
       openRouterConfigured: !!process.env.OPENROUTER_API_KEY,
+      objectStorageConfigured: !!process.env.DEFAULT_OBJECT_STORAGE_BUCKET_ID,
       timestamp: new Date().toISOString()
     });
   });

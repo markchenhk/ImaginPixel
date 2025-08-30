@@ -1,5 +1,5 @@
 import { sql, relations } from "drizzle-orm";
-import { pgTable, text, varchar, timestamp, json, integer } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, timestamp, json, integer, index, jsonb } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -110,3 +110,62 @@ export type ConversationWithMessages = Conversation & {
 export type MessageWithJob = Message & {
   imageProcessingJobs?: ImageProcessingJob[];
 };
+
+// Session storage table for Replit Auth.
+export const sessions = pgTable(
+  "sessions",
+  {
+    sid: varchar("sid").primaryKey(),
+    sess: jsonb("sess").notNull(),
+    expire: timestamp("expire").notNull(),
+  },
+  (table) => [index("IDX_session_expire").on(table.expire)],
+);
+
+// User storage table for Replit Auth.
+export const users = pgTable("users", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  email: varchar("email").unique(),
+  firstName: varchar("first_name"),
+  lastName: varchar("last_name"),
+  profileImageUrl: varchar("profile_image_url"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export type UpsertUser = typeof users.$inferInsert;
+export type User = typeof users.$inferSelect;
+
+// User library for saved images
+export const savedImages = pgTable("saved_images", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  title: varchar("title").notNull(),
+  objectPath: varchar("object_path").notNull(), // S3 object path
+  originalImagePath: varchar("original_image_path"), // Path to original uploaded image
+  prompt: varchar("prompt", { length: 1000 }), // User prompt used for generation
+  tags: text("tags").array(), // User-defined tags for organization
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const savedImagesRelations = relations(savedImages, ({ one }) => ({
+  user: one(users, {
+    fields: [savedImages.userId],
+    references: [users.id],
+  }),
+}));
+
+export const usersRelations = relations(users, ({ many }) => ({
+  savedImages: many(savedImages),
+}));
+
+export type SavedImage = typeof savedImages.$inferSelect;
+export type InsertSavedImage = typeof savedImages.$inferInsert;
+
+// Insert schema for saved images
+export const insertSavedImageSchema = createInsertSchema(savedImages).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});

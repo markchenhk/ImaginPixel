@@ -17,8 +17,9 @@ export default function ImagePreview({
   const { data: processingJob } = useQuery<ImageProcessingJob>({
     queryKey: ['/api/processing-jobs', processingJobId],
     enabled: !!processingJobId,
-    refetchInterval: (data) => {
-      if (!processingJobId || data?.status === 'completed' || data?.status === 'error') {
+    refetchInterval: (query) => {
+      const job = query?.data;
+      if (!processingJobId || job?.status === 'completed' || job?.status === 'error') {
         return false; // Stop polling when done or on error
       }
       return 3000; // Reduced from 2000ms to 3000ms to reduce server load
@@ -33,6 +34,8 @@ export default function ImagePreview({
       <ImageComparison 
         originalImageUrl={originalImageUrl || ''}
         processedImageUrl={currentProcessedUrl || undefined}
+        prompt={processingJob?.prompt}
+        messageId={processingJob?.messageId}
       />
       
       {/* Processing Details */}

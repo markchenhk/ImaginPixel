@@ -1,23 +1,61 @@
 import { useState, useRef, useEffect } from 'react';
-import { Eye, Download, Maximize } from 'lucide-react';
+import { Eye, Download, Maximize, Heart } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { apiRequest } from '@/lib/queryClient';
+import { useToast } from '@/hooks/use-toast';
 
 interface ImageComparisonProps {
   originalImageUrl: string;
   processedImageUrl?: string;
   className?: string;
+  prompt?: string;
+  messageId?: string;
 }
 
 export default function ImageComparison({ 
   originalImageUrl, 
   processedImageUrl,
-  className 
+  className,
+  prompt,
+  messageId
 }: ImageComparisonProps) {
   const [sliderPosition, setSliderPosition] = useState(50);
   const [isDragging, setIsDragging] = useState(false);
   const [viewMode, setViewMode] = useState<'comparison' | 'original' | 'processed'>('comparison');
   const containerRef = useRef<HTMLDivElement>(null);
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+
+  // Save to library mutation
+  const saveToLibraryMutation = useMutation({
+    mutationFn: async (imageData: { title: string; objectPath: string; prompt?: string; tags?: string[] }) => {
+      const response = await apiRequest('POST', '/api/library/save', {
+        userId: 'default', // Replace with actual user ID when auth is implemented
+        title: imageData.title,
+        objectPath: imageData.objectPath,
+        originalImagePath: originalImageUrl,
+        prompt: imageData.prompt,
+        tags: imageData.tags || ['generated'],
+      });
+      return response.json();
+    },
+    onSuccess: () => {
+      toast({
+        title: "Success",
+        description: "Image saved to your library!",
+      });
+      queryClient.invalidateQueries({ queryKey: ['/api/library'] });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to save image",
+        variant: "destructive",
+      });
+    },
+  });
 
   const handleMouseDown = () => {
     setIsDragging(true);
@@ -63,6 +101,25 @@ export default function ImageComparison({
     } else {
       downloadImage(originalImageUrl, 'original-image.jpg');
     }
+  };
+
+  const handleSaveToLibrary = () => {
+    if (!processedImageUrl) {
+      toast({
+        title: "Error",
+        description: "No enhanced image to save",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const title = `Enhanced Image ${new Date().toLocaleDateString()}`;
+    saveToLibraryMutation.mutate({
+      title,
+      objectPath: processedImageUrl,
+      prompt: prompt || 'AI Enhanced Image',
+      tags: ['enhanced', 'ai-generated'],
+    });
   };
 
   const toggleViewMode = () => {
@@ -139,6 +196,18 @@ export default function ImageComparison({
             <Download className="w-4 h-4 mr-2" />
             Download
           </Button>
+          
+          {processedImageUrl && (
+            <Button
+              onClick={handleSaveToLibrary}
+              variant="outline"
+              disabled={saveToLibraryMutation.isPending}
+              data-testid="save-to-library-button"
+            >
+              <Heart className="w-4 h-4 mr-2" />
+              {saveToLibraryMutation.isPending ? 'Saving...' : 'Save to Library'}
+            </Button>
+          )}
         </div>
       </div>
 

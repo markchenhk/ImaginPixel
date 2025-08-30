@@ -9,13 +9,16 @@ import {
   type InsertModelConfiguration,
   type ConversationWithMessages,
   type MessageWithJob,
+  type SavedImage,
+  type InsertSavedImage,
   conversations,
   messages,
   imageProcessingJobs,
-  modelConfigurations
+  modelConfigurations,
+  savedImages
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, desc } from "drizzle-orm";
+import { eq, desc, and, sql, inArray } from "drizzle-orm";
 
 export interface IStorage {
   // Conversations
@@ -45,6 +48,12 @@ export interface IStorage {
   getRecentConversationsWithMessages(limit?: number): Promise<ConversationWithMessages[]>;
   getUserConversationHistory(userId?: string): Promise<ConversationWithMessages[]>;
   getLatestImageFromConversation(conversationId: string): Promise<string | undefined>;
+
+  // User Library Functions
+  createSavedImage(savedImage: InsertSavedImage): Promise<SavedImage>;
+  getSavedImage(id: string): Promise<SavedImage | undefined>;
+  getUserSavedImages(userId: string, options?: { page?: number; limit?: number; tags?: string[] }): Promise<SavedImage[]>;
+  deleteSavedImage(id: string, userId: string): Promise<boolean>;
 }
 
 
@@ -246,6 +255,59 @@ export class DatabaseStorage implements IStorage {
     }
 
     return undefined;
+  }
+
+  // User Library Functions
+  async createSavedImage(insertSavedImage: InsertSavedImage): Promise<SavedImage> {
+    const [savedImage] = await db
+      .insert(savedImages)
+      .values(insertSavedImage)
+      .returning();
+    return savedImage;
+  }
+
+  async getSavedImage(id: string): Promise<SavedImage | undefined> {
+    const [savedImage] = await db.select().from(savedImages).where(eq(savedImages.id, id));
+    return savedImage;
+  }
+
+  async getUserSavedImages(
+    userId: string, 
+    options: { page?: number; limit?: number; tags?: string[] } = {}
+  ): Promise<SavedImage[]> {
+    const { page = 1, limit = 20, tags } = options;
+    const offset = (page - 1) * limit;
+
+    let whereConditions = [eq(savedImages.userId, userId)];
+
+    // Filter by tags if provided
+    if (tags && tags.length > 0) {
+      // Use SQL to check if any of the provided tags exist in the tags array
+      whereConditions.push(
+        sql`${savedImages.tags} && ${tags}`
+      );
+    }
+
+    const query = db.select().from(savedImages).where(and(...whereConditions));
+
+    const results = await query
+      .orderBy(desc(savedImages.createdAt))
+      .limit(limit)
+      .offset(offset);
+
+    return results;
+  }
+
+  async deleteSavedImage(id: string, userId: string): Promise<boolean> {
+    const result = await db
+      .delete(savedImages)
+      .where(
+        and(
+          eq(savedImages.id, id),
+          eq(savedImages.userId, userId)
+        )
+      );
+    return result.rowCount ? result.rowCount > 0 : false;
   }
 }
 
