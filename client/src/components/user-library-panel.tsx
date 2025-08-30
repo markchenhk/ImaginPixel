@@ -52,7 +52,7 @@ export default function UserLibraryPanel({
       objectPath: string; 
       prompt?: string; 
     }) => {
-      const response = await apiRequest('POST', '/api/library', {
+      const response = await apiRequest('POST', '/api/library/save', {
         userId,
         ...imageData,
         tags: ['ai-generated']

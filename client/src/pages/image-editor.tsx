@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Settings, Wand2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { useToast } from '@/hooks/use-toast';
 import ChatInterface from '@/components/chat-interface';
 import ModelConfig from '@/components/model-config';
 import UserLibraryPanel from '@/components/user-library-panel';
@@ -9,6 +10,8 @@ import { getModelDisplayName } from '@/lib/openrouter';
 import type { Conversation, ModelConfiguration } from '@shared/schema';
 
 export default function ImageEditor() {
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
   const [currentConversation, setCurrentConversation] = useState<Conversation | null>(null);
   const [configOpen, setConfigOpen] = useState(false);
   const [originalImageUrl, setOriginalImageUrl] = useState<string | null>(null);
@@ -72,9 +75,43 @@ export default function ImageEditor() {
           conversationId={currentConversation?.id || null}
           onConversationCreate={handleConversationCreate}
           onImageProcessed={handleImageProcessed}
-          onSaveToLibrary={(imageUrl, title) => {
-            // Set the processed image URL and let the UserLibraryPanel save it
-            setProcessedImageUrl(imageUrl);
+          onSaveToLibrary={async (imageUrl, title) => {
+            try {
+              const response = await fetch('/api/library/save', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  userId: 'default',
+                  title,
+                  objectPath: imageUrl,
+                  prompt: 'AI enhanced image',
+                  tags: ['ai-generated']
+                })
+              });
+
+              if (!response.ok) {
+                throw new Error('Failed to save image');
+              }
+
+              // Update the processed image URL for the library panel
+              setProcessedImageUrl(imageUrl);
+              
+              // Refresh the library to show the new saved image
+              queryClient.invalidateQueries({ queryKey: ['/api/library', 'default'] });
+              
+              // Show success message
+              toast({
+                title: "Success",
+                description: "Image saved to library",
+              });
+            } catch (error) {
+              console.error('Error saving image:', error);
+              toast({
+                title: "Error",
+                description: "Failed to save image to library",
+                variant: "destructive",
+              });
+            }
           }}
         />
 
