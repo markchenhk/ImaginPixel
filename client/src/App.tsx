@@ -9,9 +9,9 @@ import { AuthPage } from "@/pages/auth-page";
 import ImageEditor from "@/pages/image-editor";
 import NotFound from "@/pages/not-found";
 
-function Router() {
+function ProtectedRoute({ path, component: Component }: { path: string; component: () => JSX.Element }) {
   const { isAuthenticated, isLoading } = useAuth();
-
+  
   if (isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -23,20 +23,22 @@ function Router() {
     );
   }
 
+  if (!isAuthenticated) {
+    return <AuthPage />;
+  }
+
+  return <Component />;
+}
+
+function Router() {
   return (
     <div className="min-h-screen">
       <Switch>
-        {!isAuthenticated ? (
-          <>
-            <Route path="/" component={Landing} />
-            <Route path="/auth" component={AuthPage} />
-          </>
-        ) : (
-          <>
-            <Route path="/" component={ImageEditor} />
-            <Route path="/editor" component={ImageEditor} />
-          </>
-        )}
+        <Route path="/" component={Landing} />
+        <Route path="/auth" component={AuthPage} />
+        <Route path="/editor">
+          <ProtectedRoute path="/editor" component={ImageEditor} />
+        </Route>
         <Route component={NotFound} />
       </Switch>
     </div>

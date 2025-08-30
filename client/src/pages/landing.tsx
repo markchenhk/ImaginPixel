@@ -54,11 +54,11 @@ export function Landing() {
             <h1 className="text-lg font-semibold">AI Image Generator</h1>
           </div>
           <Button
-            onClick={() => setLocation("/auth")}
+            onClick={() => setLocation("/editor")}
             className="bg-[#ffd700] hover:bg-[#ffd700]/90 text-black font-semibold"
             data-testid="header-login-button"
           >
-            Sign In
+            Get Started
           </Button>
         </div>
       </header>
@@ -83,13 +83,13 @@ export function Landing() {
 
           <div className="flex flex-col sm:flex-row gap-4 justify-center mb-16">
             <Button
-              onClick={() => setLocation("/auth")}
+              onClick={() => setLocation("/editor")}
               size="lg"
               className="bg-[#ffd700] hover:bg-[#ffd700]/90 text-black font-semibold px-8 py-4 text-lg"
               data-testid="button-start-creating"
             >
               <Wand2 className="w-5 h-5 mr-2" />
-              Get Started
+              Start Creating
               <ArrowRight className="w-5 h-5 ml-2" />
             </Button>
             <Button
@@ -155,7 +155,7 @@ export function Landing() {
             Start generating incredible images in seconds.
           </p>
           <Button
-            onClick={() => setLocation("/auth")}
+            onClick={() => setLocation("/editor")}
             size="lg"
             className="bg-[#ffd700] hover:bg-[#ffd700]/90 text-black font-semibold px-12 py-4 text-lg"
             data-testid="button-get-started"
