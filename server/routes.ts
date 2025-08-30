@@ -393,6 +393,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Alternative endpoint for conversation history
+  app.get("/api/conversations/history", async (req, res) => {
+    try {
+      const userId = req.query.userId as string || "default";
+      const conversationHistory = await storage.getUserConversationHistory(userId);
+      res.json(conversationHistory);
+    } catch (error) {
+      res.status(500).json({ 
+        message: error instanceof Error ? error.message : "Failed to fetch user conversation history" 
+      });
+    }
+  });
+
   // Object storage upload endpoint - get presigned URL
   app.post("/api/objects/upload", async (req, res) => {
     try {

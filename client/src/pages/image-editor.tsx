@@ -8,6 +8,7 @@ import ChatInterface from '@/components/chat-interface';
 import ModelConfig from '@/components/model-config';
 import UserLibraryPanel from '@/components/user-library-panel';
 import { LeftSidebar } from '@/components/left-sidebar';
+import { GalleryView } from '@/components/gallery-view';
 import { getModelDisplayName } from '@/lib/openrouter';
 import type { Conversation, ModelConfiguration } from '@shared/schema';
 
@@ -19,6 +20,7 @@ export default function ImageEditor() {
   const [configOpen, setConfigOpen] = useState(false);
   const [originalImageUrl, setOriginalImageUrl] = useState<string | null>(null);
   const [processedImageUrl, setProcessedImageUrl] = useState<string | null>(null);
+  const [currentView, setCurrentView] = useState<'chat' | 'gallery'>('chat');
 
   // Fetch model configuration for header display
   const { data: modelConfig } = useQuery<ModelConfiguration>({
@@ -27,6 +29,21 @@ export default function ImageEditor() {
 
   const handleConversationCreate = (conversation: Conversation) => {
     setCurrentConversation(conversation);
+  };
+
+  const handleNewChat = () => {
+    setCurrentConversation(null);
+    setCurrentView('chat');
+  };
+
+  const handleConversationSelect = (conversationId: string) => {
+    // Find the conversation from query cache or set it directly
+    setCurrentConversation({ id: conversationId } as Conversation);
+    setCurrentView('chat');
+  };
+
+  const handleGalleryClick = () => {
+    setCurrentView('gallery');
   };
 
   const handleImageProcessed = (originalUrl: string, processedUrl: string) => {
@@ -87,57 +104,64 @@ export default function ImageEditor() {
       {/* Main Content Area */}
       <div className="flex-1 flex overflow-hidden">
         {/* Left Sidebar */}
-        <LeftSidebar onSettingsClick={() => setConfigOpen(true)} />
+        <LeftSidebar 
+          onSettingsClick={() => setConfigOpen(true)}
+          onNewChatClick={handleNewChat}
+          onConversationSelect={handleConversationSelect}
+          onGalleryClick={handleGalleryClick}
+          currentConversationId={currentConversation?.id || null}
+          currentView={currentView}
+        />
         
-        {/* Chat Interface */}
-        <ChatInterface
-          conversationId={currentConversation?.id || null}
-          onConversationCreate={handleConversationCreate}
-          onImageProcessed={handleImageProcessed}
-          onSaveToLibrary={async (imageUrl, title) => {
-            try {
-              const response = await fetch('/api/library/save', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                  userId: 'default',
-                  title,
-                  objectPath: imageUrl,
-                  prompt: 'AI enhanced image',
-                  tags: ['ai-generated']
-                })
-              });
+        {/* Main Content Area */}
+        {currentView === 'chat' ? (
+          <ChatInterface
+            conversationId={currentConversation?.id || null}
+            onConversationCreate={handleConversationCreate}
+            onImageProcessed={handleImageProcessed}
+            onSaveToLibrary={async (imageUrl, title) => {
+              try {
+                const response = await fetch('/api/library/save', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    userId: 'default',
+                    title,
+                    objectPath: imageUrl,
+                    prompt: 'AI enhanced image',
+                    tags: ['ai-generated']
+                  })
+                });
 
-              if (!response.ok) {
-                throw new Error('Failed to save image');
+                if (!response.ok) {
+                  throw new Error('Failed to save image');
+                }
+
+                // Update the processed image URL for the library panel
+                setProcessedImageUrl(imageUrl);
+                
+                // Refresh the library to show the new saved image
+                queryClient.invalidateQueries({ queryKey: ['/api/library', 'default'] });
+                
+                // Show success message
+                toast({
+                  title: "Success",
+                  description: "Image saved to library",
+                });
+              } catch (error) {
+                console.error('Error saving image:', error);
+                toast({
+                  title: "Error",
+                  description: "Failed to save image to library",
+                  variant: "destructive",
+                });
               }
+            }}
+          />
+        ) : (
+          <GalleryView />
+        )}
 
-              // Update the processed image URL for the library panel
-              setProcessedImageUrl(imageUrl);
-              
-              // Refresh the library to show the new saved image
-              queryClient.invalidateQueries({ queryKey: ['/api/library', 'default'] });
-              
-              // Show success message
-              toast({
-                title: "Success",
-                description: "Image saved to library",
-              });
-            } catch (error) {
-              console.error('Error saving image:', error);
-              toast({
-                title: "Error",
-                description: "Failed to save image to library",
-                variant: "destructive",
-              });
-            }
-          }}
-        />
-
-        {/* User Library Panel */}
-        <UserLibraryPanel
-          processedImageUrl={processedImageUrl}
-        />
 
         {/* Model Configuration Sidebar */}
         <ModelConfig
