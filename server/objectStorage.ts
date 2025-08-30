@@ -273,7 +273,9 @@ export class ObjectStorageService {
 
   // Gets the private object directory.
   getPrivateObjectDir(): string {
-    return process.env.PRIVATE_OBJECT_DIR || "private/";
+    const dir = process.env.PRIVATE_OBJECT_DIR || "private/";
+    // Remove leading slash and ensure trailing slash
+    return dir.startsWith('/') ? dir.slice(1) : dir;
   }
 
   // Search for a public object from the search paths.
@@ -325,7 +327,9 @@ export class ObjectStorageService {
   async getObjectEntityUploadURL(): Promise<string> {
     const privateObjectDir = this.getPrivateObjectDir();
     const objectId = randomUUID();
-    const objectKey = `${privateObjectDir}uploads/${objectId}`;
+    // Ensure proper path joining with slash separator
+    const uploadsDir = privateObjectDir.endsWith('/') ? privateObjectDir : `${privateObjectDir}/`;
+    const objectKey = `${uploadsDir}uploads/${objectId}`;
 
     // Try multiple approaches for generating presigned URL
     const approaches = [
@@ -370,11 +374,12 @@ export class ObjectStorageService {
     }
 
     const entityId = parts.slice(1).join("/");
-    let entityDir = this.getPrivateObjectDir();
-    if (!entityDir.endsWith("/")) {
-      entityDir = `${entityDir}/`;
-    }
+    const privateDir = this.getPrivateObjectDir();
+    // Ensure proper path joining
+    const entityDir = privateDir.endsWith('/') ? privateDir : `${privateDir}/`;
     const objectKey = `${entityDir}${entityId}`;
+    
+    console.log(`Looking for S3 object: ${objectKey}`);
     
     // Try with different S3 clients
     const clients = [s3Client, s3ClientAlt];
@@ -384,6 +389,7 @@ export class ObjectStorageService {
         const s3Object = new S3Object(this.bucketName, objectKey, client);
         const [exists] = await s3Object.exists();
         if (exists) {
+          console.log(`✓ Found object with client: ${objectKey}`);
           return s3Object;
         }
       } catch (error) {
@@ -392,6 +398,7 @@ export class ObjectStorageService {
       }
     }
     
+    console.log(`✗ Object not found: ${objectKey}`);
     throw new ObjectNotFoundError();
   }
 
@@ -411,8 +418,10 @@ export class ObjectStorageService {
         }
         
         const privateDir = this.getPrivateObjectDir();
-        if (objectKey.startsWith(privateDir)) {
-          const entityId = objectKey.slice(privateDir.length);
+        const privateDirWithSlash = privateDir.endsWith('/') ? privateDir : `${privateDir}/`;
+        
+        if (objectKey.startsWith(privateDirWithSlash)) {
+          const entityId = objectKey.slice(privateDirWithSlash.length);
           return `/objects/${entityId}`;
         }
       } catch (error) {
@@ -464,7 +473,10 @@ export class ObjectStorageService {
   async directUploadToS3(fileBuffer: Buffer, fileName: string, contentType: string): Promise<string> {
     console.log('Attempting direct S3 upload with AWS SDK...');
     
-    const objectKey = `${this.getPrivateObjectDir()}uploads/${randomUUID()}-${fileName}`;
+    const privateObjectDir = this.getPrivateObjectDir();
+    // Ensure proper path joining with slash separator
+    const uploadsDir = privateObjectDir.endsWith('/') ? privateObjectDir : `${privateObjectDir}/`;
+    const objectKey = `${uploadsDir}uploads/${randomUUID()}-${fileName}`;
     console.log(`Target S3 path: s3://${this.bucketName}/${objectKey}`);
     
     try {
