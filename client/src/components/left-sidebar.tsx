@@ -20,8 +20,7 @@ interface LeftSidebarProps {
   currentView: 'chat' | 'gallery';
 }
 
-interface ConversationWithMessages {
-  conversation: Conversation;
+interface ConversationWithMessages extends Conversation {
   messages: any[];
 }
 
@@ -120,7 +119,9 @@ export function LeftSidebar({
               </div>
             ) : (
               <div className="space-y-1">
-                {conversations.map(({ conversation }) => (
+                {conversations
+                  .filter(conversation => conversation?.id) // Filter out invalid entries
+                  .map((conversation) => (
                   <Button
                     key={conversation.id}
                     variant="ghost"
@@ -139,7 +140,7 @@ export function LeftSidebar({
                             {truncateTitle(conversation.title)}
                           </p>
                           <p className="text-xs text-[#888888] mt-1">
-                {formatTimeAgo(conversation.createdAt.toString())}
+                            {formatTimeAgo(conversation.createdAt.toString())}
                           </p>
                         </div>
                       </div>
