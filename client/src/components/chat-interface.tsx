@@ -143,21 +143,16 @@ export default function ChatInterface({
       });
     }
 
-    if (uploadedImage && currentConversationId) {
+    if (currentConversationId) {
+      // Send with uploaded image (if any) or use conversation context
       processImageMutation.mutate({
         conversationId: currentConversationId,
-        imageUrl: uploadedImage.imageUrl,
+        imageUrl: uploadedImage?.imageUrl, // Optional - backend will use conversation context if not provided
         prompt: input,
       });
       
       setInput('');
       setUploadedImage(null);
-    } else {
-      toast({
-        title: 'No image uploaded',
-        description: 'Please upload an image before sending a message.',
-        variant: 'destructive',
-      });
     }
   };
 
@@ -332,11 +327,26 @@ export default function ChatInterface({
           </div>
         )}
 
+        {/* Context Indicator */}
+        {!uploadedImage && messages.length > 0 && (
+          <div className="mb-2 p-2 bg-blue-50 dark:bg-blue-950/20 rounded-lg border border-blue-200 dark:border-blue-800">
+            <p className="text-xs text-blue-700 dark:text-blue-300 flex items-center gap-1">
+              <ImageIcon className="w-3 h-3" />
+              Using latest image from conversation context
+            </p>
+          </div>
+        )}
+
         {/* Message Input */}
         <div className="flex gap-3">
           <div className="flex-1 relative">
             <Textarea
-              placeholder="Describe how you want to enhance your image... (You can also paste or drag images directly here)"
+              placeholder={uploadedImage 
+                ? "Describe how you want to enhance your image... (You can also paste or drag images directly here)"
+                : messages.length > 0 
+                  ? "Continue editing the latest image from this conversation... (Or paste/drag a new image)"
+                  : "Upload an image to get started, or paste/drag images directly here"
+              }
               value={input}
               onChange={(e) => setInput(e.target.value)}
               className={`resize-none pr-12 transition-all ${
@@ -363,7 +373,7 @@ export default function ChatInterface({
           
           <Button
             onClick={handleSendMessage}
-            disabled={!input.trim() || !uploadedImage || processImageMutation.isPending}
+            disabled={!input.trim() || processImageMutation.isPending}
             className="bg-blue-600 hover:bg-blue-700"
             data-testid="send-message-button"
           >

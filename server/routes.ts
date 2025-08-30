@@ -350,22 +350,33 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { conversationId, imageUrl, prompt } = req.body;
       
-      if (!conversationId || !imageUrl || !prompt) {
+      if (!conversationId || !prompt) {
         return res.status(400).json({ 
-          message: "Missing required fields: conversationId, imageUrl, prompt" 
+          message: "Missing required fields: conversationId, prompt" 
         });
+      }
+
+      // If no imageUrl provided, get the latest image from conversation context
+      let finalImageUrl = imageUrl;
+      if (!finalImageUrl) {
+        finalImageUrl = await storage.getLatestImageFromConversation(conversationId);
+        if (!finalImageUrl) {
+          return res.status(400).json({ 
+            message: "No image found in conversation context. Please upload an image first." 
+          });
+        }
       }
 
       // Get model configuration
       const modelConfig = await storage.getModelConfiguration();
       const selectedModel = modelConfig?.selectedModel || 'gpt-4-vision';
 
-      // Create user message
+      // Create user message (only include imageUrl if it's a new upload)
       const userMessage = await storage.createMessage({
         conversationId,
         role: 'user',
         content: prompt,
-        imageUrl,
+        imageUrl: imageUrl || null, // Only set if new image was uploaded
         processingStatus: 'completed'
       });
 
@@ -380,7 +391,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Create processing job
       const processingJob = await storage.createImageProcessingJob({
         messageId: aiMessage.id,
-        originalImageUrl: imageUrl,
+        originalImageUrl: finalImageUrl, // Use the resolved image URL
         prompt,
         model: selectedModel,
         status: 'processing'
@@ -396,7 +407,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       try {
         // Get user's API key if available
         const userApiKey = modelConfig?.apiKey || undefined;
-        const result = await processImageWithOpenRouter(imageUrl, prompt, selectedModel, userApiKey);
+        const result = await processImageWithOpenRouter(finalImageUrl, prompt, selectedModel, userApiKey);
         
         // Update processing job
         await storage.updateImageProcessingJob(processingJob.id, {

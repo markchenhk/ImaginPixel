@@ -44,6 +44,7 @@ export interface IStorage {
   getConversationWithMessages(conversationId: string): Promise<ConversationWithMessages | undefined>;
   getRecentConversationsWithMessages(limit?: number): Promise<ConversationWithMessages[]>;
   getUserConversationHistory(userId?: string): Promise<ConversationWithMessages[]>;
+  getLatestImageFromConversation(conversationId: string): Promise<string | undefined>;
 }
 
 
@@ -218,6 +219,33 @@ export class DatabaseStorage implements IStorage {
     // Get all conversations for a user with full context
     // For now, returning all conversations since we don't have user-specific conversations yet
     return this.getRecentConversationsWithMessages(50);
+  }
+
+  // Get the latest image URL from a conversation (either uploaded or generated)
+  async getLatestImageFromConversation(conversationId: string): Promise<string | undefined> {
+    const conversationMessages = await db.query.messages.findMany({
+      where: eq(messages.conversationId, conversationId),
+      orderBy: [desc(messages.createdAt)],
+      with: {
+        imageProcessingJobs: true,
+      },
+    });
+
+    // Look for the most recent message with an image URL
+    for (const message of conversationMessages) {
+      // Check for processed image first (latest generated image)
+      const latestJob = message.imageProcessingJobs?.[0];
+      if (latestJob?.processedImageUrl) {
+        return latestJob.processedImageUrl;
+      }
+      
+      // Fall back to original message image
+      if (message.imageUrl) {
+        return message.imageUrl;
+      }
+    }
+
+    return undefined;
   }
 }
 
