@@ -108,10 +108,12 @@ export default function ChatInterface({
       // Start optimized polling for processing job completion
       let pollCount = 0;
       const pollJob = () => {
-        queryClient.fetchQuery({
-          queryKey: ['/api/processing-jobs', result.aiMessage.id],
-        }).then((job: any) => {
+        // Bypass QueryClient cache and fetch directly to avoid stale data
+        fetch(`/api/processing-jobs/${result.aiMessage.id}`, {
+          credentials: 'include'
+        }).then(res => res.json()).then((job: any) => {
           console.log('Polling job:', result.aiMessage.id, 'Status:', job?.status);
+          console.log('Full job data:', job);
           if (job.status === 'completed') {
             if (job.processedImageUrl) {
               onImageProcessed(job.originalImageUrl, job.processedImageUrl);
