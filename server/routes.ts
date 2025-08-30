@@ -598,7 +598,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
         // Update AI message
         await storage.updateMessage(aiMessage.id, {
-          content: `I've successfully enhanced your image! Here are the improvements I applied:\n\n${result.enhancementsApplied.map(e => `• ${e}`).join('\n')}`,
+          content: `✨ Image enhanced successfully`,
           imageUrl: result.processedImageUrl, // Add the processed image URL for before/after comparison
           processingStatus: 'completed'
         });

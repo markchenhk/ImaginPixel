@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { useQuery, useMutation } from '@tanstack/react-query';
-import { Send, Bot, User, ImageIcon } from 'lucide-react';
+import { Send, Bot, User, ImageIcon, Download, Heart } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -13,12 +13,14 @@ interface ChatInterfaceProps {
   conversationId: string | null;
   onConversationCreate: (conversation: Conversation) => void;
   onImageProcessed: (originalUrl: string, processedUrl: string) => void;
+  onSaveToLibrary?: (imageUrl: string, title: string) => void;
 }
 
 export default function ChatInterface({ 
   conversationId, 
   onConversationCreate,
-  onImageProcessed 
+  onImageProcessed,
+  onSaveToLibrary
 }: ChatInterfaceProps) {
   const { toast } = useToast();
   const [input, setInput] = useState('');
@@ -291,10 +293,45 @@ export default function ChatInterface({
                     <div className="mb-3">
                       <img 
                         src={message.imageUrl} 
-                        alt="Uploaded image" 
-                        className="rounded-lg w-full max-w-xs"
+                        alt="Generated image" 
+                        className="rounded-lg w-full max-w-xs mb-2"
                         data-testid={`message-image-${message.id}`}
                       />
+                      {message.role === 'assistant' && message.processingStatus === 'completed' && (
+                        <div className="flex gap-2 mt-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => {
+                              const link = document.createElement('a');
+                              link.href = message.imageUrl!;
+                              link.download = `enhanced-image-${message.id}.jpg`;
+                              document.body.appendChild(link);
+                              link.click();
+                              document.body.removeChild(link);
+                            }}
+                            data-testid={`download-image-${message.id}`}
+                            className="text-xs"
+                          >
+                            <Download className="w-3 h-3 mr-1" />
+                            Download
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => {
+                              if (onSaveToLibrary && message.imageUrl) {
+                                onSaveToLibrary(message.imageUrl, `Enhanced Image ${new Date().toLocaleDateString()}`);
+                              }
+                            }}
+                            data-testid={`save-image-${message.id}`}
+                            className="text-xs"
+                          >
+                            <Heart className="w-3 h-3 mr-1" />
+                            Save
+                          </Button>
+                        </div>
+                      )}
                     </div>
                   )}
                   

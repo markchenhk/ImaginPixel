@@ -72,6 +72,10 @@ export default function ImageEditor() {
           conversationId={currentConversation?.id || null}
           onConversationCreate={handleConversationCreate}
           onImageProcessed={handleImageProcessed}
+          onSaveToLibrary={(imageUrl, title) => {
+            // Set the processed image URL and let the UserLibraryPanel save it
+            setProcessedImageUrl(imageUrl);
+          }}
         />
 
         {/* User Library Panel */}
