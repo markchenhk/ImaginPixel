@@ -1,4 +1,4 @@
-import type { Express } from "express";
+import type { Express, Request } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { 
@@ -11,6 +11,10 @@ import multer from "multer";
 import path from "path";
 import fs from "fs";
 
+interface MulterRequest extends Request {
+  file?: Express.Multer.File;
+}
+
 // Setup multer for file uploads
 const uploadDir = path.join(process.cwd(), 'uploads');
 if (!fs.existsSync(uploadDir)) {
@@ -22,7 +26,7 @@ const upload = multer({
   limits: {
     fileSize: 10 * 1024 * 1024, // 10MB limit
   },
-  fileFilter: (req, file, cb) => {
+  fileFilter: (req: Request, file: Express.Multer.File, cb: multer.FileFilterCallback) => {
     const allowedTypes = ['image/jpeg', 'image/png', 'image/webp'];
     if (allowedTypes.includes(file.mimetype)) {
       cb(null, true);
@@ -35,12 +39,13 @@ const upload = multer({
 async function processImageWithOpenRouter(
   imageUrl: string, 
   prompt: string, 
-  model: string
+  model: string,
+  apiKey?: string
 ): Promise<{ processedImageUrl: string; enhancementsApplied: string[]; processingTime: number }> {
   const startTime = Date.now();
-  const apiKey = process.env.OPENROUTER_API_KEY || process.env.OPENROUTER_KEY;
+  const keyToUse = apiKey || process.env.OPENROUTER_API_KEY || process.env.OPENROUTER_KEY;
   
-  if (!apiKey) {
+  if (!keyToUse) {
     throw new Error('OpenRouter API key not configured');
   }
 
@@ -50,7 +55,7 @@ async function processImageWithOpenRouter(
     const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${apiKey}`,
+        'Authorization': `Bearer ${keyToUse}`,
         'Content-Type': 'application/json',
         'HTTP-Referer': process.env.REPLIT_DOMAINS?.split(',')[0] || 'http://localhost:5000',
         'X-Title': 'AI Image Editor'
@@ -143,7 +148,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Upload image endpoint
-  app.post("/api/upload", upload.single('image'), async (req, res) => {
+  app.post("/api/upload", upload.single('image'), async (req: MulterRequest, res) => {
     try {
       if (!req.file) {
         return res.status(400).json({ message: "No image file provided" });
@@ -226,7 +231,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Process image asynchronously
       try {
-        const result = await processImageWithOpenRouter(imageUrl, prompt, selectedModel);
+        // Get user's API key if available
+        const userApiKey = modelConfig?.apiKey || undefined;
+        const result = await processImageWithOpenRouter(imageUrl, prompt, selectedModel, userApiKey);
         
         // Update processing job
         await storage.updateImageProcessingJob(processingJob.id, {
@@ -308,6 +315,57 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       res.status(400).json({ 
         message: error instanceof Error ? error.message : "Failed to update model configuration" 
+      });
+    }
+  });
+
+  // Fetch available models from OpenRouter
+  app.get("/api/models", async (req, res) => {
+    try {
+      const { apiKey } = req.query;
+      const keyToUse = apiKey || process.env.OPENROUTER_API_KEY || process.env.OPENROUTER_KEY;
+      
+      if (!keyToUse) {
+        return res.status(400).json({ 
+          message: "API key is required. Please provide it in the query parameter or set OPENROUTER_API_KEY environment variable" 
+        });
+      }
+
+      const response = await fetch('https://openrouter.ai/api/v1/models', {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${keyToUse}`,
+          'Content-Type': 'application/json',
+          'HTTP-Referer': process.env.REPLIT_DOMAINS?.split(',')[0] || 'http://localhost:5000',
+          'X-Title': 'AI Image Editor'
+        }
+      });
+
+      if (!response.ok) {
+        throw new Error(`OpenRouter API error: ${response.statusText}`);
+      }
+
+      const result = await response.json();
+      
+      // Filter for models that support vision/multimodal capabilities
+      const visionModels = result.data?.filter((model: any) => 
+        model.architecture?.modality?.includes('vision') || 
+        model.architecture?.modality?.includes('multimodal') ||
+        model.id?.includes('vision') ||
+        model.id?.includes('gpt-4') ||
+        model.id?.includes('claude') ||
+        model.id?.includes('gemini')
+      ) || [];
+      
+      res.json({
+        data: visionModels,
+        total: visionModels.length,
+        apiKeyValid: true
+      });
+    } catch (error) {
+      res.status(500).json({ 
+        message: error instanceof Error ? error.message : "Failed to fetch models",
+        apiKeyValid: false
       });
     }
   });

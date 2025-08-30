@@ -90,6 +90,8 @@ export class MemStorage implements IStorage {
       ...insertMessage,
       id,
       createdAt: new Date(),
+      imageUrl: insertMessage.imageUrl || null,
+      processingStatus: insertMessage.processingStatus || null,
     };
     this.messages.set(id, message);
     return message;
@@ -120,6 +122,10 @@ export class MemStorage implements IStorage {
       id,
       createdAt: new Date(),
       completedAt: null,
+      processedImageUrl: null,
+      processingTime: null,
+      errorMessage: null,
+      enhancementsApplied: null,
     };
     this.imageProcessingJobs.set(id, job);
     return job;
@@ -148,8 +154,14 @@ export class MemStorage implements IStorage {
     
     if (existing) {
       const updated: ModelConfiguration = {
-        ...existing,
-        ...insertConfig,
+        id: existing.id,
+        userId: insertConfig.userId || existing.userId,
+        selectedModel: insertConfig.selectedModel || existing.selectedModel,
+        outputQuality: insertConfig.outputQuality || existing.outputQuality,
+        maxResolution: insertConfig.maxResolution || existing.maxResolution,
+        timeout: insertConfig.timeout || existing.timeout,
+        apiKey: insertConfig.apiKey !== undefined ? insertConfig.apiKey : existing.apiKey,
+        apiKeyConfigured: insertConfig.apiKeyConfigured || existing.apiKeyConfigured,
         updatedAt: new Date(),
       };
       this.modelConfigurations.set(userId, updated);
@@ -157,9 +169,14 @@ export class MemStorage implements IStorage {
     } else {
       const id = randomUUID();
       const config: ModelConfiguration = {
-        ...insertConfig,
         id,
         userId,
+        selectedModel: insertConfig.selectedModel || 'openai/gpt-4o',
+        outputQuality: insertConfig.outputQuality || 'high',
+        maxResolution: insertConfig.maxResolution || 2048,
+        timeout: insertConfig.timeout || 120,
+        apiKey: insertConfig.apiKey || null,
+        apiKeyConfigured: insertConfig.apiKeyConfigured || 'false',
         updatedAt: new Date(),
       };
       this.modelConfigurations.set(userId, config);

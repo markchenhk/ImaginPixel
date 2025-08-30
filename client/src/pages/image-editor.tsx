@@ -6,7 +6,7 @@ import ChatInterface from '@/components/chat-interface';
 import ImagePreview from '@/components/image-preview';
 import ModelConfig from '@/components/model-config';
 import { getModelDisplayName } from '@/lib/openrouter';
-import type { Conversation } from '@shared/schema';
+import type { Conversation, ModelConfiguration } from '@shared/schema';
 
 export default function ImageEditor() {
   const [currentConversation, setCurrentConversation] = useState<Conversation | null>(null);
@@ -15,7 +15,7 @@ export default function ImageEditor() {
   const [processedImageUrl, setProcessedImageUrl] = useState<string | null>(null);
 
   // Fetch model configuration for header display
-  const { data: modelConfig } = useQuery({
+  const { data: modelConfig } = useQuery<ModelConfiguration>({
     queryKey: ['/api/model-config'],
   });
 

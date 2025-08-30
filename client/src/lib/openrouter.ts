@@ -76,6 +76,12 @@ export const AVAILABLE_MODELS: { [key: string]: OpenRouterModel } = {
 };
 
 export function getModelDisplayName(modelId: string): string {
+  // Extract readable name from model ID
+  if (modelId.includes('/')) {
+    const parts = modelId.split('/');
+    const modelName = parts[parts.length - 1];
+    return modelName.replace('-', ' ').replace(/\b\w/g, l => l.toUpperCase());
+  }
   return AVAILABLE_MODELS[modelId]?.name || modelId;
 }
 

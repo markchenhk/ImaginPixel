@@ -14,7 +14,7 @@ export default function ImagePreview({
   processingJobId 
 }: ImagePreviewProps) {
   // Poll for processing job updates
-  const { data: processingJob } = useQuery({
+  const { data: processingJob } = useQuery<ImageProcessingJob>({
     queryKey: ['/api/processing-jobs', processingJobId],
     enabled: !!processingJobId,
     refetchInterval: processingJobId ? 2000 : false, // Poll every 2 seconds if there's a job

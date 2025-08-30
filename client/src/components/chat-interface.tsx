@@ -28,7 +28,7 @@ export default function ChatInterface({
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   // Fetch messages for current conversation
-  const { data: messages = [], isLoading: messagesLoading } = useQuery({
+  const { data: messages = [], isLoading: messagesLoading } = useQuery<Message[]>({
     queryKey: ['/api/conversations', conversationId, 'messages'],
     enabled: !!conversationId,
   });
@@ -192,7 +192,7 @@ export default function ChatInterface({
           )}
 
           {/* Messages */}
-          {messages.map((message: Message) => (
+          {messages.map((message) => (
             <div key={message.id} className="chat-message">
               <div className={`flex items-start gap-3 ${message.role === 'user' ? 'justify-end' : ''}`}>
                 {message.role === 'assistant' && (

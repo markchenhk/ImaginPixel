@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useQuery, useMutation } from '@tanstack/react-query';
-import { X, Settings, Eye, EyeOff, RefreshCw } from 'lucide-react';
+import { X, Settings, Eye, EyeOff, RefreshCw, Search, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -9,8 +9,8 @@ import { Slider } from '@/components/ui/slider';
 import { Card } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
 import { apiRequest, queryClient } from '@/lib/queryClient';
-import { AVAILABLE_MODELS, getModelDisplayName, getModelPricing } from '@/lib/openrouter';
 import type { ModelConfiguration } from '@shared/schema';
+import type { OpenRouterModel } from '@/types';
 
 interface ModelConfigProps {
   isOpen: boolean;
@@ -21,14 +21,29 @@ export default function ModelConfig({ isOpen, onClose }: ModelConfigProps) {
   const { toast } = useToast();
   const [showApiKey, setShowApiKey] = useState(false);
   const [localConfig, setLocalConfig] = useState<Partial<ModelConfiguration>>({});
+  const [apiKey, setApiKey] = useState('');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [isLoadingModels, setIsLoadingModels] = useState(false);
 
   // Fetch current configuration
-  const { data: config, isLoading } = useQuery({
+  const { data: config, isLoading } = useQuery<ModelConfiguration>({
     queryKey: ['/api/model-config'],
   });
 
+  // Fetch available models from OpenRouter
+  const { data: modelsData, isLoading: modelsLoading, refetch: refetchModels } = useQuery<{
+    data: OpenRouterModel[];
+    total: number;
+    apiKeyValid: boolean;
+  }>({
+    queryKey: ['/api/models', apiKey],
+    enabled: !!apiKey,
+    retry: false,
+    staleTime: 5 * 60 * 1000, // 5 minutes
+  });
+
   // Update configuration mutation
-  const updateConfigMutation = useMutation({
+  const updateConfigMutation = useMutation<ModelConfiguration, Error, Partial<ModelConfiguration>>({
     mutationFn: async (newConfig: Partial<ModelConfiguration>) => {
       const response = await apiRequest('POST', '/api/model-config', newConfig);
       return response.json();
@@ -53,11 +68,57 @@ export default function ModelConfig({ isOpen, onClose }: ModelConfigProps) {
   useEffect(() => {
     if (config) {
       setLocalConfig(config);
+      // Don't set actual API key for security, but show if configured
+      setApiKey(config.apiKey ? '***hidden***' : '');
     }
   }, [config]);
 
+  // Handle API key test and model fetching
+  const testApiKey = async (key: string) => {
+    if (!key || key === '***hidden***') return;
+    
+    setIsLoadingModels(true);
+    try {
+      const response = await fetch(`/api/models?apiKey=${encodeURIComponent(key)}`);
+      const data = await response.json();
+      
+      if (response.ok && data.apiKeyValid) {
+        toast({
+          title: 'API key valid',
+          description: `Found ${data.total} available models`,
+        });
+        refetchModels();
+      } else {
+        throw new Error(data.message || 'Invalid API key');
+      }
+    } catch (error) {
+      toast({
+        title: 'API key test failed',
+        description: error instanceof Error ? error.message : 'Unknown error',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsLoadingModels(false);
+    }
+  };
+
+  // Filter models based on search query
+  const filteredModels = modelsData?.data?.filter(model => 
+    model.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    model.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    model.description?.toLowerCase().includes(searchQuery.toLowerCase())
+  ) || [];
+
   const handleSave = () => {
-    updateConfigMutation.mutate(localConfig);
+    const configToSave = { ...localConfig };
+    
+    // Only include API key if it's been changed (not the hidden placeholder)
+    if (apiKey && apiKey !== '***hidden***') {
+      configToSave.apiKey = apiKey;
+      configToSave.apiKeyConfigured = 'true';
+    }
+    
+    updateConfigMutation.mutate(configToSave);
   };
 
   const handleReset = () => {
@@ -66,8 +127,11 @@ export default function ModelConfig({ isOpen, onClose }: ModelConfigProps) {
       outputQuality: 'high',
       maxResolution: 2048,
       timeout: 120,
+      apiKey: null,
+      apiKeyConfigured: 'false',
     };
     setLocalConfig(defaultConfig);
+    setApiKey('');
     updateConfigMutation.mutate(defaultConfig);
   };
 
@@ -97,67 +161,160 @@ export default function ModelConfig({ isOpen, onClose }: ModelConfigProps) {
           </div>
         ) : (
           <>
-            {/* API Configuration Status */}
+            {/* API Configuration */}
             <div>
-              <h3 className="font-medium mb-3">OpenRouter API</h3>
-              <div className={`flex items-center gap-2 p-3 rounded-lg border ${
-                config?.apiKeyConfigured === 'true' 
-                  ? 'bg-green-500/10 border-green-500/20' 
-                  : 'bg-yellow-500/10 border-yellow-500/20'
-              }`}>
-                <div className={`w-2 h-2 rounded-full ${
-                  config?.apiKeyConfigured === 'true' ? 'bg-green-500' : 'bg-yellow-500'
-                }`} />
-                <span className="text-sm">
-                  {config?.apiKeyConfigured === 'true' 
-                    ? 'Connected to OpenRouter' 
-                    : 'API key not configured'}
-                </span>
-              </div>
+              <h3 className="font-medium mb-3">OpenRouter API Key</h3>
               
-              {config?.apiKeyConfigured !== 'true' && (
-                <p className="text-xs text-muted-foreground mt-2">
-                  Set the OPENROUTER_API_KEY environment variable to enable AI processing
+              <div className="space-y-3">
+                <div>
+                  <Label className="text-sm font-medium text-muted-foreground">
+                    API Key
+                  </Label>
+                  <div className="flex gap-2 mt-2">
+                    <div className="relative flex-1">
+                      <Input
+                        type={showApiKey ? 'text' : 'password'}
+                        value={apiKey}
+                        onChange={(e) => setApiKey(e.target.value)}
+                        placeholder="Enter your OpenRouter API key"
+                        className="pr-10"
+                        data-testid="api-key-input"
+                      />
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="absolute right-1 top-1/2 -translate-y-1/2 h-8 w-8 p-0"
+                        onClick={() => setShowApiKey(!showApiKey)}
+                        data-testid="toggle-api-key-visibility"
+                      >
+                        {showApiKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                      </Button>
+                    </div>
+                    <Button
+                      onClick={() => testApiKey(apiKey)}
+                      disabled={!apiKey || apiKey === '***hidden***' || isLoadingModels}
+                      size="sm"
+                      data-testid="test-api-key-button"
+                    >
+                      {isLoadingModels ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        'Test'
+                      )}
+                    </Button>
+                  </div>
+                </div>
+
+                <div className={`flex items-center gap-2 p-3 rounded-lg border ${
+                  modelsData?.apiKeyValid
+                    ? 'bg-green-500/10 border-green-500/20' 
+                    : 'bg-yellow-500/10 border-yellow-500/20'
+                }`}>
+                  <div className={`w-2 h-2 rounded-full ${
+                    modelsData?.apiKeyValid ? 'bg-green-500' : 'bg-yellow-500'
+                  }`} />
+                  <span className="text-sm">
+                    {modelsData?.apiKeyValid
+                      ? `Connected - ${modelsData.total} models available` 
+                      : 'API key not validated'}
+                  </span>
+                </div>
+                
+                <p className="text-xs text-muted-foreground">
+                  Get your API key from{' '}
+                  <a 
+                    href="https://openrouter.ai/keys" 
+                    target="_blank" 
+                    rel="noopener noreferrer"
+                    className="text-blue-500 hover:underline"
+                  >
+                    OpenRouter Dashboard
+                  </a>
                 </p>
-              )}
+              </div>
             </div>
 
             {/* Model Selection */}
             <div>
-              <h3 className="font-medium mb-3">Available Models</h3>
-              <div className="space-y-2">
-                {Object.entries(AVAILABLE_MODELS).map(([modelId, model]) => (
-                  <Card
-                    key={modelId}
-                    className={`model-card p-3 cursor-pointer transition-all hover:shadow-md ${
-                      localConfig.selectedModel === modelId 
-                        ? 'border-blue-500 bg-blue-500/5' 
-                        : 'hover:border-blue-500/50'
-                    }`}
-                    onClick={() => setLocalConfig({ ...localConfig, selectedModel: modelId })}
-                    data-testid={`model-card-${modelId}`}
-                  >
-                    <div className="flex items-center justify-between mb-2">
-                      <h4 className="font-medium text-sm">{model.name}</h4>
-                      <div className={`w-2 h-2 rounded-full ${
-                        localConfig.selectedModel === modelId ? 'bg-blue-500' : 'bg-gray-400'
-                      }`} />
-                    </div>
-                    <p className="text-xs text-muted-foreground mb-2">
-                      {model.description}
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="font-medium">Available Models</h3>
+                {modelsData?.data && (
+                  <span className="text-xs text-muted-foreground">
+                    {filteredModels.length} of {modelsData.total}
+                  </span>
+                )}
+              </div>
+              
+              {/* Search Models */}
+              {modelsData?.data && modelsData.data.length > 0 && (
+                <div className="relative mb-3">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    placeholder="Search models..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="pl-9"
+                    data-testid="model-search-input"
+                  />
+                </div>
+              )}
+              
+              <div className="space-y-2 max-h-96 overflow-y-auto">
+                {modelsLoading ? (
+                  <div className="text-center py-4">
+                    <Loader2 className="h-6 w-6 animate-spin mx-auto" />
+                    <p className="text-sm text-muted-foreground mt-2">Loading models...</p>
+                  </div>
+                ) : !modelsData?.data || modelsData.data.length === 0 ? (
+                  <div className="text-center py-4">
+                    <p className="text-sm text-muted-foreground">
+                      {apiKey ? 'No models found. Please check your API key.' : 'Enter your API key to load available models'}
                     </p>
-                    <div className="flex items-center justify-between text-xs">
-                      <span className="text-muted-foreground">
-                        {getModelPricing(modelId)}
-                      </span>
-                      {localConfig.selectedModel === modelId && (
-                        <span className="bg-blue-500/20 text-blue-400 px-2 py-0.5 rounded">
-                          Selected
+                  </div>
+                ) : filteredModels.length === 0 ? (
+                  <div className="text-center py-4">
+                    <p className="text-sm text-muted-foreground">
+                      No models match your search
+                    </p>
+                  </div>
+                ) : (
+                  filteredModels.map((model) => (
+                    <Card
+                      key={model.id}
+                      className={`model-card p-3 cursor-pointer transition-all hover:shadow-md ${
+                        localConfig.selectedModel === model.id
+                          ? 'border-blue-500 bg-blue-500/5' 
+                          : 'hover:border-blue-500/50'
+                      }`}
+                      onClick={() => setLocalConfig({ ...localConfig, selectedModel: model.id })}
+                      data-testid={`model-card-${model.id}`}
+                    >
+                      <div className="flex items-center justify-between mb-2">
+                        <h4 className="font-medium text-sm">{model.name}</h4>
+                        <div className={`w-2 h-2 rounded-full ${
+                          localConfig.selectedModel === model.id ? 'bg-blue-500' : 'bg-gray-400'
+                        }`} />
+                      </div>
+                      <p className="text-xs text-muted-foreground mb-2 line-clamp-2">
+                        {model.description || 'No description available'}
+                      </p>
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="text-muted-foreground">
+                          ${parseFloat(model.pricing?.prompt || '0').toFixed(3)}/1K tokens
                         </span>
-                      )}
-                    </div>
-                  </Card>
-                ))}
+                        {localConfig.selectedModel === model.id && (
+                          <span className="bg-blue-500/20 text-blue-400 px-2 py-0.5 rounded">
+                            Selected
+                          </span>
+                        )}
+                      </div>
+                      <div className="text-xs text-muted-foreground mt-1">
+                        Context: {model.context_length?.toLocaleString() || 'N/A'} tokens
+                      </div>
+                    </Card>
+                  ))
+                )}
               </div>
             </div>
 

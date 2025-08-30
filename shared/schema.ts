@@ -37,10 +37,11 @@ export const imageProcessingJobs = pgTable("image_processing_jobs", {
 export const modelConfigurations = pgTable("model_configurations", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   userId: text("user_id").notNull().default("default"), // For multi-user support later
-  selectedModel: text("selected_model").notNull().default("gpt-4-vision"),
+  selectedModel: text("selected_model").notNull().default("openai/gpt-4o"),
   outputQuality: text("output_quality").notNull().default("high"), // 'standard' | 'high' | 'ultra'
   maxResolution: integer("max_resolution").notNull().default(2048),
   timeout: integer("timeout").notNull().default(120), // seconds
+  apiKey: text("api_key"), // Encrypted API key storage
   apiKeyConfigured: text("api_key_configured").notNull().default("false"),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
