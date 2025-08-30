@@ -51,7 +51,8 @@ async function processImageWithOpenRouter(
 
   try {
     // Convert local image URL to full URL that OpenRouter can access
-    const baseUrl = process.env.REPLIT_DOMAINS?.split(',')[0] || 'http://localhost:5000';
+    const domain = process.env.REPLIT_DOMAINS?.split(',')[0];
+    const baseUrl = domain ? `https://${domain}` : 'http://localhost:5000';
     const fullImageUrl = imageUrl.startsWith('http') ? imageUrl : `${baseUrl}${imageUrl}`;
     
     console.log(`[OpenRouter] Processing image: ${fullImageUrl} with model: ${model}`);
