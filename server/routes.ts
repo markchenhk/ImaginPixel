@@ -71,9 +71,9 @@ async function saveGeneratedImageToS3(imageData: any, prompt: string): Promise<s
     // Convert base64 to buffer
     const buffer = Buffer.from(base64Data, 'base64');
     
-    // Use the fallback upload system (S3 + local storage fallback)
-    console.log('[SaveImage] Uploading generated image with fallback system...');
-    const objectPath = await objectStorageService.uploadWithFallbacks(
+    // Upload directly to S3 (no fallbacks)
+    console.log('[SaveImage] Uploading generated image to S3...');
+    const objectPath = await objectStorageService.uploadToS3(
       buffer,
       filename,
       'image/png'
@@ -422,9 +422,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Read the uploaded file
       const fileBuffer = fs.readFileSync(req.file.path);
       
-      // Use the new upload method with multiple fallback approaches
-      console.log('Starting upload with fallback approaches...');
-      const objectPath = await objectStorageService.uploadWithFallbacks(
+      // Upload directly to S3 (no fallbacks)
+      console.log('Starting S3 upload...');
+      const objectPath = await objectStorageService.uploadToS3(
         fileBuffer, 
         req.file.originalname,
         req.file.mimetype

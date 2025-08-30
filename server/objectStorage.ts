@@ -11,12 +11,12 @@ import {
   setObjectAclPolicy,
 } from "./objectAcl";
 
-// AWS S3 client configuration - simplified approach
+// AWS S3 client configuration with credential validation
 export const s3Client = new S3Client({
   region: process.env.AWS_REGION || 'us-east-1',
   credentials: {
-    accessKeyId: process.env.AWS_ACCESS_KEY_ID || '',
-    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY || '',
+    accessKeyId: process.env.AWS_ACCESS_KEY_ID?.trim() || '',
+    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY?.trim() || '',
   },
 });
 
@@ -148,43 +148,93 @@ export class ObjectStorageService {
     this.testS3Connection();
   }
 
-  // Test S3 bucket connectivity with multiple approaches
+  // Comprehensive S3 diagnostics and permission testing
   private async testS3Connection() {
-    console.log('Testing S3 bucket connectivity with multiple approaches...');
+    console.log('=== S3 DIAGNOSTICS ===');
+    console.log('Testing S3 bucket connectivity and permissions...');
     
-    // Try standard virtual-hosted approach
+    // Test 1: Check bucket accessibility
     try {
-      console.log('Approach 1: Virtual-hosted style...');
+      console.log('Test 1: Checking bucket accessibility...');
       const command = new HeadBucketCommand({ Bucket: this.bucketName });
       await s3Client.send(command);
-      console.log('✓ S3 bucket is accessible (virtual-hosted)');
-      return;
+      console.log('✓ Bucket is accessible');
     } catch (error: any) {
-      console.log('✗ Virtual-hosted style failed:', error.message);
+      console.log('✗ Bucket access failed:', error.message);
     }
     
-    // Try path-style approach
+    // Test 2: Test upload permissions with a small test file
     try {
-      console.log('Approach 2: Path-style URLs...');
-      const command = new HeadBucketCommand({ Bucket: this.bucketName });
-      await s3ClientAlt.send(command);
-      console.log('✓ S3 bucket is accessible (path-style)');
-      return;
+      console.log('Test 2: Testing upload permissions...');
+      const testKey = 'test-upload-permissions.txt';
+      const testContent = 'This is a test file to verify S3 upload permissions.';
+      
+      const uploadCommand = new PutObjectCommand({
+        Bucket: this.bucketName,
+        Key: testKey,
+        Body: Buffer.from(testContent),
+        ContentType: 'text/plain',
+        ACL: 'private'
+      });
+
+      await s3Client.send(uploadCommand);
+      console.log('✓ Upload permissions working - test file uploaded successfully');
+      
+      // Clean up test file
+      try {
+        const { DeleteObjectCommand } = await import('@aws-sdk/client-s3');
+        await s3Client.send(new DeleteObjectCommand({
+          Bucket: this.bucketName,
+          Key: testKey
+        }));
+        console.log('✓ Test file cleaned up');
+      } catch (cleanupError) {
+        console.log('⚠ Test file cleanup failed (but upload worked)');
+      }
+      
     } catch (error: any) {
-      console.log('✗ Path-style approach failed:', error.message);
+      console.error('✗ Upload permissions test failed:', {
+        name: error.name,
+        message: error.message,
+        code: error.Code || error.code,
+        statusCode: error.$metadata?.httpStatusCode
+      });
+      
+      // Provide specific guidance
+      if (error.name === 'AccessDenied' || error.Code === 'AccessDenied') {
+        console.error('\n🔧 FIX REQUIRED: Add this policy to your IAM user:');
+        console.error(JSON.stringify({
+          "Version": "2012-10-17",
+          "Statement": [
+            {
+              "Effect": "Allow",
+              "Action": [
+                "s3:PutObject",
+                "s3:GetObject",
+                "s3:DeleteObject",
+                "s3:HeadBucket",
+                "s3:ListBucket"
+              ],
+              "Resource": [
+                `arn:aws:s3:::${this.bucketName}`,
+                `arn:aws:s3:::${this.bucketName}/*`
+              ]
+            }
+          ]
+        }, null, 2));
+      }
     }
     
-    // Try direct HTTP request approach
+    // Test 3: Direct HTTP access (fallback verification)
     try {
-      console.log('Approach 3: Direct HTTP request...');
+      console.log('Test 3: Direct HTTP access...');
       await this.testDirectHttpAccess();
-      console.log('✓ S3 bucket is accessible (direct HTTP)');
-      return;
+      console.log('✓ Direct HTTP access working');
     } catch (error: any) {
-      console.log('✗ Direct HTTP approach failed:', error.message);
+      console.log('✗ Direct HTTP access failed:', error.message);
     }
     
-    console.error('All S3 access approaches failed. Consider switching to Replit object storage.');
+    console.log('=== END S3 DIAGNOSTICS ===');
   }
   
   // Test direct HTTP access to S3
@@ -410,40 +460,59 @@ export class ObjectStorageService {
     return true; // Allow all access for now
   }
 
-  // Alternative: Direct upload to S3 without presigned URLs
+  // Direct upload to S3 with detailed error diagnosis
   async directUploadToS3(fileBuffer: Buffer, fileName: string, contentType: string): Promise<string> {
     console.log('Attempting direct S3 upload with AWS SDK...');
     
     const objectKey = `${this.getPrivateObjectDir()}uploads/${randomUUID()}-${fileName}`;
+    console.log(`Target S3 path: s3://${this.bucketName}/${objectKey}`);
     
-    // Try with different S3 clients
-    const clients = [
-      { name: 'Standard Client', client: s3Client },
-      { name: 'Path-style Client', client: s3ClientAlt }
-    ];
-    
-    for (const approach of clients) {
-      try {
-        console.log(`Trying direct upload with: ${approach.name}`);
-        
-        const command = new PutObjectCommand({
-          Bucket: this.bucketName,
-          Key: objectKey,
-          Body: fileBuffer,
-          ContentType: contentType,
-        });
+    try {
+      console.log('Trying direct upload with standard S3 client...');
+      
+      const command = new PutObjectCommand({
+        Bucket: this.bucketName,
+        Key: objectKey,
+        Body: fileBuffer,
+        ContentType: contentType,
+        ACL: 'private', // Explicitly set ACL
+      });
 
-        await approach.client.send(command);
-        console.log(`✓ Direct upload successful with: ${approach.name}`);
-        
-        return `/objects/${objectKey.replace(this.getPrivateObjectDir(), '')}`;
-      } catch (error: any) {
-        console.log(`✗ ${approach.name} direct upload failed:`, error.message);
-        continue;
+      const result = await s3Client.send(command);
+      console.log('✓ Direct S3 upload successful!', {
+        ETag: result.ETag,
+        VersionId: result.VersionId,
+        Location: `s3://${this.bucketName}/${objectKey}`
+      });
+      
+      return `/objects/${objectKey.replace(this.getPrivateObjectDir(), '')}`;
+    } catch (error: any) {
+      console.error('✗ Direct S3 upload failed with detailed error:', {
+        name: error.name,
+        message: error.message,
+        code: error.Code || error.code,
+        statusCode: error.$metadata?.httpStatusCode,
+        requestId: error.$metadata?.requestId,
+        region: process.env.AWS_REGION,
+        bucket: this.bucketName,
+        key: objectKey
+      });
+      
+      // Try to provide specific guidance based on error
+      if (error.name === 'AccessDenied' || error.Code === 'AccessDenied') {
+        throw new Error(`S3 Access Denied: IAM user needs s3:PutObject permission for bucket "${this.bucketName}"`);
+      } else if (error.name === 'NoSuchBucket') {
+        throw new Error(`S3 bucket "${this.bucketName}" does not exist in region "${process.env.AWS_REGION}"`);
+      } else if (error.name === 'InvalidAccessKeyId') {
+        throw new Error('Invalid AWS Access Key ID');
+      } else if (error.name === 'SignatureDoesNotMatch') {
+        throw new Error('Invalid AWS Secret Access Key');
+      } else if (error.name === 'TokenRefreshRequired') {
+        throw new Error('AWS credentials have expired');
       }
+      
+      throw error;
     }
-    
-    throw new Error('All direct S3 upload approaches failed');
   }
 
   // Fallback: Use local file storage
@@ -467,25 +536,11 @@ export class ObjectStorageService {
     return `/uploads/${uniqueFileName}`;
   }
   
-  // Universal upload method that tries multiple approaches (no Replit object storage)
-  async uploadWithFallbacks(fileBuffer: Buffer, fileName: string, contentType: string): Promise<string> {
-    console.log('Starting upload with AWS S3 and local fallback approaches...');
+  // S3-only upload method - no fallbacks
+  async uploadToS3(fileBuffer: Buffer, fileName: string, contentType: string): Promise<string> {
+    console.log('Starting S3-only upload (no fallbacks)...');
     
-    // Approach 1: Try direct S3 upload (skip presigned URLs since they're failing)
-    try {
-      console.log('Attempting direct S3 upload...');
-      return await this.directUploadToS3(fileBuffer, fileName, contentType);
-    } catch (error: any) {
-      console.log('✗ Direct S3 upload failed:', error.message);
-    }
-    
-    // Approach 2: Fall back to local storage (guaranteed to work)
-    try {
-      console.log('Falling back to local storage...');
-      return await this.fallbackToLocalStorage(fileBuffer, fileName);
-    } catch (error: any) {
-      console.log('✗ Local storage fallback failed:', error.message);
-      throw new Error('All upload approaches failed: ' + error.message);
-    }
+    // Only try direct S3 upload
+    return await this.directUploadToS3(fileBuffer, fileName, contentType);
   }
 }
