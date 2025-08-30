@@ -264,14 +264,31 @@ export default function ChatInterface({
           {messages.length === 0 && (
             <div className="chat-message animate-in fade-in-0 slide-in-from-bottom-2 duration-500">
               <div className="flex items-start gap-4">
-                <div className="w-10 h-10 bg-[#ffd700] rounded-full flex items-center justify-center flex-shrink-0">
-                  <Bot className="w-5 h-5 text-black" />
+                <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-purple-600 rounded-2xl flex items-center justify-center flex-shrink-0 shadow-lg">
+                  <Bot className="w-6 h-6 text-white" />
                 </div>
-                <div className="bg-[#2a2a2a] rounded-2xl p-5 max-w-md border border-[#3a3a3a]">
-                  <p className="text-sm leading-relaxed text-[#e0e0e0]">
-                    Welcome! Upload an image and tell me how you'd like to enhance or modify it. 
-                    I can help with <span className="font-medium text-[#ffd700]">color correction</span>, <span className="font-medium text-[#ffd700]">style transfer</span>, <span className="font-medium text-[#ffd700]">object removal</span>, and much more.
+                <div className="bg-gradient-to-br from-white/80 to-blue-50/60 dark:from-gray-800/90 dark:to-gray-900/60 rounded-2xl p-6 max-w-md border-2 border-blue-200/40 dark:border-blue-800/40 shadow-xl backdrop-blur-sm">
+                  <div className="mb-3">
+                    <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-1">🎨 AI Image Studio</h3>
+                    <div className="w-12 h-1 bg-gradient-to-r from-blue-500 to-purple-600 rounded-full"></div>
+                  </div>
+                  <p className="text-sm leading-relaxed text-gray-700 dark:text-gray-300">
+                    Upload an image and describe your vision! I specialize in:
                   </p>
+                  <div className="mt-3 space-y-1.5">
+                    <div className="flex items-center gap-2 text-xs text-blue-700 dark:text-blue-300">
+                      <div className="w-1.5 h-1.5 bg-blue-500 rounded-full"></div>
+                      <span className="font-medium">🎨 Color enhancement & correction</span>
+                    </div>
+                    <div className="flex items-center gap-2 text-xs text-purple-700 dark:text-purple-300">
+                      <div className="w-1.5 h-1.5 bg-purple-500 rounded-full"></div>
+                      <span className="font-medium">🖼️ Style transfer & artistic effects</span>
+                    </div>
+                    <div className="flex items-center gap-2 text-xs text-green-700 dark:text-green-300">
+                      <div className="w-1.5 h-1.5 bg-green-500 rounded-full"></div>
+                      <span className="font-medium">✂️ Object removal & background editing</span>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
@@ -287,21 +304,26 @@ export default function ChatInterface({
                   </div>
                 )}
                 
-                <div className={`rounded-2xl p-5 max-w-md shadow-sm border transition-all hover:shadow-md ${
+                <div className={`rounded-2xl shadow-lg border transition-all hover:shadow-xl ${
                   message.role === 'user' 
-                    ? 'bg-gradient-to-br from-blue-600 to-blue-700 text-white border-blue-500/20' 
-                    : 'bg-gradient-to-br from-secondary to-secondary/80 border-border/50'
+                    ? 'bg-gradient-to-br from-blue-600 to-blue-700 text-white border-blue-500/20 max-w-lg' 
+                    : 'bg-gradient-to-br from-secondary to-secondary/80 border-border/50 max-w-md'
                 }`}>
                   {message.imageUrl && (
-                    <div className="mb-4">
+                    <div className={`mb-4 ${message.role === 'user' ? 'p-3 bg-white/10 rounded-xl border border-white/20' : ''}`}>
                       <div className="relative group">
                         <img 
                           src={message.imageUrl} 
-                          alt="Generated image" 
-                          className="rounded-xl w-full max-w-sm mb-3 transition-transform hover:scale-[1.02] shadow-lg border border-border/20"
+                          alt={message.role === 'user' ? 'Uploaded image' : 'Generated image'} 
+                          className="rounded-xl w-full max-w-sm mb-3 transition-transform hover:scale-[1.02] shadow-lg border border-white/20"
                           data-testid={`message-image-${message.id}`}
                         />
-                        <div className="absolute inset-0 bg-black/0 hover:bg-black/5 rounded-xl transition-colors" />
+                        <div className="absolute inset-0 bg-black/0 hover:bg-black/10 rounded-xl transition-colors" />
+                        {message.role === 'user' && (
+                          <div className="absolute top-2 left-2 bg-white/90 text-black text-xs px-2 py-1 rounded-full font-medium shadow-sm">
+                            📷 Your Image
+                          </div>
+                        )}
                       </div>
                       {message.role === 'assistant' && message.processingStatus === 'completed' && (
                         <div className="flex gap-2">
@@ -341,19 +363,33 @@ export default function ChatInterface({
                     </div>
                   )}
                   
-                  <div className="text-sm">
+                  <div className={`${
+                    message.role === 'user' ? 'p-5' : 'p-5'
+                  }`}>
                     {message.processingStatus === 'processing' && (
-                      <div className="flex items-center gap-3 mb-3">
+                      <div className="flex items-center gap-3 mb-4">
                         <div className="loading-dots">
                           <span></span>
                           <span></span>
                           <span></span>
                         </div>
-                        <span className="font-medium text-blue-600 animate-pulse">Processing image...</span>
+                        <span className="font-medium text-blue-600 animate-pulse text-sm">Processing image...</span>
                       </div>
                     )}
                     
-                    <p className="whitespace-pre-wrap leading-relaxed">{message.content}</p>
+                    {message.role === 'user' && message.content && (
+                      <div className="border-t border-white/20 pt-4 mt-2">
+                        <div className="flex items-center gap-2 mb-2">
+                          <div className="w-2 h-2 bg-white/60 rounded-full"></div>
+                          <span className="text-xs font-medium text-white/80 uppercase tracking-wide">Your Request</span>
+                        </div>
+                        <p className="text-sm leading-relaxed font-medium whitespace-pre-wrap">{message.content}</p>
+                      </div>
+                    )}
+                    
+                    {message.role === 'assistant' && (
+                      <p className="text-sm whitespace-pre-wrap leading-relaxed">{message.content}</p>
+                    )}
                   </div>
                 </div>
 
@@ -376,35 +412,62 @@ export default function ChatInterface({
 
         {/* Uploaded Image Preview */}
         {uploadedImage && (
-          <div className="mb-4 p-4 bg-gradient-to-r from-secondary/80 to-secondary rounded-xl border border-border/30 flex items-center gap-4 shadow-sm">
-            <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
-              <ImageIcon className="w-5 h-5 text-blue-600" />
+          <div className="mb-4 p-4 bg-gradient-to-br from-blue-50/80 to-blue-100/60 dark:from-blue-950/30 dark:to-blue-900/20 rounded-2xl border border-blue-200/40 dark:border-blue-800/40 shadow-lg backdrop-blur-sm">
+            <div className="flex items-start gap-4">
+              <div className="relative group">
+                <img 
+                  src={uploadedImage.imageUrl} 
+                  alt="Upload preview" 
+                  className="w-16 h-16 rounded-xl object-cover shadow-md border-2 border-white/50 group-hover:scale-105 transition-transform"
+                />
+                <div className="absolute -top-1 -right-1 w-6 h-6 bg-green-500 rounded-full flex items-center justify-center shadow-sm">
+                  <div className="w-3 h-3 bg-white rounded-full flex items-center justify-center">
+                    <div className="w-1.5 h-1.5 bg-green-500 rounded-full"></div>
+                  </div>
+                </div>
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 mb-1">
+                  <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse"></div>
+                  <p className="text-sm font-semibold text-blue-900 dark:text-blue-100 truncate">{uploadedImage.originalName}</p>
+                </div>
+                <p className="text-xs text-blue-700/70 dark:text-blue-300/70 font-medium">
+                  💾 {(uploadedImage.size / 1024 / 1024).toFixed(2)} MB • ✅ Ready to enhance
+                </p>
+                <div className="mt-2 flex items-center gap-1 text-xs text-blue-600 dark:text-blue-400">
+                  <div className="w-1 h-1 bg-blue-500 rounded-full"></div>
+                  <span className="font-medium">Upload complete - describe your vision below</span>
+                </div>
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setUploadedImage(null)}
+                data-testid="remove-image-button"
+                className="bg-white/70 hover:bg-white/90 border-blue-200/60 text-blue-700 shadow-sm hover:shadow-md transition-all"
+              >
+                ✕ Remove
+              </Button>
             </div>
-            <div className="flex-1">
-              <p className="text-sm font-medium">{uploadedImage.originalName}</p>
-              <p className="text-xs text-muted-foreground">
-                {(uploadedImage.size / 1024 / 1024).toFixed(2)} MB • Ready to process
-              </p>
-            </div>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setUploadedImage(null)}
-              data-testid="remove-image-button"
-              className="bg-white/50 hover:bg-white/80 border-border/30"
-            >
-              Remove
-            </Button>
           </div>
         )}
 
         {/* Context Indicator */}
         {!uploadedImage && messages.length > 0 && (
-          <div className="mb-4 p-3 bg-[#2a2a2a] rounded-xl border border-[#3a3a3a]">
-            <p className="text-sm text-[#ffd700] flex items-center gap-2 font-medium">
-              <ImageIcon className="w-4 h-4" />
-              Using latest image from conversation context
-            </p>
+          <div className="mb-4 p-4 bg-gradient-to-r from-amber-50/80 to-yellow-50/60 dark:from-amber-950/30 dark:to-yellow-900/20 rounded-2xl border border-amber-200/40 dark:border-amber-800/40 shadow-sm">
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 bg-amber-500/20 rounded-lg flex items-center justify-center">
+                <ImageIcon className="w-4 h-4 text-amber-600" />
+              </div>
+              <div>
+                <p className="text-sm text-amber-800 dark:text-amber-200 font-semibold flex items-center gap-2">
+                  🔄 Using conversation context
+                </p>
+                <p className="text-xs text-amber-600/70 dark:text-amber-300/70">
+                  Working with the latest image from this conversation
+                </p>
+              </div>
+            </div>
           </div>
         )}
 
@@ -413,16 +476,16 @@ export default function ChatInterface({
           <div className="flex-1 relative">
             <Textarea
               placeholder={uploadedImage 
-                ? "Describe how you want to enhance your image... (You can also paste or drag images directly here)"
+                ? "✨ Describe your vision: How would you like me to enhance your image?"
                 : messages.length > 0 
-                  ? "Continue editing the latest image from this conversation... (Or paste/drag a new image)"
-                  : "Upload an image to get started, or paste/drag images directly here"
+                  ? "🎨 Continue the magic: What changes would you like to make?"
+                  : "📷 Drop an image here or paste from clipboard to start creating!"
               }
               value={input}
               onChange={(e) => setInput(e.target.value)}
-              className={`resize-none pr-12 transition-all ${
-                isDragOver ? 'border-blue-500 border-2 bg-blue-50 dark:bg-blue-950/20' : ''
-              }`}
+              className={`resize-none pr-12 transition-all bg-white/50 dark:bg-gray-900/50 border-2 ${
+                isDragOver ? 'border-blue-500 bg-blue-50 dark:bg-blue-950/20 shadow-lg' : 'border-gray-200 dark:border-gray-700'
+              } focus:border-blue-500 focus:shadow-lg rounded-xl`}
               rows={3}
               maxLength={500}
               onKeyDown={(e) => {
@@ -437,7 +500,7 @@ export default function ChatInterface({
               onDrop={handleDrop}
               data-testid="message-input"
             />
-            <div className="absolute bottom-2 right-2 text-xs text-[#888888]">
+            <div className="absolute bottom-2 right-2 text-xs text-gray-500 dark:text-gray-400 bg-white/70 dark:bg-gray-800/70 px-2 py-1 rounded-full">
               {input.length}/500
             </div>
           </div>
@@ -445,32 +508,52 @@ export default function ChatInterface({
           <Button
             onClick={handleSendMessage}
             disabled={!input.trim() || processImageMutation.isPending}
-            className="bg-[#ffd700] hover:bg-[#ffd700]/90 text-black font-medium"
+            className="bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white font-semibold shadow-lg hover:shadow-xl transition-all px-6 py-3 rounded-xl"
             data-testid="send-message-button"
           >
-            <Send className="w-4 h-4" />
+            {processImageMutation.isPending ? (
+              <div className="flex items-center gap-2">
+                <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                <span className="text-sm">Creating...</span>
+              </div>
+            ) : (
+              <div className="flex items-center gap-2">
+                <Send className="w-4 h-4" />
+                <span className="text-sm font-medium">✨ Enhance</span>
+              </div>
+            )}
           </Button>
         </div>
 
         {/* Quick Actions */}
-        <div className="flex gap-2 mt-3">
-          {[
-            'Enhance colors',
-            'Remove background', 
-            'Style transfer',
-            'Upscale quality'
-          ].map((action) => (
-            <Button
-              key={action}
-              variant="ghost"
-              size="sm"
-              className="text-xs bg-[#2a2a2a] hover:bg-[#3a3a3a] text-[#e0e0e0] border border-[#3a3a3a]"
-              onClick={() => handleQuickAction(action)}
-              data-testid={`quick-action-${action.toLowerCase().replace(' ', '-')}`}
-            >
-              {action}
-            </Button>
-          ))}
+        <div className="mt-4">
+          <p className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-3 flex items-center gap-2">
+            ⚡ Quick Actions
+            <div className="flex-1 h-px bg-gradient-to-r from-gray-300 to-transparent dark:from-gray-600"></div>
+          </p>
+          <div className="grid grid-cols-2 gap-2">
+            {[
+              { action: 'Enhance colors', icon: '🎨', desc: 'Vibrant colors' },
+              { action: 'Remove background', icon: '✂️', desc: 'Clean cutout' },
+              { action: 'Style transfer', icon: '🖼️', desc: 'Artistic style' },
+              { action: 'Upscale quality', icon: '🔍', desc: 'Higher resolution' }
+            ].map(({ action, icon, desc }) => (
+              <Button
+                key={action}
+                variant="outline"
+                size="sm"
+                className="text-xs bg-white/60 dark:bg-gray-800/60 hover:bg-white/90 dark:hover:bg-gray-700/80 border-gray-200/60 dark:border-gray-600/60 text-gray-700 dark:text-gray-300 shadow-sm hover:shadow-md transition-all h-auto p-2 flex flex-col gap-1 rounded-xl"
+                onClick={() => handleQuickAction(action)}
+                data-testid={`quick-action-${action.toLowerCase().replace(' ', '-')}`}
+              >
+                <div className="flex items-center gap-1.5 font-medium">
+                  <span>{icon}</span>
+                  <span>{action}</span>
+                </div>
+                <span className="text-[10px] text-gray-500 dark:text-gray-400 font-normal">{desc}</span>
+              </Button>
+            ))}
+          </div>
         </div>
       </div>
     </div>
