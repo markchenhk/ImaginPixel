@@ -1,4 +1,4 @@
-import { S3Client, GetObjectCommand, HeadObjectCommand, PutObjectCommand } from "@aws-sdk/client-s3";
+import { S3Client, GetObjectCommand, HeadObjectCommand, PutObjectCommand, HeadBucketCommand } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { Response } from "express";
 import { randomUUID } from "crypto";
@@ -123,6 +123,42 @@ export class ObjectStorageService {
       throw new Error(
         "AWS_S3_BUCKET_NAME environment variable is required for S3 integration"
       );
+    }
+    
+    console.log('S3 Configuration:', {
+      bucketName: this.bucketName,
+      region: process.env.AWS_REGION,
+      hasAccessKeyId: !!process.env.AWS_ACCESS_KEY_ID,
+      hasSecretKey: !!process.env.AWS_SECRET_ACCESS_KEY
+    });
+    
+    // Test S3 connection
+    this.testS3Connection();
+  }
+
+  // Test S3 bucket connectivity
+  private async testS3Connection() {
+    try {
+      console.log('Testing S3 bucket connectivity...');
+      const command = new HeadBucketCommand({ Bucket: this.bucketName });
+      await s3Client.send(command);
+      console.log('✓ S3 bucket is accessible');
+    } catch (error: any) {
+      console.error('✗ S3 bucket access failed:', {
+        error: error.message,
+        code: error.name || error.Code,
+        statusCode: error.$metadata?.httpStatusCode
+      });
+      
+      if (error.name === 'NoSuchBucket') {
+        console.error(`Bucket "${this.bucketName}" does not exist`);
+      } else if (error.name === 'Forbidden' || error.$metadata?.httpStatusCode === 403) {
+        console.error('Access denied - check IAM permissions for the bucket');
+      } else if (error.name === 'InvalidAccessKeyId') {
+        console.error('Invalid AWS Access Key ID');
+      } else if (error.name === 'SignatureDoesNotMatch') {
+        console.error('Invalid AWS Secret Access Key');
+      }
     }
   }
 

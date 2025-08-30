@@ -427,12 +427,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: "No image file provided" });
       }
 
+      console.log('File upload started:', {
+        originalName: req.file.originalname,
+        size: req.file.size,
+        mimetype: req.file.mimetype
+      });
+
       // Read the uploaded file
       const fileBuffer = fs.readFileSync(req.file.path);
       
       // Upload to S3
+      console.log('Generating S3 upload URL...');
       const uploadUrl = await objectStorageService.getObjectEntityUploadURL();
+      console.log('Generated upload URL:', uploadUrl.split('?')[0] + '?[SIGNATURE]'); // Hide signature for security
       
+      console.log('Uploading to S3...');
       const uploadResponse = await fetch(uploadUrl, {
         method: 'PUT',
         body: fileBuffer,
@@ -441,8 +450,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
         },
       });
       
+      console.log('S3 upload response:', {
+        status: uploadResponse.status,
+        statusText: uploadResponse.statusText,
+        ok: uploadResponse.ok
+      });
+      
       if (!uploadResponse.ok) {
-        throw new Error(`Failed to upload to S3: ${uploadResponse.statusText}`);
+        const errorText = await uploadResponse.text();
+        console.error('S3 upload failed with response:', errorText);
+        throw new Error(`Failed to upload to S3: ${uploadResponse.statusText} - ${errorText}`);
       }
       
       // Set ACL policy for public access
