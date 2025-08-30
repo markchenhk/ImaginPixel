@@ -24,20 +24,35 @@ export default function ModelConfig({ isOpen, onClose }: ModelConfigProps) {
   const [apiKey, setApiKey] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   const [isLoadingModels, setIsLoadingModels] = useState(false);
+  const [customModelName, setCustomModelName] = useState('');
+  const [useCustomModel, setUseCustomModel] = useState(false);
 
   // Fetch current configuration
   const { data: config, isLoading } = useQuery<ModelConfiguration>({
     queryKey: ['/api/model-config'],
   });
 
-  // Fetch available models from OpenRouter
+  // Fetch available models from OpenRouter  
+  const [shouldFetchModels, setShouldFetchModels] = useState(false);
+  
   const { data: modelsData, isLoading: modelsLoading, refetch: refetchModels } = useQuery<{
     data: OpenRouterModel[];
     total: number;
     apiKeyValid: boolean;
   }>({
     queryKey: ['/api/models', apiKey],
-    enabled: !!apiKey,
+    queryFn: async () => {
+      if (!apiKey || apiKey === '***hidden***') {
+        throw new Error('No API key provided');
+      }
+      const response = await fetch(`/api/models?apiKey=${encodeURIComponent(apiKey)}`);
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Failed to fetch models');
+      }
+      return response.json();
+    },
+    enabled: shouldFetchModels && !!apiKey && apiKey !== '***hidden***',
     retry: false,
     staleTime: 5 * 60 * 1000, // 5 minutes
   });
@@ -69,7 +84,18 @@ export default function ModelConfig({ isOpen, onClose }: ModelConfigProps) {
     if (config) {
       setLocalConfig(config);
       // Don't set actual API key for security, but show if configured
-      setApiKey(config.apiKey ? '***hidden***' : '');
+      if (config.apiKey) {
+        setApiKey('***hidden***');
+        setShouldFetchModels(true); // Enable fetching if API key exists
+      }
+      
+      // Check if using a custom model (check if it's not one of the common predefined models)
+      const commonModels = ['openai/gpt-4o', 'anthropic/claude-3.5-sonnet', 'google/gemini-pro-vision'];
+      const isCustom = config.selectedModel && !commonModels.includes(config.selectedModel);
+      if (isCustom) {
+        setUseCustomModel(true);
+        setCustomModelName(config.selectedModel);
+      }
     }
   }, [config]);
 
@@ -79,19 +105,21 @@ export default function ModelConfig({ isOpen, onClose }: ModelConfigProps) {
     
     setIsLoadingModels(true);
     try {
+      // Test the API key first
       const response = await fetch(`/api/models?apiKey=${encodeURIComponent(key)}`);
       const data = await response.json();
       
       if (response.ok && data.apiKeyValid) {
+        setShouldFetchModels(true);
         toast({
           title: 'API key valid',
           description: `Found ${data.total} available models`,
         });
-        refetchModels();
       } else {
         throw new Error(data.message || 'Invalid API key');
       }
     } catch (error) {
+      setShouldFetchModels(false);
       toast({
         title: 'API key test failed',
         description: error instanceof Error ? error.message : 'Unknown error',
@@ -193,7 +221,7 @@ export default function ModelConfig({ isOpen, onClose }: ModelConfigProps) {
                     </div>
                     <Button
                       onClick={() => testApiKey(apiKey)}
-                      disabled={!apiKey || apiKey === '***hidden***' || isLoadingModels}
+                      disabled={!apiKey || isLoadingModels}
                       size="sm"
                       data-testid="test-api-key-button"
                     >
@@ -283,11 +311,14 @@ export default function ModelConfig({ isOpen, onClose }: ModelConfigProps) {
                     <Card
                       key={model.id}
                       className={`model-card p-3 cursor-pointer transition-all hover:shadow-md ${
-                        localConfig.selectedModel === model.id
+                        localConfig.selectedModel === model.id && !useCustomModel
                           ? 'border-blue-500 bg-blue-500/5' 
                           : 'hover:border-blue-500/50'
                       }`}
-                      onClick={() => setLocalConfig({ ...localConfig, selectedModel: model.id })}
+                      onClick={() => {
+                        setUseCustomModel(false);
+                        setLocalConfig({ ...localConfig, selectedModel: model.id });
+                      }}
                       data-testid={`model-card-${model.id}`}
                     >
                       <div className="flex items-center justify-between mb-2">
@@ -303,7 +334,7 @@ export default function ModelConfig({ isOpen, onClose }: ModelConfigProps) {
                         <span className="text-muted-foreground">
                           ${parseFloat(model.pricing?.prompt || '0').toFixed(3)}/1K tokens
                         </span>
-                        {localConfig.selectedModel === model.id && (
+                        {localConfig.selectedModel === model.id && !useCustomModel && (
                           <span className="bg-blue-500/20 text-blue-400 px-2 py-0.5 rounded">
                             Selected
                           </span>
@@ -314,6 +345,52 @@ export default function ModelConfig({ isOpen, onClose }: ModelConfigProps) {
                       </div>
                     </Card>
                   ))
+                )}
+              </div>
+            </div>
+
+            {/* Custom Model Input */}
+            <div>
+              <h3 className="font-medium mb-3">Custom Model</h3>
+              <div className="space-y-3">
+                <div className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    id="use-custom-model"
+                    checked={useCustomModel}
+                    onChange={(e) => {
+                      setUseCustomModel(e.target.checked);
+                      if (e.target.checked && customModelName) {
+                        setLocalConfig({ ...localConfig, selectedModel: customModelName });
+                      }
+                    }}
+                    className="rounded"
+                    data-testid="use-custom-model-checkbox"
+                  />
+                  <Label htmlFor="use-custom-model" className="text-sm">
+                    Use custom model name
+                  </Label>
+                </div>
+                
+                {useCustomModel && (
+                  <div>
+                    <Label className="text-sm font-medium text-muted-foreground">
+                      Model Name
+                    </Label>
+                    <Input
+                      placeholder="e.g., openai/gpt-4o, anthropic/claude-3.5-sonnet"
+                      value={customModelName}
+                      onChange={(e) => {
+                        setCustomModelName(e.target.value);
+                        setLocalConfig({ ...localConfig, selectedModel: e.target.value });
+                      }}
+                      className="mt-2"
+                      data-testid="custom-model-input"
+                    />
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Enter the exact model ID from OpenRouter (e.g., openai/gpt-4o)
+                    </p>
+                  </div>
                 )}
               </div>
             </div>
@@ -387,23 +464,31 @@ export default function ModelConfig({ isOpen, onClose }: ModelConfigProps) {
               </div>
             </div>
 
-            {/* Usage Statistics */}
+            {/* Current Configuration */}
             <div>
-              <h3 className="font-medium mb-3">Usage Statistics</h3>
+              <h3 className="font-medium mb-3">Current Selection</h3>
               <div className="space-y-3">
                 <div className="flex justify-between items-center p-3 bg-secondary rounded-lg">
-                  <span className="text-sm text-muted-foreground">Images Processed Today</span>
-                  <span className="font-medium" data-testid="daily-usage">0</span>
-                </div>
-                <div className="flex justify-between items-center p-3 bg-secondary rounded-lg">
-                  <span className="text-sm text-muted-foreground">API Credits Status</span>
-                  <span className="font-medium text-green-400" data-testid="credits-status">
-                    {config?.apiKeyConfigured === 'true' ? 'Active' : 'Not configured'}
+                  <span className="text-sm text-muted-foreground">Selected Model</span>
+                  <span className="font-medium text-right" data-testid="current-model">
+                    {useCustomModel ? (
+                      <span className="text-orange-400">Custom: {customModelName || 'None'}</span>
+                    ) : (
+                      localConfig.selectedModel || 'None'
+                    )}
                   </span>
                 </div>
                 <div className="flex justify-between items-center p-3 bg-secondary rounded-lg">
-                  <span className="text-sm text-muted-foreground">Avg. Processing Time</span>
-                  <span className="font-medium" data-testid="avg-processing-time">N/A</span>
+                  <span className="text-sm text-muted-foreground">API Key Status</span>
+                  <span className="font-medium text-green-400" data-testid="api-key-status">
+                    {modelsData?.apiKeyValid ? 'Valid' : apiKey ? 'Not validated' : 'Not provided'}
+                  </span>
+                </div>
+                <div className="flex justify-between items-center p-3 bg-secondary rounded-lg">
+                  <span className="text-sm text-muted-foreground">Available Models</span>
+                  <span className="font-medium" data-testid="available-models-count">
+                    {modelsData?.total || 0}
+                  </span>
                 </div>
               </div>
             </div>
