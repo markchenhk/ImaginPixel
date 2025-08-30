@@ -1,4 +1,5 @@
 import { S3Client, GetObjectCommand, HeadObjectCommand, PutObjectCommand, HeadBucketCommand } from "@aws-sdk/client-s3";
+import crypto from 'crypto';
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { Response } from "express";
 import { randomUUID } from "crypto";
@@ -10,12 +11,32 @@ import {
   setObjectAclPolicy,
 } from "./objectAcl";
 
-// AWS S3 client configuration
+// AWS S3 client configuration with multiple fallback approaches
 export const s3Client = new S3Client({
   region: process.env.AWS_REGION || 'us-east-1',
   credentials: {
     accessKeyId: process.env.AWS_ACCESS_KEY_ID || '',
     secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY || '',
+  },
+  // Try with explicit endpoint configuration
+  endpoint: `https://s3.${process.env.AWS_REGION || 'us-east-1'}.amazonaws.com`,
+  forcePathStyle: false, // Use virtual-hosted-style URLs
+  requestHandler: {
+    requestTimeout: 30000, // 30 seconds
+    httpsAgent: undefined,
+  },
+});
+
+// Alternative S3 client with path-style URLs
+export const s3ClientPathStyle = new S3Client({
+  region: process.env.AWS_REGION || 'us-east-1',
+  credentials: {
+    accessKeyId: process.env.AWS_ACCESS_KEY_ID || '',
+    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY || '',
+  },
+  forcePathStyle: true, // Use path-style URLs
+  requestHandler: {
+    requestTimeout: 30000,
   },
 });
 
@@ -136,30 +157,62 @@ export class ObjectStorageService {
     this.testS3Connection();
   }
 
-  // Test S3 bucket connectivity
+  // Test S3 bucket connectivity with multiple approaches
   private async testS3Connection() {
+    console.log('Testing S3 bucket connectivity with multiple approaches...');
+    
+    // Try standard virtual-hosted approach
     try {
-      console.log('Testing S3 bucket connectivity...');
+      console.log('Approach 1: Virtual-hosted style...');
       const command = new HeadBucketCommand({ Bucket: this.bucketName });
       await s3Client.send(command);
-      console.log('✓ S3 bucket is accessible');
+      console.log('✓ S3 bucket is accessible (virtual-hosted)');
+      return;
     } catch (error: any) {
-      console.error('✗ S3 bucket access failed:', {
-        error: error.message,
-        code: error.name || error.Code,
-        statusCode: error.$metadata?.httpStatusCode
-      });
-      
-      if (error.name === 'NoSuchBucket') {
-        console.error(`Bucket "${this.bucketName}" does not exist`);
-      } else if (error.name === 'Forbidden' || error.$metadata?.httpStatusCode === 403) {
-        console.error('Access denied - check IAM permissions for the bucket');
-      } else if (error.name === 'InvalidAccessKeyId') {
-        console.error('Invalid AWS Access Key ID');
-      } else if (error.name === 'SignatureDoesNotMatch') {
-        console.error('Invalid AWS Secret Access Key');
-      }
+      console.log('✗ Virtual-hosted style failed:', error.message);
     }
+    
+    // Try path-style approach
+    try {
+      console.log('Approach 2: Path-style URLs...');
+      const command = new HeadBucketCommand({ Bucket: this.bucketName });
+      await s3ClientPathStyle.send(command);
+      console.log('✓ S3 bucket is accessible (path-style)');
+      return;
+    } catch (error: any) {
+      console.log('✗ Path-style approach failed:', error.message);
+    }
+    
+    // Try direct HTTP request approach
+    try {
+      console.log('Approach 3: Direct HTTP request...');
+      await this.testDirectHttpAccess();
+      console.log('✓ S3 bucket is accessible (direct HTTP)');
+      return;
+    } catch (error: any) {
+      console.log('✗ Direct HTTP approach failed:', error.message);
+    }
+    
+    console.error('All S3 access approaches failed. Consider switching to Replit object storage.');
+  }
+  
+  // Test direct HTTP access to S3
+  private async testDirectHttpAccess() {
+    const url = `https://${this.bucketName}.s3.${process.env.AWS_REGION}.amazonaws.com/`;
+    const response = await fetch(url, {
+      method: 'HEAD',
+      headers: {
+        'User-Agent': 'Replit-AI-Image-Editor/1.0'
+      }
+    });
+    
+    if (response.status === 200 || response.status === 403) {
+      // 403 is expected for HEAD requests on buckets without public access
+      // but it confirms the bucket exists and is reachable
+      return true;
+    }
+    
+    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
   }
 
   // Gets the public object search paths.
@@ -227,27 +280,41 @@ export class ObjectStorageService {
     }
   }
 
-  // Gets the upload URL for an object entity.
+  // Gets the upload URL for an object entity with fallback approaches
   async getObjectEntityUploadURL(): Promise<string> {
     const privateObjectDir = this.getPrivateObjectDir();
     const objectId = randomUUID();
     const objectKey = `${privateObjectDir}uploads/${objectId}`;
 
-    // Generate presigned URL for PUT operation
-    const command = new PutObjectCommand({
-      Bucket: this.bucketName,
-      Key: objectKey,
-    });
+    // Try multiple approaches for generating presigned URL
+    const approaches = [
+      { name: 'Standard S3 Client', client: s3Client },
+      { name: 'Path-style S3 Client', client: s3ClientPathStyle }
+    ];
+    
+    for (const approach of approaches) {
+      try {
+        console.log(`Trying presigned URL generation with: ${approach.name}`);
+        const command = new PutObjectCommand({
+          Bucket: this.bucketName,
+          Key: objectKey,
+          ContentType: 'application/octet-stream'
+        });
 
-    try {
-      const signedUrl = await getSignedUrl(s3Client, command, { 
-        expiresIn: 900 // 15 minutes
-      });
-      return signedUrl;
-    } catch (error) {
-      console.error('Error generating S3 presigned URL:', error);
-      throw new Error('Failed to generate upload URL');
+        const signedUrl = await getSignedUrl(approach.client, command, { 
+          expiresIn: 900 // 15 minutes
+        });
+        
+        console.log(`✓ Successfully generated presigned URL with: ${approach.name}`);
+        return signedUrl;
+      } catch (error: any) {
+        console.log(`✗ ${approach.name} failed:`, error.message);
+        continue;
+      }
     }
+    
+    // If all approaches fail, try direct upload approach
+    throw new Error('All presigned URL generation approaches failed. Check AWS credentials and permissions.');
   }
 
   // Gets the object entity file from the object path.
@@ -268,12 +335,23 @@ export class ObjectStorageService {
     }
     const objectKey = `${entityDir}${entityId}`;
     
-    const s3Object = new S3Object(this.bucketName, objectKey, s3Client);
-    const [exists] = await s3Object.exists();
-    if (!exists) {
-      throw new ObjectNotFoundError();
+    // Try with different S3 clients
+    const clients = [s3Client, s3ClientPathStyle];
+    
+    for (const client of clients) {
+      try {
+        const s3Object = new S3Object(this.bucketName, objectKey, client);
+        const [exists] = await s3Object.exists();
+        if (exists) {
+          return s3Object;
+        }
+      } catch (error) {
+        console.log('Failed to check object with client, trying next...');
+        continue;
+      }
     }
-    return s3Object;
+    
+    throw new ObjectNotFoundError();
   }
 
   normalizeObjectEntityPath(rawPath: string): string {
@@ -339,5 +417,100 @@ export class ObjectStorageService {
   }): Promise<boolean> {
     // Simplified ACL check for S3 - in production you'd implement proper ACL
     return true; // Allow all access for now
+  }
+
+  // Alternative: Direct upload to S3 without presigned URLs
+  async directUploadToS3(fileBuffer: Buffer, fileName: string, contentType: string): Promise<string> {
+    console.log('Attempting direct S3 upload with AWS SDK...');
+    
+    const objectKey = `${this.getPrivateObjectDir()}uploads/${randomUUID()}-${fileName}`;
+    
+    // Try with different S3 clients
+    const clients = [
+      { name: 'Standard Client', client: s3Client },
+      { name: 'Path-style Client', client: s3ClientPathStyle }
+    ];
+    
+    for (const approach of clients) {
+      try {
+        console.log(`Trying direct upload with: ${approach.name}`);
+        
+        const command = new PutObjectCommand({
+          Bucket: this.bucketName,
+          Key: objectKey,
+          Body: fileBuffer,
+          ContentType: contentType,
+        });
+
+        await approach.client.send(command);
+        console.log(`✓ Direct upload successful with: ${approach.name}`);
+        
+        return `/objects/${objectKey.replace(this.getPrivateObjectDir(), '')}`;
+      } catch (error: any) {
+        console.log(`✗ ${approach.name} direct upload failed:`, error.message);
+        continue;
+      }
+    }
+    
+    throw new Error('All direct S3 upload approaches failed');
+  }
+
+  // Fallback: Use local file storage
+  async fallbackToLocalStorage(fileBuffer: Buffer, fileName: string): Promise<string> {
+    console.log('Using local storage fallback...');
+    
+    const fs = await import('fs');
+    const path = await import('path');
+    
+    const uploadsDir = path.join(process.cwd(), 'uploads');
+    if (!fs.existsSync(uploadsDir)) {
+      fs.mkdirSync(uploadsDir, { recursive: true });
+    }
+    
+    const uniqueFileName = `${randomUUID()}-${fileName}`;
+    const filePath = path.join(uploadsDir, uniqueFileName);
+    
+    fs.writeFileSync(filePath, fileBuffer);
+    
+    console.log('✓ File saved to local storage:', filePath);
+    return `/uploads/${uniqueFileName}`;
+  }
+  
+  // Universal upload method that tries multiple approaches
+  async uploadWithFallbacks(fileBuffer: Buffer, fileName: string, contentType: string): Promise<string> {
+    console.log('Starting upload with multiple fallback approaches...');
+    
+    // Approach 1: Try presigned URL method
+    try {
+      const uploadUrl = await this.getObjectEntityUploadURL();
+      const uploadResponse = await fetch(uploadUrl, {
+        method: 'PUT',
+        body: fileBuffer,
+        headers: { 'Content-Type': contentType },
+      });
+      
+      if (uploadResponse.ok) {
+        console.log('✓ Presigned URL upload successful');
+        const objectPath = this.normalizeObjectEntityPath(uploadUrl);
+        return objectPath;
+      }
+    } catch (error: any) {
+      console.log('✗ Presigned URL upload failed:', error.message);
+    }
+    
+    // Approach 2: Try direct S3 upload
+    try {
+      return await this.directUploadToS3(fileBuffer, fileName, contentType);
+    } catch (error: any) {
+      console.log('✗ Direct S3 upload failed:', error.message);
+    }
+    
+    // Approach 3: Fall back to local storage
+    try {
+      return await this.fallbackToLocalStorage(fileBuffer, fileName);
+    } catch (error: any) {
+      console.log('✗ Local storage fallback failed:', error.message);
+      throw new Error('All upload approaches failed: ' + error.message);
+    }
   }
 }

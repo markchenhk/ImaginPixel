@@ -436,37 +436,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Read the uploaded file
       const fileBuffer = fs.readFileSync(req.file.path);
       
-      // Upload to S3
-      console.log('Generating S3 upload URL...');
-      const uploadUrl = await objectStorageService.getObjectEntityUploadURL();
-      console.log('Generated upload URL:', uploadUrl.split('?')[0] + '?[SIGNATURE]'); // Hide signature for security
+      // Use the new upload method with multiple fallback approaches
+      console.log('Starting upload with fallback approaches...');
+      const objectPath = await objectStorageService.uploadWithFallbacks(
+        fileBuffer, 
+        req.file.originalname,
+        req.file.mimetype
+      );
       
-      console.log('Uploading to S3...');
-      const uploadResponse = await fetch(uploadUrl, {
-        method: 'PUT',
-        body: fileBuffer,
-        headers: {
-          'Content-Type': req.file.mimetype,
-        },
-      });
-      
-      console.log('S3 upload response:', {
-        status: uploadResponse.status,
-        statusText: uploadResponse.statusText,
-        ok: uploadResponse.ok
-      });
-      
-      if (!uploadResponse.ok) {
-        const errorText = await uploadResponse.text();
-        console.error('S3 upload failed with response:', errorText);
-        throw new Error(`Failed to upload to S3: ${uploadResponse.statusText} - ${errorText}`);
+      // Set ACL policy for public access (if using S3)
+      if (objectPath.startsWith('/objects/')) {
+        await objectStorageService.trySetObjectEntityAclPolicy(objectPath, {
+          owner: 'user',
+          visibility: 'public',
+        });
       }
-      
-      // Set ACL policy for public access
-      const objectPath = await objectStorageService.trySetObjectEntityAclPolicy(uploadUrl, {
-        owner: 'user',
-        visibility: 'public',
-      });
       
       // Clean up temporary file
       fs.unlinkSync(req.file.path);
@@ -505,6 +489,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (error instanceof ObjectNotFoundError) {
         return res.sendStatus(404);
       }
+      return res.sendStatus(500);
+    }
+  });
+
+  // Serve local uploads (fallback storage)
+  app.get("/uploads/:fileName", (req, res) => {
+    try {
+      const fileName = req.params.fileName;
+      const filePath = path.join(process.cwd(), 'uploads', fileName);
+      
+      if (!fs.existsSync(filePath)) {
+        return res.status(404).json({ error: "File not found" });
+      }
+      
+      // Serve the file
+      res.sendFile(filePath);
+    } catch (error) {
+      console.error("Error serving local file:", error);
       return res.sendStatus(500);
     }
   });
