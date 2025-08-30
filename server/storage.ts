@@ -120,6 +120,7 @@ export class MemStorage implements IStorage {
     const job: ImageProcessingJob = {
       ...insertJob,
       id,
+      status: insertJob.status || 'processing', // Fix: ensure status is always a string
       createdAt: new Date(),
       completedAt: null,
       processedImageUrl: null,
@@ -164,6 +165,7 @@ export class MemStorage implements IStorage {
         apiKeyConfigured: insertConfig.apiKeyConfigured || existing.apiKeyConfigured,
         updatedAt: new Date(),
       };
+      console.log('Updating model configuration:', updated);
       this.modelConfigurations.set(userId, updated);
       return updated;
     } else {

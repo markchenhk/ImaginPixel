@@ -144,12 +144,23 @@ export default function ModelConfig({ isOpen, onClose }: ModelConfigProps) {
   const handleSave = () => {
     const configToSave = { ...localConfig };
     
-    // Only include API key if it's been changed (not the hidden placeholder)
-    if (apiKey && apiKey !== '***hidden***') {
-      configToSave.apiKey = apiKey;
-      configToSave.apiKeyConfigured = 'true';
+    // Handle custom model selection
+    if (useCustomModel && customModelName) {
+      configToSave.selectedModel = customModelName;
     }
     
+    // Handle API key saving
+    if (apiKey && apiKey !== '***hidden***') {
+      // New API key provided
+      configToSave.apiKey = apiKey;
+      configToSave.apiKeyConfigured = 'true';
+    } else if (apiKey === '***hidden***') {
+      // Keep existing API key (don't overwrite)
+      configToSave.apiKeyConfigured = 'true';
+      // Don't set apiKey field to let backend preserve existing key
+    }
+    
+    console.log('Saving configuration:', configToSave);
     updateConfigMutation.mutate(configToSave);
   };
 

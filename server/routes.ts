@@ -55,6 +55,9 @@ async function processImageWithOpenRouter(
     const baseUrl = domain ? `https://${domain}` : 'http://localhost:5000';
     const fullImageUrl = imageUrl.startsWith('http') ? imageUrl : `${baseUrl}${imageUrl}`;
     
+    console.log(`[OpenRouter] Debug - Domain: ${domain}`);
+    console.log(`[OpenRouter] Debug - BaseURL: ${baseUrl}`);
+    console.log(`[OpenRouter] Debug - ImageURL: ${imageUrl}`);
     console.log(`[OpenRouter] Processing image: ${fullImageUrl} with model: ${model}`);
     
     const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
