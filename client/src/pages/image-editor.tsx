@@ -1,9 +1,11 @@
 import { useState, useEffect } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useLocation } from 'wouter';
-import { Settings, Wand2, Home, ArrowLeft } from 'lucide-react';
+import { Settings, Wand2, Home, ArrowLeft, LogOut, User } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
+import { useAuth } from '@/hooks/useAuth';
 import ChatInterface from '@/components/chat-interface';
 import ModelConfig from '@/components/model-config';
 import UserLibraryPanel from '@/components/user-library-panel';
@@ -16,15 +18,17 @@ export default function ImageEditor() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [, setLocation] = useLocation();
+  const { user, isAuthenticated, isAdmin } = useAuth();
   const [currentConversation, setCurrentConversation] = useState<Conversation | null>(null);
   const [configOpen, setConfigOpen] = useState(false);
   const [originalImageUrl, setOriginalImageUrl] = useState<string | null>(null);
   const [processedImageUrl, setProcessedImageUrl] = useState<string | null>(null);
   const [currentView, setCurrentView] = useState<'chat' | 'gallery'>('chat');
 
-  // Fetch model configuration for header display
+  // Fetch model configuration for header display (admin only)
   const { data: modelConfig } = useQuery<ModelConfiguration>({
     queryKey: ['/api/model-config'],
+    enabled: isAdmin, // Only fetch if user is admin
   });
 
   const handleConversationCreate = (conversation: Conversation) => {
@@ -78,25 +82,63 @@ export default function ImageEditor() {
         </div>
         
         <div className="flex items-center gap-4">
-          {/* Model Status Indicator */}
-          <div className="flex items-center gap-2 text-sm text-[#e0e0e0]">
-            <div className={`w-2 h-2 rounded-full ${
-              modelConfig?.apiKeyConfigured === 'true' ? 'bg-green-500' : 'bg-yellow-500'
-            }`} />
-            <span data-testid="selected-model">
-              {getModelDisplayName(modelConfig?.selectedModel || 'openai/gpt-4o')}
-            </span>
-          </div>
+          {/* User Display */}
+          {user && (
+            <div className="flex items-center gap-2 text-sm text-[#e0e0e0]">
+              {user.profileImageUrl ? (
+                <img 
+                  src={user.profileImageUrl} 
+                  alt="Profile" 
+                  className="w-6 h-6 rounded-full object-cover"
+                />
+              ) : (
+                <User className="w-4 h-4" />
+              )}
+              <span data-testid="user-name">
+                {user.firstName} {user.lastName}
+              </span>
+              {isAdmin && (
+                <Badge variant="secondary" className="text-xs bg-[#ffd700] text-black">
+                  Admin
+                </Badge>
+              )}
+            </div>
+          )}
           
-          {/* Settings Button */}
+          {/* Model Status Indicator (admin only) */}
+          {isAdmin && (
+            <div className="flex items-center gap-2 text-sm text-[#e0e0e0]">
+              <div className={`w-2 h-2 rounded-full ${
+                modelConfig?.apiKeyConfigured === 'true' ? 'bg-green-500' : 'bg-yellow-500'
+              }`} />
+              <span data-testid="selected-model">
+                {getModelDisplayName(modelConfig?.selectedModel || 'openai/gpt-4o')}
+              </span>
+            </div>
+          )}
+          
+          {/* Settings Button (admin only) */}
+          {isAdmin && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setConfigOpen(true)}
+              data-testid="settings-button"
+              className="text-[#e0e0e0] hover:bg-[#2a2a2a] hover:text-white"
+            >
+              <Settings className="w-4 h-4" />
+            </Button>
+          )}
+          
+          {/* Logout Button */}
           <Button
             variant="ghost"
             size="sm"
-            onClick={() => setConfigOpen(true)}
-            data-testid="settings-button"
+            onClick={() => window.location.href = "/api/logout"}
+            data-testid="logout-button"
             className="text-[#e0e0e0] hover:bg-[#2a2a2a] hover:text-white"
           >
-            <Settings className="w-4 h-4" />
+            <LogOut className="w-4 h-4" />
           </Button>
         </div>
       </header>
@@ -105,12 +147,13 @@ export default function ImageEditor() {
       <div className="flex-1 flex overflow-hidden">
         {/* Left Sidebar */}
         <LeftSidebar 
-          onSettingsClick={() => setConfigOpen(true)}
+          onSettingsClick={isAdmin ? () => setConfigOpen(true) : undefined}
           onNewChatClick={handleNewChat}
           onConversationSelect={handleConversationSelect}
           onGalleryClick={handleGalleryClick}
           currentConversationId={currentConversation?.id || null}
           currentView={currentView}
+          showSettings={isAdmin}
         />
         
         {/* Main Content Area */}
@@ -125,7 +168,7 @@ export default function ImageEditor() {
                   method: 'POST',
                   headers: { 'Content-Type': 'application/json' },
                   body: JSON.stringify({
-                    userId: 'default',
+                    userId: user?.id || '',
                     title,
                     objectPath: imageUrl,
                     prompt: 'AI enhanced image',

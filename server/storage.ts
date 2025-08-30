@@ -11,18 +11,25 @@ import {
   type MessageWithJob,
   type SavedImage,
   type InsertSavedImage,
+  type User,
+  type UpsertUser,
   conversations,
   messages,
   imageProcessingJobs,
   modelConfigurations,
-  savedImages
+  savedImages,
+  users
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, desc, and, sql, inArray } from "drizzle-orm";
 
 export interface IStorage {
+  // User operations (mandatory for Replit Auth)
+  getUser(id: string): Promise<User | undefined>;
+  upsertUser(user: UpsertUser): Promise<User>;
+
   // Conversations
-  getConversations(): Promise<Conversation[]>;
+  getConversations(userId?: string): Promise<Conversation[]>;
   getConversation(id: string): Promise<Conversation | undefined>;
   createConversation(conversation: InsertConversation): Promise<Conversation>;
   deleteConversation(id: string): Promise<boolean>;
@@ -42,11 +49,12 @@ export interface IStorage {
   // Model Configuration
   getModelConfiguration(userId?: string): Promise<ModelConfiguration | undefined>;
   createOrUpdateModelConfiguration(config: InsertModelConfiguration): Promise<ModelConfiguration>;
+  getGlobalDefaultConfiguration(): Promise<ModelConfiguration | undefined>;
 
   // User Context Functions - 用户上下文功能
   getConversationWithMessages(conversationId: string): Promise<ConversationWithMessages | undefined>;
-  getRecentConversationsWithMessages(limit?: number): Promise<ConversationWithMessages[]>;
-  getUserConversationHistory(userId?: string): Promise<ConversationWithMessages[]>;
+  getRecentConversationsWithMessages(userId?: string, limit?: number): Promise<ConversationWithMessages[]>;
+  getUserConversationHistory(userId: string): Promise<ConversationWithMessages[]>;
   getLatestImageFromConversation(conversationId: string): Promise<string | undefined>;
 
   // User Library Functions
@@ -58,8 +66,36 @@ export interface IStorage {
 
 
 export class DatabaseStorage implements IStorage {
+  // User operations (mandatory for Replit Auth)
+  async getUser(id: string): Promise<User | undefined> {
+    const [user] = await db.select().from(users).where(eq(users.id, id));
+    return user;
+  }
+
+  async upsertUser(userData: UpsertUser): Promise<User> {
+    const [user] = await db
+      .insert(users)
+      .values(userData)
+      .onConflictDoUpdate({
+        target: users.id,
+        set: {
+          ...userData,
+          updatedAt: new Date(),
+        },
+      })
+      .returning();
+    return user;
+  }
+
   // Conversations
-  async getConversations(): Promise<Conversation[]> {
+  async getConversations(userId?: string): Promise<Conversation[]> {
+    if (userId) {
+      return await db
+        .select()
+        .from(conversations)
+        .where(eq(conversations.userId, userId))
+        .orderBy(desc(conversations.createdAt));
+    }
     return await db.select().from(conversations).orderBy(desc(conversations.createdAt));
   }
 
@@ -206,9 +242,28 @@ export class DatabaseStorage implements IStorage {
     };
   }
 
-  async getRecentConversationsWithMessages(limit: number = 10): Promise<ConversationWithMessages[]> {
+
+  async getUserConversationHistory(userId: string): Promise<ConversationWithMessages[]> {
+    // Get all conversations for a specific user with full context
+    const userConversations = await db.query.conversations.findMany({
+      where: eq(conversations.userId, userId),
+      orderBy: [desc(conversations.createdAt)],
+      with: {
+        messages: {
+          orderBy: [messages.createdAt],
+          with: {
+            imageProcessingJobs: true,
+          },
+        },
+      },
+    });
+
+    return userConversations as ConversationWithMessages[];
+  }
+
+  async getRecentConversationsWithMessages(userId?: string, limit: number = 10): Promise<ConversationWithMessages[]> {
     // Get recent conversations with their messages for context
-    const recentConversations = await db.query.conversations.findMany({
+    let query = db.query.conversations.findMany({
       orderBy: [desc(conversations.createdAt)],
       limit,
       with: {
@@ -221,13 +276,32 @@ export class DatabaseStorage implements IStorage {
       },
     });
 
+    if (userId) {
+      query = db.query.conversations.findMany({
+        where: eq(conversations.userId, userId),
+        orderBy: [desc(conversations.createdAt)],
+        limit,
+        with: {
+          messages: {
+            orderBy: [messages.createdAt],
+            with: {
+              imageProcessingJobs: true,
+            },
+          },
+        },
+      });
+    }
+
+    const recentConversations = await query;
     return recentConversations as ConversationWithMessages[];
   }
 
-  async getUserConversationHistory(userId: string = "default"): Promise<ConversationWithMessages[]> {
-    // Get all conversations for a user with full context
-    // For now, returning all conversations since we don't have user-specific conversations yet
-    return this.getRecentConversationsWithMessages(50);
+  async getGlobalDefaultConfiguration(): Promise<ModelConfiguration | undefined> {
+    const [config] = await db
+      .select()
+      .from(modelConfigurations)
+      .where(eq(modelConfigurations.isGlobalDefault, "true"));
+    return config;
   }
 
   // Get the latest image URL from a conversation (either uploaded or generated)

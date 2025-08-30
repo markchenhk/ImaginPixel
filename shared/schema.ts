@@ -3,8 +3,32 @@ import { pgTable, text, varchar, timestamp, json, integer, index, jsonb } from "
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
+// Session storage table for authentication
+export const sessions = pgTable(
+  "sessions",
+  {
+    sid: varchar("sid").primaryKey(),
+    sess: jsonb("sess").notNull(),
+    expire: timestamp("expire").notNull(),
+  },
+  (table) => [index("IDX_session_expire").on(table.expire)],
+);
+
+// User management table with role-based access
+export const users = pgTable("users", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  email: varchar("email").unique(),
+  firstName: varchar("first_name"),
+  lastName: varchar("last_name"),
+  profileImageUrl: varchar("profile_image_url"),
+  role: text("role").notNull().default("user"), // 'admin' | 'user'
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
 export const conversations = pgTable("conversations", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").references(() => users.id).notNull(),
   title: text("title").notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
@@ -36,7 +60,7 @@ export const imageProcessingJobs = pgTable("image_processing_jobs", {
 
 export const modelConfigurations = pgTable("model_configurations", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  userId: text("user_id").notNull().default("default").unique(), // Make userId unique for conflict resolution
+  userId: varchar("user_id").references(() => users.id).notNull().unique(),
   selectedModel: text("selected_model").notNull().default("google/gemini-2.5-flash-image"),
   outputQuality: text("output_quality").notNull().default("high"), // 'standard' | 'high' | 'ultra'
   maxResolution: integer("max_resolution").notNull().default(2048),
@@ -44,10 +68,30 @@ export const modelConfigurations = pgTable("model_configurations", {
   apiKey: text("api_key"), // OpenRouter API key storage
   openaiApiKey: text("openai_api_key"), // OpenAI API key for DALL-E 3
   apiKeyConfigured: text("api_key_configured").notNull().default("false"),
+  isGlobalDefault: text("is_global_default").notNull().default("false"), // Admin can set global defaults
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
 
+// User library for saved images
+export const savedImages = pgTable("saved_images", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  title: varchar("title").notNull(),
+  objectPath: varchar("object_path").notNull(), // S3 object path
+  originalImagePath: varchar("original_image_path"), // Path to original uploaded image
+  prompt: varchar("prompt", { length: 1000 }), // User prompt used for generation
+  tags: text("tags").array(), // User-defined tags for organization
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
 // Insert schemas
+export const insertUserSchema = createInsertSchema(users).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
 export const insertConversationSchema = createInsertSchema(conversations).omit({
   id: true,
   createdAt: true,
@@ -69,7 +113,17 @@ export const insertModelConfigurationSchema = createInsertSchema(modelConfigurat
   updatedAt: true,
 });
 
+export const insertSavedImageSchema = createInsertSchema(savedImages).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
 // Types
+export type User = typeof users.$inferSelect;
+export type UpsertUser = typeof users.$inferInsert;
+export type InsertUser = z.infer<typeof insertUserSchema>;
+
 export type Conversation = typeof conversations.$inferSelect;
 export type InsertConversation = z.infer<typeof insertConversationSchema>;
 
@@ -82,8 +136,21 @@ export type InsertImageProcessingJob = z.infer<typeof insertImageProcessingJobSc
 export type ModelConfiguration = typeof modelConfigurations.$inferSelect;
 export type InsertModelConfiguration = z.infer<typeof insertModelConfigurationSchema>;
 
+export type SavedImage = typeof savedImages.$inferSelect;
+export type InsertSavedImage = z.infer<typeof insertSavedImageSchema>;
+
 // Relations for user context functionality
-export const conversationsRelations = relations(conversations, ({ many }) => ({
+export const usersRelations = relations(users, ({ many }) => ({
+  conversations: many(conversations),
+  savedImages: many(savedImages),
+  modelConfigurations: many(modelConfigurations),
+}));
+
+export const conversationsRelations = relations(conversations, ({ one, many }) => ({
+  user: one(users, {
+    fields: [conversations.userId],
+    references: [users.id],
+  }),
   messages: many(messages),
 }));
 
@@ -102,52 +169,12 @@ export const imageProcessingJobsRelations = relations(imageProcessingJobs, ({ on
   }),
 }));
 
-// User Context Types for better conversation handling
-export type ConversationWithMessages = Conversation & {
-  messages: Message[];
-};
-
-export type MessageWithJob = Message & {
-  imageProcessingJobs?: ImageProcessingJob[];
-};
-
-// Session storage table for Replit Auth.
-export const sessions = pgTable(
-  "sessions",
-  {
-    sid: varchar("sid").primaryKey(),
-    sess: jsonb("sess").notNull(),
-    expire: timestamp("expire").notNull(),
-  },
-  (table) => [index("IDX_session_expire").on(table.expire)],
-);
-
-// User storage table for Replit Auth.
-export const users = pgTable("users", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  email: varchar("email").unique(),
-  firstName: varchar("first_name"),
-  lastName: varchar("last_name"),
-  profileImageUrl: varchar("profile_image_url"),
-  createdAt: timestamp("created_at").defaultNow(),
-  updatedAt: timestamp("updated_at").defaultNow(),
-});
-
-export type UpsertUser = typeof users.$inferInsert;
-export type User = typeof users.$inferSelect;
-
-// User library for saved images
-export const savedImages = pgTable("saved_images", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
-  title: varchar("title").notNull(),
-  objectPath: varchar("object_path").notNull(), // S3 object path
-  originalImagePath: varchar("original_image_path"), // Path to original uploaded image
-  prompt: varchar("prompt", { length: 1000 }), // User prompt used for generation
-  tags: text("tags").array(), // User-defined tags for organization
-  createdAt: timestamp("created_at").defaultNow(),
-  updatedAt: timestamp("updated_at").defaultNow(),
-});
+export const modelConfigurationsRelations = relations(modelConfigurations, ({ one }) => ({
+  user: one(users, {
+    fields: [modelConfigurations.userId],
+    references: [users.id],
+  }),
+}));
 
 export const savedImagesRelations = relations(savedImages, ({ one }) => ({
   user: one(users, {
@@ -156,16 +183,11 @@ export const savedImagesRelations = relations(savedImages, ({ one }) => ({
   }),
 }));
 
-export const usersRelations = relations(users, ({ many }) => ({
-  savedImages: many(savedImages),
-}));
+// User Context Types for better conversation handling
+export type ConversationWithMessages = Conversation & {
+  messages: Message[];
+};
 
-export type SavedImage = typeof savedImages.$inferSelect;
-export type InsertSavedImage = typeof savedImages.$inferInsert;
-
-// Insert schema for saved images
-export const insertSavedImageSchema = createInsertSchema(savedImages).omit({
-  id: true,
-  createdAt: true,
-  updatedAt: true,
-});
+export type MessageWithJob = Message & {
+  imageProcessingJobs?: ImageProcessingJob[];
+};

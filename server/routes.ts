@@ -1,6 +1,7 @@
 import type { Express, Request } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
+import { setupAuth, isAuthenticated, isAdmin } from "./replitAuth";
 import { 
   insertConversationSchema, 
   insertMessageSchema, 
@@ -309,10 +310,26 @@ This is product image enhancement, not product generation. Work with what's prov
 }
 
 export async function registerRoutes(app: Express): Promise<Server> {
-  // Get all conversations
-  app.get("/api/conversations", async (req, res) => {
+  // Auth middleware setup
+  await setupAuth(app);
+
+  // Auth routes
+  app.get('/api/auth/user', isAuthenticated, async (req: any, res) => {
     try {
-      const conversations = await storage.getConversations();
+      const userId = req.user.claims.sub;
+      const user = await storage.getUser(userId);
+      res.json(user);
+    } catch (error) {
+      console.error("Error fetching user:", error);
+      res.status(500).json({ message: "Failed to fetch user" });
+    }
+  });
+
+  // Get all conversations for authenticated user
+  app.get("/api/conversations", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const conversations = await storage.getConversations(userId);
       res.json(conversations);
     } catch (error) {
       res.status(500).json({ 
@@ -321,10 +338,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Create a new conversation
-  app.post("/api/conversations", async (req, res) => {
+  // Create a new conversation (requires authentication)
+  app.post("/api/conversations", isAuthenticated, async (req: any, res) => {
     try {
-      const validatedData = insertConversationSchema.parse(req.body);
+      const userId = req.user.claims.sub;
+      const validatedData = insertConversationSchema.parse({...req.body, userId});
       const conversation = await storage.createConversation(validatedData);
       res.status(201).json(conversation);
     } catch (error) {
@@ -349,8 +367,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // User Context API endpoints - 用户上下文功能
   
-  // Get conversation with full message history and context
-  app.get("/api/conversations/:id/context", async (req, res) => {
+  // Get conversation with full message history and context (requires authentication)
+  app.get("/api/conversations/:id/context", isAuthenticated, async (req, res) => {
     try {
       const { id } = req.params;
       const conversationWithMessages = await storage.getConversationWithMessages(id);
@@ -371,7 +389,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/conversations/recent", async (req, res) => {
     try {
       const limit = parseInt(req.query.limit as string) || 10;
-      const recentConversations = await storage.getRecentConversationsWithMessages(limit);
+      const recentConversations = await storage.getRecentConversationsWithMessages(undefined, limit);
       res.json(recentConversations);
     } catch (error) {
       res.status(500).json({ 
@@ -683,8 +701,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Get model configuration
-  app.get("/api/model-config", async (req, res) => {
+  // Get model configuration (admin only)
+  app.get("/api/model-config", isAuthenticated, isAdmin, async (req: any, res) => {
     try {
       const config = await storage.getModelConfiguration();
       res.json(config || {
@@ -701,10 +719,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Update model configuration
-  app.post("/api/model-config", async (req, res) => {
+  // Update model configuration (admin only)
+  app.post("/api/model-config", isAuthenticated, isAdmin, async (req: any, res) => {
     try {
-      const validatedData = insertModelConfigurationSchema.parse(req.body);
+      const userId = req.user.claims.sub;
+      const validatedData = insertModelConfigurationSchema.parse({...req.body, userId});
       const config = await storage.createOrUpdateModelConfiguration(validatedData);
       res.json(config);
     } catch (error) {
@@ -714,8 +733,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Fetch available models from OpenRouter
-  app.get("/api/models", async (req, res) => {
+  // Fetch available models from OpenRouter (admin only)
+  app.get("/api/models", isAuthenticated, isAdmin, async (req: any, res) => {
     try {
       const { apiKey } = req.query;
       const keyToUse = apiKey || process.env.OPENROUTER_API_KEY || process.env.OPENROUTER_KEY;
