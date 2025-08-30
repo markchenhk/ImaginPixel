@@ -41,16 +41,15 @@ export default function UserLibrary({ userId = 'default' }: UserLibraryProps) {
       const url = `/api/library/${userId}${
         params.toString() ? `?${params.toString()}` : ''
       }`;
-      return apiRequest(url);
+      const response = await apiRequest(url, 'GET');
+      return Array.isArray(response) ? response : [];
     },
   });
 
   // Delete image mutation
   const deleteImageMutation = useMutation({
     mutationFn: async (imageId: string) => {
-      await apiRequest(`/api/library/${imageId}?userId=${userId}`, {
-        method: 'DELETE',
-      });
+      return await apiRequest(`/api/library/${imageId}?userId=${userId}`, 'DELETE');
     },
     onSuccess: () => {
       toast({
@@ -69,15 +68,19 @@ export default function UserLibrary({ userId = 'default' }: UserLibraryProps) {
   });
 
   // Filter images by search term
-  const filteredImages = savedImages.filter((image: SavedImage) =>
-    image.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    image.prompt?.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const filteredImages = Array.isArray(savedImages) 
+    ? savedImages.filter((image: SavedImage) =>
+        image.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        image.prompt?.toLowerCase().includes(searchTerm.toLowerCase())
+      )
+    : [];
 
   // Get all unique tags from saved images
   const allTags = Array.from(
     new Set(
-      savedImages.flatMap((image: SavedImage) => image.tags || [])
+      Array.isArray(savedImages) 
+        ? savedImages.flatMap((image: SavedImage) => image.tags || [])
+        : []
     )
   );
 

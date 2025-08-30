@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import ChatInterface from '@/components/chat-interface';
 import ImagePreview from '@/components/image-preview';
 import ModelConfig from '@/components/model-config';
+import UserLibraryPanel from '@/components/user-library-panel';
 import { getModelDisplayName } from '@/lib/openrouter';
 import type { Conversation, ModelConfiguration } from '@shared/schema';
 
@@ -77,6 +78,11 @@ export default function ImageEditor() {
         {/* Image Preview */}
         <ImagePreview
           originalImageUrl={originalImageUrl}
+          processedImageUrl={processedImageUrl}
+        />
+
+        {/* User Library Panel */}
+        <UserLibraryPanel
           processedImageUrl={processedImageUrl}
         />
 

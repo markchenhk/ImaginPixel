@@ -497,7 +497,11 @@ export class ObjectStorageService {
         Location: `s3://${this.bucketName}/${objectKey}`
       });
       
-      return `/objects/${objectKey.replace(this.getPrivateObjectDir(), '')}`;
+      // Create proper object path by extracting just the uploads part
+      const privateDir = this.getPrivateObjectDir();
+      const privateDirWithSlash = privateDir.endsWith('/') ? privateDir : `${privateDir}/`;
+      const entityPath = objectKey.replace(privateDirWithSlash, '');
+      return `/objects/${entityPath}`;
     } catch (error: any) {
       console.error('✗ Direct S3 upload failed with detailed error:', {
         name: error.name,
