@@ -1,28 +1,28 @@
 import { OpenRouterModel } from '../types';
 
 export const AVAILABLE_MODELS: { [key: string]: OpenRouterModel } = {
-  'openai/dall-e-3': {
-    id: 'openai/dall-e-3',
-    name: 'DALL-E 3',
+  'google/gemini-2.5-flash-image': {
+    id: 'google/gemini-2.5-flash-image',
+    name: 'Gemini 2.5 Flash Image',
     description: 'Advanced image generation and editing capabilities',
     pricing: {
-      prompt: '$0.04',
-      completion: '$0.08'
+      prompt: '$0.50',
+      completion: '$1.50'
     },
-    context_length: 4000,
+    context_length: 1000000,
     architecture: {
       modality: 'text+image_generation',
-      tokenizer: 'cl100k_base',
+      tokenizer: 'gemini',
       instruct_type: null
     },
     top_provider: {
-      context_length: 4000,
-      max_completion_tokens: 1000,
+      context_length: 1000000,
+      max_completion_tokens: 8192,
       is_moderated: true
     },
     per_request_limits: {
-      prompt_tokens: '4000',
-      completion_tokens: '1000'
+      prompt_tokens: '1000000',
+      completion_tokens: '8192'
     }
   },
   'openai/gpt-4o': {

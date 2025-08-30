@@ -37,7 +37,7 @@ export const imageProcessingJobs = pgTable("image_processing_jobs", {
 export const modelConfigurations = pgTable("model_configurations", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   userId: text("user_id").notNull().default("default").unique(), // Make userId unique for conflict resolution
-  selectedModel: text("selected_model").notNull().default("openai/dall-e-3"),
+  selectedModel: text("selected_model").notNull().default("google/gemini-2.5-flash-image"),
   outputQuality: text("output_quality").notNull().default("high"), // 'standard' | 'high' | 'ultra'
   maxResolution: integer("max_resolution").notNull().default(2048),
   timeout: integer("timeout").notNull().default(120), // seconds

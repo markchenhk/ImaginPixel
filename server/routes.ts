@@ -73,118 +73,6 @@ async function saveGeneratedImage(imageData: any, prompt: string): Promise<strin
   }
 }
 
-// First, analyze the image to get a description
-async function analyzeImageWithVision(
-  imageUrl: string, 
-  visionModel: string = 'openai/gpt-4o',
-  apiKey?: string
-): Promise<string> {
-  const keyToUse = apiKey || process.env.OPENROUTER_API_KEY || process.env.OPENROUTER_KEY;
-  
-  if (!keyToUse) {
-    throw new Error('OpenRouter API key not configured');
-  }
-
-  const domain = process.env.REPLIT_DOMAINS?.split(',')[0];
-  const baseUrl = domain ? `https://${domain}` : 'http://localhost:5000';
-  const fullImageUrl = imageUrl.startsWith('http') ? imageUrl : `${baseUrl}${imageUrl}`;
-  
-  const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${keyToUse}`,
-      'Content-Type': 'application/json',
-      'HTTP-Referer': baseUrl,
-      'X-Title': 'AI Image Editor'
-    },
-    body: JSON.stringify({
-      model: visionModel,
-      messages: [
-        {
-          role: 'user',
-          content: [
-            {
-              type: 'text',
-              text: 'Describe this image in detail, including the main subject, colors, style, composition, lighting, and background. Be very specific and descriptive.'
-            },
-            {
-              type: 'image_url',
-              image_url: {
-                url: fullImageUrl
-              }
-            }
-          ]
-        }
-      ],
-      max_tokens: 1000
-    })
-  });
-
-  if (!response.ok) {
-    throw new Error(`Vision analysis failed: ${response.statusText}`);
-  }
-
-  const result = await response.json();
-  const description = result.choices?.[0]?.message?.content || 'Could not analyze image';
-  
-  console.log(`[Vision] Image description: ${description}`);
-  return description;
-}
-
-// Generate a new image using DALL-E 3
-async function generateImageWithDALLE(
-  originalDescription: string,
-  userPrompt: string,
-  openaiApiKey?: string
-): Promise<string> {
-  const keyToUse = openaiApiKey || process.env.OPENAI_API_KEY;
-  
-  if (!keyToUse) {
-    throw new Error('OpenAI API key not configured for DALL-E 3');
-  }
-
-  // Create a detailed generation prompt
-  const generationPrompt = `Create a new image inspired by this description: "${originalDescription}". 
-Apply these specific changes: ${userPrompt}. 
-Make the changes dramatic and clearly visible. Maintain the core subject and composition but transform it significantly with the requested modifications.`;
-
-  console.log(`[DALL-E] Generation prompt: ${generationPrompt}`);
-
-  const response = await fetch('https://api.openai.com/v1/images/generations', {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${keyToUse}`,
-      'Content-Type': 'application/json'
-    },
-    body: JSON.stringify({
-      model: 'dall-e-3',
-      prompt: generationPrompt,
-      n: 1,
-      size: '1024x1024',
-      quality: 'standard',
-      response_format: 'b64_json'
-    })
-  });
-
-  if (!response.ok) {
-    const errorBody = await response.text();
-    console.error(`[DALL-E] API Error: ${errorBody}`);
-    throw new Error(`DALL-E 3 generation failed: ${response.statusText}`);
-  }
-
-  const result = await response.json();
-  const imageData = result.data?.[0];
-  
-  if (!imageData?.b64_json) {
-    throw new Error('No image data received from DALL-E 3');
-  }
-
-  // Save the generated image
-  const generatedImageUrl = await saveGeneratedImage(imageData, userPrompt);
-  console.log(`[DALL-E] Generated image saved: ${generatedImageUrl}`);
-  
-  return generatedImageUrl;
-}
 
 async function processImageWithOpenRouter(
   imageUrl: string, 
@@ -197,31 +85,6 @@ async function processImageWithOpenRouter(
   console.log(`[Processing] Model: ${model}, Prompt: "${prompt}"`);
   
   try {
-    // Check if this is DALL-E 3 (image generation model)
-    if (model === 'openai/dall-e-3') {
-      console.log('[Processing] Using DALL-E 3 for image generation');
-      
-      // Step 1: Analyze the original image
-      const imageDescription = await analyzeImageWithVision(imageUrl, 'openai/gpt-4o', apiKey);
-      
-      // Step 2: Generate new image with DALL-E 3
-      const generatedImageUrl = await generateImageWithDALLE(
-        imageDescription, 
-        prompt, 
-        process.env.OPENAI_API_KEY
-      );
-      
-      const processingTime = Math.round((Date.now() - startTime) / 1000);
-      
-      return {
-        processedImageUrl: generatedImageUrl,
-        enhancementsApplied: [`Generated new image with DALL-E 3: ${prompt}`],
-        processingTime
-      };
-    }
-    
-    // For vision models (analysis only)
-    console.log('[Processing] Using vision model for analysis only');
     const keyToUse = apiKey || process.env.OPENROUTER_API_KEY || process.env.OPENROUTER_KEY;
     
     if (!keyToUse) {
@@ -231,6 +94,105 @@ async function processImageWithOpenRouter(
     const domain = process.env.REPLIT_DOMAINS?.split(',')[0];
     const baseUrl = domain ? `https://${domain}` : 'http://localhost:5000';
     const fullImageUrl = imageUrl.startsWith('http') ? imageUrl : `${baseUrl}${imageUrl}`;
+    
+    // Check if this is Gemini 2.5 Flash Image (image generation model)
+    if (model === 'google/gemini-2.5-flash-image') {
+      console.log('[Processing] Using Gemini 2.5 Flash Image for image generation');
+      
+      const generationPrompt = `Using this reference image as inspiration, create a dramatically enhanced and improved version with these specific changes: ${prompt}. 
+
+Key requirements:
+- Make the changes dramatic and clearly visible
+- Transform the image significantly while keeping the core subject recognizable  
+- Apply bold improvements that create a striking before/after difference
+- Generate a completely new image with the requested modifications
+
+Generate the enhanced image now.`;
+
+      const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${keyToUse}`,
+          'Content-Type': 'application/json',
+          'HTTP-Referer': baseUrl,
+          'X-Title': 'AI Image Editor'
+        },
+        body: JSON.stringify({
+          model,
+          messages: [
+            {
+              role: 'user',
+              content: [
+                {
+                  type: 'text',
+                  text: generationPrompt
+                },
+                {
+                  type: 'image_url',
+                  image_url: {
+                    url: fullImageUrl
+                  }
+                }
+              ]
+            }
+          ],
+          max_tokens: 4000
+        })
+      });
+
+      if (!response.ok) {
+        const errorBody = await response.text();
+        console.error(`[Gemini] API Error: ${errorBody}`);
+        throw new Error(`Gemini 2.5 Flash Image generation failed: ${response.statusText}`);
+      }
+
+      const result = await response.json();
+      console.log('[Gemini] LLM Response:', JSON.stringify(result, null, 2));
+      
+      // Check if the response contains generated images
+      const choice = result.choices?.[0];
+      const message = choice?.message;
+      
+      let generatedImageUrl = imageUrl; // Default to original
+      let enhancementsApplied = ['Image generation attempted'];
+      
+      if (message?.content) {
+        if (Array.isArray(message.content)) {
+          // Look for image content in array format
+          const imageContent = message.content.find((item: any) => 
+            item.type === 'image' || item.type === 'image_url' || item.url || item.b64_json
+          );
+          if (imageContent) {
+            generatedImageUrl = await saveGeneratedImage(imageContent, prompt);
+            enhancementsApplied = [`Generated enhanced image with Gemini 2.5 Flash: ${prompt}`];
+          } else {
+            enhancementsApplied = [`Gemini Response: ${JSON.stringify(message.content)}`];
+          }
+        } else if (typeof message.content === 'string') {
+          enhancementsApplied = [`Gemini Analysis: ${message.content}`];
+        }
+      }
+      
+      // Check for images in other response formats
+      if (result.data && Array.isArray(result.data)) {
+        const imageData = result.data.find((item: any) => item.url || item.b64_json);
+        if (imageData) {
+          generatedImageUrl = await saveGeneratedImage(imageData, prompt);
+          enhancementsApplied = [`Generated enhanced image with Gemini 2.5 Flash: ${prompt}`];
+        }
+      }
+
+      const processingTime = Math.round((Date.now() - startTime) / 1000);
+      
+      return {
+        processedImageUrl: generatedImageUrl,
+        enhancementsApplied,
+        processingTime
+      };
+    }
+    
+    // For vision models (analysis only)
+    console.log('[Processing] Using vision model for analysis only');
     
     const analysisPrompt = `Analyze this image and provide detailed suggestions for: ${prompt}. Explain what changes could be made to achieve this effect, but note that this is analysis only - no actual image generation will occur.`;
     

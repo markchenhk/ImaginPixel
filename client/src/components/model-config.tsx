@@ -22,7 +22,6 @@ export default function ModelConfig({ isOpen, onClose }: ModelConfigProps) {
   const [showApiKey, setShowApiKey] = useState(false);
   const [localConfig, setLocalConfig] = useState<Partial<ModelConfiguration>>({});
   const [openrouterApiKey, setOpenrouterApiKey] = useState('');
-  const [openaiApiKey, setOpenaiApiKey] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   const [isLoadingModels, setIsLoadingModels] = useState(false);
   const [customModelName, setCustomModelName] = useState('');
@@ -91,12 +90,9 @@ export default function ModelConfig({ isOpen, onClose }: ModelConfigProps) {
         setHasValidSavedKey(true);
         setShouldFetchModels(true); // Enable fetching if API key exists
       }
-      if (config.openaiApiKey) {
-        setOpenaiApiKey('***hidden***');
-      }
       
       // Check if using a custom model (check if it's not one of the common predefined models)
-      const commonModels = ['openai/dall-e-3', 'openai/gpt-4o', 'anthropic/claude-3.5-sonnet', 'google/gemini-pro-vision'];
+      const commonModels = ['google/gemini-2.5-flash-image', 'openai/gpt-4o', 'anthropic/claude-3.5-sonnet', 'google/gemini-pro-vision'];
       const isCustom = config.selectedModel && !commonModels.includes(config.selectedModel);
       if (isCustom) {
         setUseCustomModel(true);
@@ -164,12 +160,6 @@ export default function ModelConfig({ isOpen, onClose }: ModelConfigProps) {
       // Don't set apiKey field to let backend preserve existing key
     }
     
-    // Handle OpenAI API key saving
-    if (openaiApiKey && openaiApiKey !== '***hidden***') {
-      configToSave.openaiApiKey = openaiApiKey;
-    } else if (openaiApiKey === '***hidden***') {
-      // Keep existing OpenAI API key
-    }
     
     console.log('Saving configuration:', configToSave);
     updateConfigMutation.mutate(configToSave);
@@ -177,17 +167,15 @@ export default function ModelConfig({ isOpen, onClose }: ModelConfigProps) {
 
   const handleReset = () => {
     const defaultConfig = {
-      selectedModel: 'openai/dall-e-3',
+      selectedModel: 'google/gemini-2.5-flash-image',
       outputQuality: 'high',
       maxResolution: 2048,
       timeout: 120,
       apiKey: null,
-      openaiApiKey: null,
       apiKeyConfigured: 'false',
     };
     setLocalConfig(defaultConfig);
     setOpenrouterApiKey('');
-    setOpenaiApiKey('');
     updateConfigMutation.mutate(defaultConfig);
   };
 
@@ -291,57 +279,6 @@ export default function ModelConfig({ isOpen, onClose }: ModelConfigProps) {
               </div>
             </div>
 
-            {/* OpenAI API Key Configuration */}
-            <div>
-              <h3 className="font-medium mb-3">OpenAI API Key</h3>
-              <p className="text-sm text-muted-foreground mb-3">
-                Required for DALL-E 3 image generation
-              </p>
-              
-              <div className="space-y-3">
-                <div>
-                  <Label className="text-sm font-medium text-muted-foreground">
-                    OpenAI API Key
-                  </Label>
-                  <div className="mt-2">
-                    <Input
-                      type={showApiKey ? 'text' : 'password'}
-                      value={openaiApiKey}
-                      onChange={(e) => setOpenaiApiKey(e.target.value)}
-                      placeholder="Enter your OpenAI API key"
-                      data-testid="openai-api-key-input"
-                    />
-                  </div>
-                </div>
-
-                <div className={`flex items-center gap-2 p-3 rounded-lg border ${
-                  openaiApiKey && openaiApiKey !== '***hidden***'
-                    ? 'bg-green-500/10 border-green-500/20' 
-                    : 'bg-yellow-500/10 border-yellow-500/20'
-                }`}>
-                  <div className={`w-2 h-2 rounded-full ${
-                    openaiApiKey && openaiApiKey !== '***hidden***' ? 'bg-green-500' : 'bg-yellow-500'
-                  }`} />
-                  <span className="text-sm">
-                    {openaiApiKey && openaiApiKey !== '***hidden***'
-                      ? 'OpenAI API key configured' 
-                      : 'OpenAI API key required for DALL-E 3'}
-                  </span>
-                </div>
-                
-                <p className="text-xs text-muted-foreground">
-                  Get your API key from{' '}
-                  <a 
-                    href="https://platform.openai.com/api-keys" 
-                    target="_blank" 
-                    rel="noopener noreferrer"
-                    className="text-blue-500 hover:underline"
-                  >
-                    OpenAI Platform
-                  </a>
-                </p>
-              </div>
-            </div>
 
             {/* Model Selection */}
             <div>
