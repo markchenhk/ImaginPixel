@@ -64,6 +64,12 @@ export const modelConfigurations = pgTable("model_configurations", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   userId: varchar("user_id").references(() => users.id).notNull().unique(),
   selectedModel: text("selected_model").notNull().default("google/gemini-2.5-flash-image"),
+  // Multiple models with priority ordering for failover
+  modelPriorities: jsonb("model_priorities").$type<{
+    model: string;
+    priority: number;
+    enabled: boolean;
+  }[]>().default([]),
   outputQuality: text("output_quality").notNull().default("high"), // 'standard' | 'high' | 'ultra'
   maxResolution: integer("max_resolution").notNull().default(2048),
   timeout: integer("timeout").notNull().default(120), // seconds

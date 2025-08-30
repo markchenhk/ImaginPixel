@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useQuery, useMutation } from '@tanstack/react-query';
-import { X, Settings, Eye, EyeOff, RefreshCw, Search, Loader2 } from 'lucide-react';
+import { X, Settings, Eye, EyeOff, RefreshCw, Search, Loader2, ChevronUp, ChevronDown, Trash2, Plus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -27,6 +27,11 @@ export default function ModelConfig({ isOpen, onClose }: ModelConfigProps) {
   const [customModelName, setCustomModelName] = useState('');
   const [useCustomModel, setUseCustomModel] = useState(false);
   const [hasValidSavedKey, setHasValidSavedKey] = useState(false);
+  const [modelPriorities, setModelPriorities] = useState<{
+    model: string;
+    priority: number;
+    enabled: boolean;
+  }[]>([]);
 
   // Fetch current configuration
   const { data: config, isLoading } = useQuery<ModelConfiguration>({
@@ -84,6 +89,18 @@ export default function ModelConfig({ isOpen, onClose }: ModelConfigProps) {
   useEffect(() => {
     if (config) {
       setLocalConfig(config);
+      // Initialize model priorities from config or set defaults
+      if (config.modelPriorities && config.modelPriorities.length > 0) {
+        setModelPriorities(config.modelPriorities);
+      } else {
+        // Set default fallback models if none configured
+        setModelPriorities([
+          { model: 'google/gemini-2.5-flash-image', priority: 1, enabled: true },
+          { model: 'openai/gpt-4o', priority: 2, enabled: true },
+          { model: 'anthropic/claude-3.5-sonnet', priority: 3, enabled: false },
+        ]);
+      }
+      
       // Don't set actual API keys for security, but show if configured
       if (config.apiKey) {
         setOpenrouterApiKey('***hidden***');
@@ -141,8 +158,65 @@ export default function ModelConfig({ isOpen, onClose }: ModelConfigProps) {
     model.description?.toLowerCase().includes(searchQuery.toLowerCase())
   ) || [];
 
+  // Model priority management functions
+  const moveModelUp = (index: number) => {
+    if (index === 0) return;
+    const newPriorities = [...modelPriorities];
+    // Swap the model with the one above it
+    [newPriorities[index - 1], newPriorities[index]] = [newPriorities[index], newPriorities[index - 1]];
+    // Update their priority numbers
+    newPriorities[index - 1].priority = index;
+    newPriorities[index].priority = index + 1;
+    setModelPriorities(newPriorities);
+  };
+
+  const moveModelDown = (index: number) => {
+    if (index === modelPriorities.length - 1) return;
+    const newPriorities = [...modelPriorities];
+    // Swap the model with the one below it
+    [newPriorities[index], newPriorities[index + 1]] = [newPriorities[index + 1], newPriorities[index]];
+    // Update their priority numbers
+    newPriorities[index].priority = index + 1;
+    newPriorities[index + 1].priority = index + 2;
+    setModelPriorities(newPriorities);
+  };
+
+  const toggleModelEnabled = (index: number) => {
+    const newPriorities = [...modelPriorities];
+    newPriorities[index].enabled = !newPriorities[index].enabled;
+    setModelPriorities(newPriorities);
+  };
+
+  const removeModel = (index: number) => {
+    const newPriorities = modelPriorities.filter((_, i) => i !== index);
+    // Update priority numbers
+    newPriorities.forEach((item, i) => {
+      item.priority = i + 1;
+    });
+    setModelPriorities(newPriorities);
+  };
+
+  const addModelToSequence = (modelId: string) => {
+    // Check if model is already in the sequence
+    if (modelPriorities.some(item => item.model === modelId)) {
+      toast({
+        title: 'Model already added',
+        description: 'This model is already in the failover sequence.',
+        variant: 'destructive',
+      });
+      return;
+    }
+    
+    const newPriority = {
+      model: modelId,
+      priority: modelPriorities.length + 1,
+      enabled: true,
+    };
+    setModelPriorities([...modelPriorities, newPriority]);
+  };
+
   const handleSave = () => {
-    const configToSave = { ...localConfig };
+    const configToSave = { ...localConfig, modelPriorities };
     
     // Handle custom model selection
     if (useCustomModel && customModelName) {
@@ -182,19 +256,21 @@ export default function ModelConfig({ isOpen, onClose }: ModelConfigProps) {
   if (!isOpen) return null;
 
   return (
-    <div className="w-80 border-l border-border bg-card flex flex-col" data-testid="model-config-sidebar">
-      {/* Sidebar Header */}
-      <div className="border-b border-border px-6 py-4 flex items-center justify-between">
-        <h2 className="font-medium">Model Configuration</h2>
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={onClose}
-          data-testid="close-config-button"
-        >
-          <X className="w-4 h-4" />
-        </Button>
-      </div>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80" data-testid="model-config-modal">
+      <div className="w-full max-w-6xl h-full max-h-[90vh] bg-[#1a1a1a] border border-[#2a2a2a] flex flex-col m-4 rounded-lg overflow-hidden">
+        {/* Modal Header */}
+        <div className="border-b border-[#2a2a2a] px-8 py-6 flex items-center justify-between bg-[#0f0f0f]">
+          <h2 className="text-2xl font-semibold text-white">LLM Model Configuration</h2>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={onClose}
+            data-testid="close-config-button"
+            className="text-[#e0e0e0] hover:bg-[#2a2a2a] hover:text-white"
+          >
+            <X className="w-5 h-5" />
+          </Button>
+        </div>
 
       {/* Configuration Content */}
       <div className="flex-1 overflow-y-auto p-6 space-y-6">
@@ -327,38 +403,57 @@ export default function ModelConfig({ isOpen, onClose }: ModelConfigProps) {
                   filteredModels.map((model) => (
                     <Card
                       key={model.id}
-                      className={`model-card p-3 cursor-pointer transition-all hover:shadow-md ${
+                      className={`model-card p-3 transition-all hover:shadow-md ${
                         localConfig.selectedModel === model.id && !useCustomModel
                           ? 'border-blue-500 bg-blue-500/5' 
                           : 'hover:border-blue-500/50'
                       }`}
-                      onClick={() => {
-                        setUseCustomModel(false);
-                        setLocalConfig({ ...localConfig, selectedModel: model.id });
-                      }}
                       data-testid={`model-card-${model.id}`}
                     >
                       <div className="flex items-center justify-between mb-2">
                         <h4 className="font-medium text-sm">{model.name}</h4>
-                        <div className={`w-2 h-2 rounded-full ${
-                          localConfig.selectedModel === model.id ? 'bg-blue-500' : 'bg-gray-400'
-                        }`} />
+                        <div className="flex items-center gap-2">
+                          <div className={`w-2 h-2 rounded-full ${
+                            localConfig.selectedModel === model.id ? 'bg-blue-500' : 'bg-gray-400'
+                          }`} />
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              addModelToSequence(model.id);
+                            }}
+                            className="h-6 px-2 text-xs text-[#ffd700] hover:bg-[#ffd700]/20"
+                            data-testid={`add-to-failover-${model.id}`}
+                          >
+                            <Plus className="h-3 w-3 mr-1" />
+                            Add
+                          </Button>
+                        </div>
                       </div>
                       <p className="text-xs text-muted-foreground mb-2 line-clamp-2">
                         {model.description || 'No description available'}
                       </p>
-                      <div className="flex items-center justify-between text-xs">
-                        <span className="text-muted-foreground">
-                          ${parseFloat(model.pricing?.prompt || '0').toFixed(3)}/1K tokens
-                        </span>
-                        {localConfig.selectedModel === model.id && !useCustomModel && (
-                          <span className="bg-blue-500/20 text-blue-400 px-2 py-0.5 rounded">
-                            Selected
+                      <div 
+                        className="cursor-pointer"
+                        onClick={() => {
+                          setUseCustomModel(false);
+                          setLocalConfig({ ...localConfig, selectedModel: model.id });
+                        }}
+                      >
+                        <div className="flex items-center justify-between text-xs">
+                          <span className="text-muted-foreground">
+                            ${parseFloat(model.pricing?.prompt || '0').toFixed(3)}/1K tokens
                           </span>
-                        )}
-                      </div>
-                      <div className="text-xs text-muted-foreground mt-1">
-                        Context: {model.context_length?.toLocaleString() || 'N/A'} tokens
+                          {localConfig.selectedModel === model.id && !useCustomModel && (
+                            <span className="bg-blue-500/20 text-blue-400 px-2 py-0.5 rounded">
+                              Selected
+                            </span>
+                          )}
+                        </div>
+                        <div className="text-xs text-muted-foreground mt-1">
+                          Context: {model.context_length?.toLocaleString() || 'N/A'} tokens
+                        </div>
                       </div>
                     </Card>
                   ))
@@ -407,6 +502,104 @@ export default function ModelConfig({ isOpen, onClose }: ModelConfigProps) {
                     <p className="text-xs text-muted-foreground mt-1">
                       Enter the exact model ID from OpenRouter (e.g., openai/gpt-4o)
                     </p>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Model Failover Sequence */}
+            <div>
+              <h3 className="font-medium mb-4 text-white">Model Failover Sequence</h3>
+              <p className="text-sm text-[#a0a0a0] mb-4">
+                Configure multiple models with priority order. If the primary model fails, the system will automatically try the next enabled model.
+              </p>
+              
+              {/* Current Failover Sequence */}
+              <div className="space-y-3 mb-6">
+                <h4 className="text-sm font-medium text-[#e0e0e0]">Current Sequence</h4>
+                
+                {modelPriorities.length === 0 ? (
+                  <div className="border border-[#3a3a3a] rounded-lg p-4 text-center">
+                    <p className="text-sm text-[#888]">No models configured for failover</p>
+                    <p className="text-xs text-[#666] mt-1">Add models from the available models list below</p>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    {modelPriorities.map((item, index) => (
+                      <div
+                        key={item.model}
+                        className={`flex items-center justify-between p-3 border rounded-lg ${
+                          item.enabled 
+                            ? 'border-[#3a3a3a] bg-[#1a1a1a]' 
+                            : 'border-[#2a2a2a] bg-[#0f0f0f] opacity-60'
+                        }`}
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className={`flex items-center justify-center w-6 h-6 rounded-full text-xs font-medium ${
+                            item.enabled ? 'bg-[#ffd700] text-black' : 'bg-[#444] text-[#888]'
+                          }`}>
+                            {item.priority}
+                          </div>
+                          <div>
+                            <span className={`text-sm font-medium ${
+                              item.enabled ? 'text-white' : 'text-[#888]'
+                            }`}>
+                              {item.model}
+                            </span>
+                            <div className={`text-xs ${
+                              item.enabled ? 'text-[#a0a0a0]' : 'text-[#666]'
+                            }`}>
+                              {item.enabled ? 'Enabled' : 'Disabled'}
+                            </div>
+                          </div>
+                        </div>
+                        
+                        <div className="flex items-center gap-1">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => moveModelUp(index)}
+                            disabled={index === 0}
+                            className="h-8 w-8 p-0 text-[#e0e0e0] hover:bg-[#2a2a2a]"
+                            data-testid={`move-up-${item.model}`}
+                          >
+                            <ChevronUp className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => moveModelDown(index)}
+                            disabled={index === modelPriorities.length - 1}
+                            className="h-8 w-8 p-0 text-[#e0e0e0] hover:bg-[#2a2a2a]"
+                            data-testid={`move-down-${item.model}`}
+                          >
+                            <ChevronDown className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => toggleModelEnabled(index)}
+                            className={`h-8 w-8 p-0 ${
+                              item.enabled 
+                                ? 'text-yellow-400 hover:bg-yellow-400/20' 
+                                : 'text-green-400 hover:bg-green-400/20'
+                            }`}
+                            data-testid={`toggle-${item.model}`}
+                          >
+                            {item.enabled ? '🔕' : '✓'}
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => removeModel(index)}
+                            className="h-8 w-8 p-0 text-red-400 hover:bg-red-400/20"
+                            data-testid={`remove-${item.model}`}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 )}
               </div>
@@ -513,28 +706,30 @@ export default function ModelConfig({ isOpen, onClose }: ModelConfigProps) {
         )}
       </div>
 
-      {/* Sidebar Footer */}
-      <div className="border-t border-border p-6 space-y-3">
-        <Button
-          onClick={handleSave}
-          disabled={updateConfigMutation.isPending}
-          className="w-full"
-          data-testid="save-config-button"
-        >
-          {updateConfigMutation.isPending ? 'Saving...' : 'Save Configuration'}
-        </Button>
-        
-        <Button
-          variant="destructive"
-          onClick={handleReset}
-          disabled={updateConfigMutation.isPending}
-          className="w-full"
-          data-testid="reset-config-button"
-        >
-          <RefreshCw className="w-4 h-4 mr-2" />
-          Reset to Defaults
-        </Button>
+      {/* Modal Footer */}
+      <div className="border-t border-[#2a2a2a] p-8 bg-[#0f0f0f]">
+        <div className="flex gap-4 justify-end">
+          <Button
+            variant="outline"
+            onClick={handleReset}
+            disabled={updateConfigMutation.isPending}
+            data-testid="reset-config-button"
+            className="border-[#3a3a3a] text-[#e0e0e0] hover:bg-[#2a2a2a]"
+          >
+            <RefreshCw className="w-4 h-4 mr-2" />
+            Reset to Defaults
+          </Button>
+          <Button
+            onClick={handleSave}
+            disabled={updateConfigMutation.isPending}
+            className="bg-[#ffd700] hover:bg-[#ffd700]/90 text-black font-semibold"
+            data-testid="save-config-button"
+          >
+            {updateConfigMutation.isPending ? 'Saving...' : 'Save Configuration'}
+          </Button>
+        </div>
       </div>
     </div>
+  </div>
   );
 }

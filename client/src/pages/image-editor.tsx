@@ -117,18 +117,6 @@ export default function ImageEditor() {
             </div>
           )}
           
-          {/* Settings Button (admin only) */}
-          {isAdmin && (
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setConfigOpen(true)}
-              data-testid="settings-button"
-              className="text-[#e0e0e0] hover:bg-[#2a2a2a] hover:text-white"
-            >
-              <Settings className="w-4 h-4" />
-            </Button>
-          )}
           
           {/* Logout Button */}
           <Button

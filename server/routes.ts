@@ -103,6 +103,57 @@ async function saveGeneratedImage(imageData: any, prompt: string): Promise<strin
 }
 
 
+// New function to process with failover sequence
+async function processImageWithFailover(
+  imageUrl: string,
+  prompt: string,
+  modelConfig: any,
+  timeoutSeconds: number = 120
+): Promise<{ processedImageUrl: string; enhancementsApplied: string[]; processingTime: number; modelUsed: string }> {
+  const startTime = Date.now();
+  
+  console.log(`[Failover] Starting image processing with failover sequence`);
+  
+  // Get enabled models in priority order
+  const modelPriorities = (modelConfig?.modelPriorities || [])
+    .filter((item: any) => item.enabled)
+    .sort((a: any, b: any) => a.priority - b.priority);
+  
+  // If no models configured in priorities, fallback to selectedModel
+  if (modelPriorities.length === 0) {
+    const fallbackModel = modelConfig?.selectedModel || 'google/gemini-2.5-flash-image';
+    console.log(`[Failover] No model priorities configured, using fallback: ${fallbackModel}`);
+    const result = await processImageWithOpenRouter(imageUrl, prompt, fallbackModel, modelConfig?.apiKey, timeoutSeconds);
+    return { ...result, modelUsed: fallbackModel };
+  }
+  
+  console.log(`[Failover] Found ${modelPriorities.length} enabled models in sequence:`, modelPriorities.map((m: any) => `${m.priority}. ${m.model}`));
+  
+  let lastError: Error | null = null;
+  
+  // Try each model in priority order
+  for (const modelItem of modelPriorities) {
+    try {
+      console.log(`[Failover] Attempting model: ${modelItem.model} (priority ${modelItem.priority})`);
+      const result = await processImageWithOpenRouter(imageUrl, prompt, modelItem.model, modelConfig?.apiKey, timeoutSeconds);
+      console.log(`[Failover] Success with model: ${modelItem.model}`);
+      return { ...result, modelUsed: modelItem.model };
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      console.log(`[Failover] Model ${modelItem.model} failed: ${errorMessage}`);
+      lastError = error instanceof Error ? error : new Error(errorMessage);
+      
+      // Continue to next model in sequence
+      continue;
+    }
+  }
+  
+  // All models failed
+  const totalTime = Math.round((Date.now() - startTime) / 1000);
+  console.log(`[Failover] All ${modelPriorities.length} models failed after ${totalTime}s`);
+  throw new Error(`All ${modelPriorities.length} configured models failed. Last error: ${lastError?.message || 'Unknown error'}`);
+}
+
 async function processImageWithOpenRouter(
   imageUrl: string, 
   prompt: string, 
@@ -642,17 +693,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Process image asynchronously
       try {
-        // Get user's API key and timeout configuration
-        const userApiKey = modelConfig?.apiKey || undefined;
+        // Get timeout configuration
         const timeoutSeconds = modelConfig?.timeout || 120;
-        const result = await processImageWithOpenRouter(finalImageUrl, prompt, selectedModel, userApiKey, timeoutSeconds);
+        const result = await processImageWithFailover(finalImageUrl, prompt, modelConfig, timeoutSeconds);
         
-        // Update processing job
+        // Update processing job (include model used)
         await storage.updateImageProcessingJob(processingJob.id, {
           status: 'completed',
           processedImageUrl: result.processedImageUrl,
           processingTime: result.processingTime,
-          enhancementsApplied: result.enhancementsApplied
+          enhancementsApplied: result.enhancementsApplied,
+          model: result.modelUsed // Update the model field with the actually used model
         });
 
         // Update AI message
