@@ -37,11 +37,12 @@ export const imageProcessingJobs = pgTable("image_processing_jobs", {
 export const modelConfigurations = pgTable("model_configurations", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   userId: text("user_id").notNull().default("default").unique(), // Make userId unique for conflict resolution
-  selectedModel: text("selected_model").notNull().default("openai/gpt-4o"),
+  selectedModel: text("selected_model").notNull().default("openai/dall-e-3"),
   outputQuality: text("output_quality").notNull().default("high"), // 'standard' | 'high' | 'ultra'
   maxResolution: integer("max_resolution").notNull().default(2048),
   timeout: integer("timeout").notNull().default(120), // seconds
-  apiKey: text("api_key"), // Encrypted API key storage
+  apiKey: text("api_key"), // OpenRouter API key storage
+  openaiApiKey: text("openai_api_key"), // OpenAI API key for DALL-E 3
   apiKeyConfigured: text("api_key_configured").notNull().default("false"),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });

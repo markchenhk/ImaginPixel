@@ -1,10 +1,34 @@
 import { OpenRouterModel } from '../types';
 
 export const AVAILABLE_MODELS: { [key: string]: OpenRouterModel } = {
+  'openai/dall-e-3': {
+    id: 'openai/dall-e-3',
+    name: 'DALL-E 3',
+    description: 'Advanced image generation and editing capabilities',
+    pricing: {
+      prompt: '$0.04',
+      completion: '$0.08'
+    },
+    context_length: 4000,
+    architecture: {
+      modality: 'text+image_generation',
+      tokenizer: 'cl100k_base',
+      instruct_type: null
+    },
+    top_provider: {
+      context_length: 4000,
+      max_completion_tokens: 1000,
+      is_moderated: true
+    },
+    per_request_limits: {
+      prompt_tokens: '4000',
+      completion_tokens: '1000'
+    }
+  },
   'openai/gpt-4o': {
     id: 'openai/gpt-4o',
-    name: 'GPT-4o',
-    description: 'Advanced image understanding and editing capabilities',
+    name: 'GPT-4o (Analysis Only)',
+    description: 'Advanced image understanding and analysis - no generation',
     pricing: {
       prompt: '$5.00',
       completion: '$15.00'
@@ -27,8 +51,8 @@ export const AVAILABLE_MODELS: { [key: string]: OpenRouterModel } = {
   },
   'anthropic/claude-3.5-sonnet': {
     id: 'anthropic/claude-3.5-sonnet',
-    name: 'Claude 3.5 Sonnet',
-    description: 'Excellent for detailed image analysis and creative edits',
+    name: 'Claude 3.5 Sonnet (Analysis Only)',
+    description: 'Excellent for detailed image analysis - no generation',
     pricing: {
       prompt: '$3.00',
       completion: '$15.00'
@@ -51,8 +75,8 @@ export const AVAILABLE_MODELS: { [key: string]: OpenRouterModel } = {
   },
   'google/gemini-pro-vision': {
     id: 'google/gemini-pro-vision',
-    name: 'Gemini Pro Vision',
-    description: 'Fast and accurate image processing with Google AI',
+    name: 'Gemini Pro Vision (Analysis Only)',
+    description: 'Fast and accurate image analysis - no generation',
     pricing: {
       prompt: '$0.50',
       completion: '$1.50'

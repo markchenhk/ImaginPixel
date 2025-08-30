@@ -21,7 +21,8 @@ export default function ModelConfig({ isOpen, onClose }: ModelConfigProps) {
   const { toast } = useToast();
   const [showApiKey, setShowApiKey] = useState(false);
   const [localConfig, setLocalConfig] = useState<Partial<ModelConfiguration>>({});
-  const [apiKey, setApiKey] = useState('');
+  const [openrouterApiKey, setOpenrouterApiKey] = useState('');
+  const [openaiApiKey, setOpenaiApiKey] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   const [isLoadingModels, setIsLoadingModels] = useState(false);
   const [customModelName, setCustomModelName] = useState('');
@@ -41,19 +42,19 @@ export default function ModelConfig({ isOpen, onClose }: ModelConfigProps) {
     total: number;
     apiKeyValid: boolean;
   }>({
-    queryKey: ['/api/models', apiKey],
+    queryKey: ['/api/models', openrouterApiKey],
     queryFn: async () => {
-      if (!apiKey || apiKey === '***hidden***') {
-        throw new Error('No API key provided');
+      if (!openrouterApiKey || openrouterApiKey === '***hidden***') {
+        throw new Error('No OpenRouter API key provided');
       }
-      const response = await fetch(`/api/models?apiKey=${encodeURIComponent(apiKey)}`);
+      const response = await fetch(`/api/models?apiKey=${encodeURIComponent(openrouterApiKey)}`);
       if (!response.ok) {
         const errorData = await response.json();
         throw new Error(errorData.message || 'Failed to fetch models');
       }
       return response.json();
     },
-    enabled: shouldFetchModels && (hasValidSavedKey || (!!apiKey && apiKey !== '***hidden***')),
+    enabled: shouldFetchModels && (hasValidSavedKey || (!!openrouterApiKey && openrouterApiKey !== '***hidden***')),
     retry: false,
     staleTime: 5 * 60 * 1000, // 5 minutes
   });
@@ -84,15 +85,18 @@ export default function ModelConfig({ isOpen, onClose }: ModelConfigProps) {
   useEffect(() => {
     if (config) {
       setLocalConfig(config);
-      // Don't set actual API key for security, but show if configured
+      // Don't set actual API keys for security, but show if configured
       if (config.apiKey) {
-        setApiKey('***hidden***');
+        setOpenrouterApiKey('***hidden***');
         setHasValidSavedKey(true);
         setShouldFetchModels(true); // Enable fetching if API key exists
       }
+      if (config.openaiApiKey) {
+        setOpenaiApiKey('***hidden***');
+      }
       
       // Check if using a custom model (check if it's not one of the common predefined models)
-      const commonModels = ['openai/gpt-4o', 'anthropic/claude-3.5-sonnet', 'google/gemini-pro-vision'];
+      const commonModels = ['openai/dall-e-3', 'openai/gpt-4o', 'anthropic/claude-3.5-sonnet', 'google/gemini-pro-vision'];
       const isCustom = config.selectedModel && !commonModels.includes(config.selectedModel);
       if (isCustom) {
         setUseCustomModel(true);
@@ -101,8 +105,8 @@ export default function ModelConfig({ isOpen, onClose }: ModelConfigProps) {
     }
   }, [config]);
 
-  // Handle API key test and model fetching
-  const testApiKey = async (key: string) => {
+  // Handle OpenRouter API key test and model fetching
+  const testOpenRouterApiKey = async (key: string) => {
     if (!key || key === '***hidden***') return;
     
     setIsLoadingModels(true);
@@ -115,11 +119,11 @@ export default function ModelConfig({ isOpen, onClose }: ModelConfigProps) {
         setHasValidSavedKey(false); // Clear saved key status since we're testing a new one
         setShouldFetchModels(true);
         toast({
-          title: 'API key valid',
+          title: 'OpenRouter API key valid',
           description: `Found ${data.total} available models`,
         });
       } else {
-        throw new Error(data.message || 'Invalid API key');
+        throw new Error(data.message || 'Invalid OpenRouter API key');
       }
     } catch (error) {
       setShouldFetchModels(false);
@@ -149,15 +153,22 @@ export default function ModelConfig({ isOpen, onClose }: ModelConfigProps) {
       configToSave.selectedModel = customModelName;
     }
     
-    // Handle API key saving
-    if (apiKey && apiKey !== '***hidden***') {
-      // New API key provided
-      configToSave.apiKey = apiKey;
+    // Handle OpenRouter API key saving
+    if (openrouterApiKey && openrouterApiKey !== '***hidden***') {
+      // New OpenRouter API key provided
+      configToSave.apiKey = openrouterApiKey;
       configToSave.apiKeyConfigured = 'true';
-    } else if (apiKey === '***hidden***') {
-      // Keep existing API key (don't overwrite)
+    } else if (openrouterApiKey === '***hidden***') {
+      // Keep existing OpenRouter API key (don't overwrite)
       configToSave.apiKeyConfigured = 'true';
       // Don't set apiKey field to let backend preserve existing key
+    }
+    
+    // Handle OpenAI API key saving
+    if (openaiApiKey && openaiApiKey !== '***hidden***') {
+      configToSave.openaiApiKey = openaiApiKey;
+    } else if (openaiApiKey === '***hidden***') {
+      // Keep existing OpenAI API key
     }
     
     console.log('Saving configuration:', configToSave);
@@ -166,15 +177,17 @@ export default function ModelConfig({ isOpen, onClose }: ModelConfigProps) {
 
   const handleReset = () => {
     const defaultConfig = {
-      selectedModel: 'openai/gpt-4o',
+      selectedModel: 'openai/dall-e-3',
       outputQuality: 'high',
       maxResolution: 2048,
       timeout: 120,
       apiKey: null,
+      openaiApiKey: null,
       apiKeyConfigured: 'false',
     };
     setLocalConfig(defaultConfig);
-    setApiKey('');
+    setOpenrouterApiKey('');
+    setOpenaiApiKey('');
     updateConfigMutation.mutate(defaultConfig);
   };
 
@@ -217,11 +230,11 @@ export default function ModelConfig({ isOpen, onClose }: ModelConfigProps) {
                     <div className="relative flex-1">
                       <Input
                         type={showApiKey ? 'text' : 'password'}
-                        value={apiKey}
-                        onChange={(e) => setApiKey(e.target.value)}
+                        value={openrouterApiKey}
+                        onChange={(e) => setOpenrouterApiKey(e.target.value)}
                         placeholder="Enter your OpenRouter API key"
                         className="pr-10"
-                        data-testid="api-key-input"
+                        data-testid="openrouter-api-key-input"
                       />
                       <Button
                         type="button"
@@ -235,10 +248,10 @@ export default function ModelConfig({ isOpen, onClose }: ModelConfigProps) {
                       </Button>
                     </div>
                     <Button
-                      onClick={() => testApiKey(apiKey)}
-                      disabled={!apiKey || isLoadingModels}
+                      onClick={() => testOpenRouterApiKey(openrouterApiKey)}
+                      disabled={!openrouterApiKey || isLoadingModels}
                       size="sm"
-                      data-testid="test-api-key-button"
+                      data-testid="test-openrouter-api-key-button"
                     >
                       {isLoadingModels ? (
                         <Loader2 className="h-4 w-4 animate-spin" />
@@ -278,6 +291,58 @@ export default function ModelConfig({ isOpen, onClose }: ModelConfigProps) {
               </div>
             </div>
 
+            {/* OpenAI API Key Configuration */}
+            <div>
+              <h3 className="font-medium mb-3">OpenAI API Key</h3>
+              <p className="text-sm text-muted-foreground mb-3">
+                Required for DALL-E 3 image generation
+              </p>
+              
+              <div className="space-y-3">
+                <div>
+                  <Label className="text-sm font-medium text-muted-foreground">
+                    OpenAI API Key
+                  </Label>
+                  <div className="mt-2">
+                    <Input
+                      type={showApiKey ? 'text' : 'password'}
+                      value={openaiApiKey}
+                      onChange={(e) => setOpenaiApiKey(e.target.value)}
+                      placeholder="Enter your OpenAI API key"
+                      data-testid="openai-api-key-input"
+                    />
+                  </div>
+                </div>
+
+                <div className={`flex items-center gap-2 p-3 rounded-lg border ${
+                  openaiApiKey && openaiApiKey !== '***hidden***'
+                    ? 'bg-green-500/10 border-green-500/20' 
+                    : 'bg-yellow-500/10 border-yellow-500/20'
+                }`}>
+                  <div className={`w-2 h-2 rounded-full ${
+                    openaiApiKey && openaiApiKey !== '***hidden***' ? 'bg-green-500' : 'bg-yellow-500'
+                  }`} />
+                  <span className="text-sm">
+                    {openaiApiKey && openaiApiKey !== '***hidden***'
+                      ? 'OpenAI API key configured' 
+                      : 'OpenAI API key required for DALL-E 3'}
+                  </span>
+                </div>
+                
+                <p className="text-xs text-muted-foreground">
+                  Get your API key from{' '}
+                  <a 
+                    href="https://platform.openai.com/api-keys" 
+                    target="_blank" 
+                    rel="noopener noreferrer"
+                    className="text-blue-500 hover:underline"
+                  >
+                    OpenAI Platform
+                  </a>
+                </p>
+              </div>
+            </div>
+
             {/* Model Selection */}
             <div>
               <div className="flex items-center justify-between mb-3">
@@ -312,7 +377,7 @@ export default function ModelConfig({ isOpen, onClose }: ModelConfigProps) {
                 ) : !modelsData?.data || modelsData.data.length === 0 ? (
                   <div className="text-center py-4">
                     <p className="text-sm text-muted-foreground">
-                      {(apiKey && apiKey !== '***hidden***') || hasValidSavedKey ? 'No models found. Please check your API key.' : 'Enter your API key to load available models'}
+                      {(openrouterApiKey && openrouterApiKey !== '***hidden***') || hasValidSavedKey ? 'No models found. Please check your API key.' : 'Enter your API key to load available models'}
                     </p>
                   </div>
                 ) : filteredModels.length === 0 ? (
@@ -496,7 +561,7 @@ export default function ModelConfig({ isOpen, onClose }: ModelConfigProps) {
                 <div className="flex justify-between items-center p-3 bg-secondary rounded-lg">
                   <span className="text-sm text-muted-foreground">API Key Status</span>
                   <span className="font-medium text-green-400" data-testid="api-key-status">
-                    {(modelsData?.apiKeyValid || hasValidSavedKey) ? 'Valid' : apiKey ? 'Not validated' : 'Not provided'}
+                    {(modelsData?.apiKeyValid || hasValidSavedKey) ? 'Valid' : openrouterApiKey ? 'Not validated' : 'Not provided'}
                   </span>
                 </div>
                 <div className="flex justify-between items-center p-3 bg-secondary rounded-lg">
