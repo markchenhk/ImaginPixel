@@ -229,20 +229,36 @@ export class DatabaseStorage implements IStorage {
     const userId = insertConfig.userId || "default";
     
     try {
+      // Properly structure the data for insertion
+      const configData = {
+        userId,
+        selectedModel: insertConfig.selectedModel,
+        outputQuality: insertConfig.outputQuality,
+        maxResolution: insertConfig.maxResolution,
+        timeout: insertConfig.timeout,
+        apiKey: insertConfig.apiKey,
+        apiKeyConfigured: insertConfig.apiKeyConfigured,
+        // Ensure modelPriorities is properly typed as an array
+        modelPriorities: Array.isArray(insertConfig.modelPriorities) 
+          ? insertConfig.modelPriorities 
+          : [],
+        updatedAt: new Date()
+      };
+
       // Try to update existing configuration
       const [updatedConfig] = await db
         .insert(modelConfigurations)
-        .values(insertConfig)
+        .values([configData])
         .onConflictDoUpdate({
           target: modelConfigurations.userId,
           set: {
-            selectedModel: insertConfig.selectedModel,
-            outputQuality: insertConfig.outputQuality,
-            maxResolution: insertConfig.maxResolution,
-            timeout: insertConfig.timeout,
-            apiKey: insertConfig.apiKey,
-            apiKeyConfigured: insertConfig.apiKeyConfigured,
-            modelPriorities: insertConfig.modelPriorities,
+            selectedModel: configData.selectedModel,
+            outputQuality: configData.outputQuality,
+            maxResolution: configData.maxResolution,
+            timeout: configData.timeout,
+            apiKey: configData.apiKey,
+            apiKeyConfigured: configData.apiKeyConfigured,
+            modelPriorities: configData.modelPriorities,
             updatedAt: new Date()
           }
         })

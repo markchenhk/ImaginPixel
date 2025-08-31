@@ -786,7 +786,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Get model configuration (admin only)
   app.get("/api/model-config", isAuthenticated, isAdmin, async (req: any, res) => {
     try {
-      const config = await storage.getModelConfiguration();
+      const userId = req.user?.claims?.sub || req.user?.id || 'default';
+      console.log('[Config] Loading for user:', userId);
+      
+      const config = await storage.getModelConfiguration(userId);
+      console.log('[Config] Loaded from database:', config);
+      
       // Create proper default configuration with Google Gemini models
       const defaultConfig = {
         selectedModel: 'google/gemini-2.5-flash-image-preview:free',
@@ -801,8 +806,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
         ]
       };
       
-      res.json(config || defaultConfig);
+      // If we have saved config, merge it with defaults and include the API key
+      if (config) {
+        const mergedConfig = {
+          ...defaultConfig,
+          ...config,
+          // Ensure apiKeyConfigured is set based on whether we have an API key
+          apiKeyConfigured: config.apiKey ? 'true' : (process.env.OPENROUTER_API_KEY ? 'true' : 'false')
+        };
+        console.log('[Config] Returning merged config:', { ...mergedConfig, apiKey: mergedConfig.apiKey ? '***HIDDEN***' : 'none' });
+        res.json(mergedConfig);
+      } else {
+        console.log('[Config] Returning default config');
+        res.json(defaultConfig);
+      }
     } catch (error) {
+      console.error('[Config] Load error:', error);
       res.status(500).json({ 
         message: error instanceof Error ? error.message : "Failed to fetch model configuration" 
       });
