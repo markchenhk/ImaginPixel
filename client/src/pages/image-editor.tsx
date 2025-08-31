@@ -146,8 +146,8 @@ export default function ImageEditor() {
         {/* Main Content Area with Two Columns */}
         {currentView === 'chat' ? (
           <div className="flex-1 flex overflow-hidden">
-            {/* Chat Column (Left) */}
-            <div className="flex-1 min-w-0">
+            {/* Chat Column (Left) - 50% width */}
+            <div className="w-1/2 h-full">
               <ChatInterface
                 conversationId={currentConversation?.id || null}
                 onConversationCreate={handleConversationCreate}
@@ -193,8 +193,8 @@ export default function ImageEditor() {
               />
             </div>
             
-            {/* Preview Panel (Right) */}
-            <div className="w-80 border-l border-[#2a2a2a] bg-[#1a1a1a] flex flex-col">
+            {/* Preview Panel (Right) - 50% width */}
+            <div className="w-1/2 h-full border-l border-[#2a2a2a] bg-[#1a1a1a] flex flex-col">
               <div className="p-4 border-b border-[#2a2a2a]">
                 <h2 className="text-lg font-semibold text-white mb-2">Preview Panel</h2>
                 <p className="text-sm text-[#888888]">
