@@ -54,6 +54,10 @@ export default function ImageEditor() {
     setProcessedImageUrl(processedUrl);
   };
 
+  const handleImageSelected = (imageUrl: string) => {
+    setProcessedImageUrl(imageUrl);
+  };
+
   return (
     <div className="h-screen flex flex-col bg-[#0f0f0f] text-white">
       {/* Header */}
@@ -151,6 +155,7 @@ export default function ImageEditor() {
                 conversationId={currentConversation?.id || null}
                 onConversationCreate={handleConversationCreate}
                 onImageProcessed={handleImageProcessed}
+                onImageSelected={handleImageSelected}
                 onSaveToLibrary={async (imageUrl, title) => {
                   try {
                     const response = await fetch('/api/library/save', {

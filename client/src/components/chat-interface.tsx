@@ -15,13 +15,15 @@ interface ChatInterfaceProps {
   onConversationCreate: (conversation: Conversation) => void;
   onImageProcessed: (originalUrl: string, processedUrl: string) => void;
   onSaveToLibrary?: (imageUrl: string, title: string) => void;
+  onImageSelected?: (imageUrl: string) => void; // New prop for selecting images for editing
 }
 
 export default function ChatInterface({ 
   conversationId, 
   onConversationCreate,
   onImageProcessed,
-  onSaveToLibrary
+  onSaveToLibrary,
+  onImageSelected
 }: ChatInterfaceProps) {
   const { toast } = useToast();
   const [input, setInput] = useState('');
@@ -339,7 +341,27 @@ export default function ChatInterface({
                         )}
                         {message.role === 'assistant' && message.processingStatus === 'completed' && (
                           <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity rounded-xl bg-black/20">
-                            <span className="text-white text-sm font-medium bg-black/50 px-3 py-1 rounded-full">Click to view larger</span>
+                            <div className="flex flex-col gap-2 items-center">
+                              <span className="text-white text-sm font-medium bg-black/50 px-3 py-1 rounded-full">Click to view larger</span>
+                              <Button
+                                size="sm"
+                                onClick={(e) => {
+                                  e.preventDefault();
+                                  e.stopPropagation();
+                                  if (onImageSelected && message.imageUrl) {
+                                    onImageSelected(message.imageUrl);
+                                    toast({
+                                      title: "Image loaded",
+                                      description: "Generated image loaded into Product Editor",
+                                    });
+                                  }
+                                }}
+                                className="bg-[#ffd700] hover:bg-[#e6c200] text-black px-3 py-1 text-sm font-medium rounded-full"
+                                data-testid={`button-edit-image-${message.id}`}
+                              >
+                                Edit Image
+                              </Button>
+                            </div>
                           </div>
                         )}
                       </div>
