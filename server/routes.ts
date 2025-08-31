@@ -949,6 +949,76 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Upload endpoint for canvas images from editor
+  app.post("/api/upload-image", upload.single('image'), async (req: MulterRequest, res) => {
+    try {
+      if (!req.file) {
+        return res.status(400).json({ message: "No image file provided" });
+      }
+
+      const uploadedFile = req.file;
+      
+      // Read the uploaded file
+      const buffer = fs.readFileSync(uploadedFile.path);
+      
+      // Generate unique filename
+      const hash = crypto.createHash('md5').update(buffer).digest('hex');
+      const filename = `edited_${hash}.png`;
+      
+      // Upload directly to S3
+      console.log('[UploadImage] Uploading canvas image to S3...');
+      console.log('Starting S3-only upload (no fallbacks)...');
+      console.log('Attempting direct S3 upload with AWS SDK...');
+      
+      const region = process.env.AWS_REGION || 'us-east-1';
+      const bucketName = process.env.AWS_S3_BUCKET_NAME;
+      const keyPath = `${process.env.PRIVATE_OBJECT_DIR}/uploads/${filename}`;
+      
+      const targetS3Path = `s3://${bucketName}/${keyPath}`;
+      console.log('Target S3 path:', targetS3Path);
+      
+      const { S3Client, PutObjectCommand } = await import('@aws-sdk/client-s3');
+      
+      const s3Client = new S3Client({
+        region,
+        credentials: {
+          accessKeyId: process.env.AWS_ACCESS_KEY_ID!,
+          secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY!,
+        },
+      });
+
+      const uploadParams = {
+        Bucket: bucketName,
+        Key: keyPath,
+        Body: buffer,
+        ContentType: 'image/png',
+      };
+
+      const result = await s3Client.send(new PutObjectCommand(uploadParams));
+      console.log('✓ Direct S3 upload successful!', result);
+
+      // Set ACL policy for the uploaded object
+      const objectUrl = `/objects/uploads/${filename}`;
+      await objectStorageService.trySetObjectEntityAclPolicy(
+        objectUrl,
+        {
+          owner: 'system',
+          visibility: 'public'
+        }
+      );
+
+      // Clean up temporary file
+      fs.unlinkSync(uploadedFile.path);
+
+      res.json({ imageUrl: objectUrl });
+    } catch (error) {
+      console.error('Error uploading canvas image:', error);
+      res.status(500).json({ 
+        message: error instanceof Error ? error.message : "Failed to upload image" 
+      });
+    }
+  });
+
   // Health check endpoint
   app.get("/api/health", (req, res) => {
     res.json({ 

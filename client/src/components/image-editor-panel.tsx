@@ -772,10 +772,38 @@ export default function ImageEditorPanel({ imageUrl, onSaveToLibrary }: ImageEdi
                     <>
                       <Separator className="bg-[#3a3a3a]" />
                       <Button
-                        onClick={() => {
+                        onClick={async () => {
                           if (canvasRef.current) {
-                            const dataUrl = canvasRef.current.toDataURL('image/png');
-                            onSaveToLibrary(dataUrl, 'Edited Image');
+                            try {
+                              // Convert canvas to blob instead of data URL to reduce size
+                              canvasRef.current.toBlob(async (blob) => {
+                                if (blob && onSaveToLibrary) {
+                                  // Create a temporary file and upload to S3
+                                  const formData = new FormData();
+                                  formData.append('image', blob, 'edited-image.png');
+                                  
+                                  // Upload to server which will handle S3 upload
+                                  const uploadResponse = await fetch('/api/upload-image', {
+                                    method: 'POST',
+                                    body: formData,
+                                  });
+                                  
+                                  if (uploadResponse.ok) {
+                                    const { imageUrl } = await uploadResponse.json();
+                                    onSaveToLibrary(imageUrl, 'Edited Image');
+                                  } else {
+                                    throw new Error('Failed to upload image');
+                                  }
+                                }
+                              }, 'image/png', 0.9);
+                            } catch (error) {
+                              console.error('Error saving image:', error);
+                              toast({
+                                title: "Error",
+                                description: "Failed to save image to library",
+                                variant: "destructive",
+                              });
+                            }
                           }
                         }}
                         variant="outline"
