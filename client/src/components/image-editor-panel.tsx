@@ -20,7 +20,10 @@ import {
   ZoomOut,
   Grid,
   Eye,
-  EyeOff
+  EyeOff,
+  Maximize,
+  Focus,
+  ChevronDown
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
@@ -97,6 +100,72 @@ export default function ImageEditorPanel({ imageUrl, onSaveToLibrary }: ImageEdi
   // History for undo/redo
   const [history, setHistory] = useState<string[]>([]);
   const [historyIndex, setHistoryIndex] = useState(-1);
+  
+  // Zoom presets and functions
+  const zoomPresets = [25, 50, 75, 100, 150, 200, 300, 400];
+  
+  const fitToScreen = () => {
+    if (!originalImageSize.width || !originalImageSize.height) return;
+    
+    const container = canvasRef.current?.parentElement;
+    if (!container) return;
+    
+    const containerWidth = container.clientWidth - 40; // Account for padding
+    const containerHeight = container.clientHeight - 40;
+    
+    const scaleX = containerWidth / originalImageSize.width;
+    const scaleY = containerHeight / originalImageSize.height;
+    const scale = Math.min(scaleX, scaleY);
+    
+    const newZoom = Math.round(scale * 100);
+    setZoom(Math.max(10, Math.min(400, newZoom)));
+  };
+  
+  const setActualSize = () => setZoom(100);
+  
+  const handleZoomChange = (newZoom: number) => {
+    setZoom(Math.max(10, Math.min(400, newZoom)));
+  };
+  
+  // Mouse wheel zoom
+  const handleWheelZoom = (e: React.WheelEvent) => {
+    if (e.ctrlKey || e.metaKey) {
+      e.preventDefault();
+      const delta = e.deltaY > 0 ? -10 : 10;
+      const newZoom = zoom + delta;
+      handleZoomChange(newZoom);
+    }
+  };
+  
+  // Keyboard shortcuts
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.ctrlKey || e.metaKey) {
+        switch (e.key) {
+          case '0':
+            e.preventDefault();
+            fitToScreen();
+            break;
+          case '1':
+            e.preventDefault();
+            setActualSize();
+            break;
+          case '=':
+          case '+':
+            e.preventDefault();
+            handleZoomChange(zoom + 25);
+            break;
+          case '-':
+            e.preventDefault();
+            handleZoomChange(zoom - 25);
+            break;
+        }
+      }
+    };
+    
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [zoom]);
 
   // Function to fit image dimensions to a maximum size while preserving aspect ratio
   const fitImageToMaxSize = (imgWidth: number, imgHeight: number, maxWidth = 1200, maxHeight = 800) => {
@@ -356,27 +425,70 @@ export default function ImageEditorPanel({ imageUrl, onSaveToLibrary }: ImageEdi
         <div className="flex items-center justify-between mb-2">
           <h2 className="text-lg font-semibold text-white">Product Editor</h2>
           <div className="flex items-center gap-2">
+            {/* Fit to Screen */}
             <Button
               variant="ghost"
               size="sm"
-              onClick={() => setZoom(Math.max(25, zoom - 25))}
+              onClick={fitToScreen}
+              title="Fit to Screen (Ctrl+0)"
+              data-testid="zoom-fit"
+            >
+              <Maximize className="w-4 h-4" />
+            </Button>
+            
+            {/* Actual Size */}
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={setActualSize}
+              title="Actual Size (Ctrl+1)"
+              data-testid="zoom-actual"
+            >
+              <Focus className="w-4 h-4" />
+            </Button>
+            
+            {/* Zoom Out */}
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => handleZoomChange(zoom - 25)}
+              title="Zoom Out (Ctrl+-)"
               data-testid="zoom-out"
             >
               <ZoomOut className="w-4 h-4" />
             </Button>
-            <span className="text-xs text-[#888888] min-w-[50px] text-center">{zoom}%</span>
+            
+            {/* Zoom Dropdown */}
+            <Select value={zoom.toString()} onValueChange={(value) => handleZoomChange(parseInt(value))}>
+              <SelectTrigger className="w-20 h-8 text-xs bg-[#2a2a2a] border-[#3a3a3a]">
+                <SelectValue>{zoom}%</SelectValue>
+              </SelectTrigger>
+              <SelectContent className="bg-[#2a2a2a] border-[#3a3a3a]">
+                {zoomPresets.map((preset) => (
+                  <SelectItem key={preset} value={preset.toString()} className="text-xs">
+                    {preset}%
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            
+            {/* Zoom In */}
             <Button
               variant="ghost"
               size="sm"
-              onClick={() => setZoom(Math.min(200, zoom + 25))}
+              onClick={() => handleZoomChange(zoom + 25)}
+              title="Zoom In (Ctrl++)"
               data-testid="zoom-in"
             >
               <ZoomIn className="w-4 h-4" />
             </Button>
+            
+            {/* Grid Toggle */}
             <Button
               variant="ghost"
               size="sm"
               onClick={() => setShowGrid(!showGrid)}
+              title="Toggle Grid"
               data-testid="toggle-grid"
             >
               <Grid className="w-4 h-4" />
@@ -386,6 +498,11 @@ export default function ImageEditorPanel({ imageUrl, onSaveToLibrary }: ImageEdi
         <Badge variant="secondary" className="text-xs bg-[#ffd700] text-black">
           Professional Edition
         </Badge>
+        
+        {/* Zoom Instructions */}
+        <div className="mt-2 text-xs text-[#888888]">
+          💡 <strong>Zoom Tips:</strong> Use mouse wheel + Ctrl to zoom • Ctrl+0 to fit screen • Ctrl+1 for actual size
+        </div>
       </div>
 
       {/* Canvas Area */}
@@ -402,6 +519,7 @@ export default function ImageEditorPanel({ imageUrl, onSaveToLibrary }: ImageEdi
                 transform: `scale(${zoom / 100})`,
                 transformOrigin: 'center'
               }}
+              onWheel={handleWheelZoom}
               data-testid="editor-canvas"
             />
           </div>
