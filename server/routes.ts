@@ -467,12 +467,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Alternative endpoint for conversation history
-  app.get("/api/conversations/history", async (req, res) => {
+  app.get("/api/conversations/history", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.query.userId as string || "default";
+      // Use authenticated user ID, fallback to 'default' for compatibility
+      const userId = req.user?.claims?.sub || req.user?.id || req.query.userId as string || "default";
+      console.log('[Conversation History] Fetching for user:', userId);
       const conversationHistory = await storage.getUserConversationHistory(userId);
+      console.log('[Conversation History] Found conversations:', conversationHistory.length);
       res.json(conversationHistory);
     } catch (error) {
+      console.error('[Conversation History] Error:', error);
       res.status(500).json({ 
         message: error instanceof Error ? error.message : "Failed to fetch user conversation history" 
       });
@@ -949,7 +953,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Upload endpoint for canvas images from editor
+  // Upload endpoint for canvas images from editor using object storage service
   app.post("/api/upload-image", upload.single('image'), async (req: MulterRequest, res) => {
     try {
       if (!req.file) {
@@ -958,49 +962,37 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const uploadedFile = req.file;
       
-      // Read the uploaded file
-      const buffer = fs.readFileSync(uploadedFile.path);
+      console.log('[UploadImage] Processing canvas image upload...');
       
-      // Generate unique filename
-      const hash = crypto.createHash('md5').update(buffer).digest('hex');
-      const filename = `edited_${hash}.png`;
+      // Step 1: Get presigned upload URL from object storage service
+      const uploadURL = await objectStorageService.getObjectEntityUploadURL();
+      console.log('[UploadImage] Got presigned URL');
+
+      // Step 2: Upload file to presigned URL
+      const fs = await import('fs');
+      const formData = new FormData();
+      const fileBuffer = fs.readFileSync(uploadedFile.path);
+      const blob = new Blob([fileBuffer], { type: 'image/png' });
       
-      // Upload directly to S3
-      console.log('[UploadImage] Uploading canvas image to S3...');
-      console.log('Starting S3-only upload (no fallbacks)...');
-      console.log('Attempting direct S3 upload with AWS SDK...');
-      
-      const region = process.env.AWS_REGION || 'us-east-1';
-      const bucketName = process.env.AWS_S3_BUCKET_NAME;
-      const keyPath = `${process.env.PRIVATE_OBJECT_DIR}/uploads/${filename}`;
-      
-      const targetS3Path = `s3://${bucketName}/${keyPath}`;
-      console.log('Target S3 path:', targetS3Path);
-      
-      const { S3Client, PutObjectCommand } = await import('@aws-sdk/client-s3');
-      
-      const s3Client = new S3Client({
-        region,
-        credentials: {
-          accessKeyId: process.env.AWS_ACCESS_KEY_ID!,
-          secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY!,
+      console.log('[UploadImage] Uploading to presigned URL...');
+      const uploadResponse = await fetch(uploadURL, {
+        method: 'PUT',
+        body: blob,
+        headers: {
+          'Content-Type': 'image/png',
         },
       });
 
-      const uploadParams = {
-        Bucket: bucketName,
-        Key: keyPath,
-        Body: buffer,
-        ContentType: 'image/png',
-      };
+      if (!uploadResponse.ok) {
+        throw new Error(`Upload failed: ${uploadResponse.status} ${uploadResponse.statusText}`);
+      }
 
-      const result = await s3Client.send(new PutObjectCommand(uploadParams));
-      console.log('✓ Direct S3 upload successful!', result);
+      console.log('[UploadImage] Upload successful');
 
-      // Set ACL policy for the uploaded object
-      const objectUrl = `/objects/uploads/${filename}`;
+      // Step 3: Set ACL policy for the uploaded object
+      const objectPath = objectStorageService.normalizeObjectEntityPath(uploadURL);
       await objectStorageService.trySetObjectEntityAclPolicy(
-        objectUrl,
+        uploadURL,
         {
           owner: 'system',
           visibility: 'public'
@@ -1010,7 +1002,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Clean up temporary file
       fs.unlinkSync(uploadedFile.path);
 
-      res.json({ imageUrl: objectUrl });
+      res.json({ imageUrl: objectPath });
     } catch (error) {
       console.error('Error uploading canvas image:', error);
       res.status(500).json({ 
