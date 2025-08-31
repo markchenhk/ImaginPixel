@@ -84,6 +84,7 @@ export default function ImageEditorPanel({ imageUrl, onSaveToLibrary }: ImageEdi
   
   // Canvas settings
   const [canvasSize, setCanvasSize] = useState({ width: 800, height: 600 });
+  const [originalImageSize, setOriginalImageSize] = useState({ width: 800, height: 600 });
   const [rotation, setRotation] = useState(0);
   const [flipH, setFlipH] = useState(false);
   const [flipV, setFlipV] = useState(false);
@@ -97,6 +98,27 @@ export default function ImageEditorPanel({ imageUrl, onSaveToLibrary }: ImageEdi
   const [history, setHistory] = useState<string[]>([]);
   const [historyIndex, setHistoryIndex] = useState(-1);
 
+  // Function to fit image dimensions to a maximum size while preserving aspect ratio
+  const fitImageToMaxSize = (imgWidth: number, imgHeight: number, maxWidth = 1200, maxHeight = 800) => {
+    const aspectRatio = imgWidth / imgHeight;
+    
+    let newWidth = imgWidth;
+    let newHeight = imgHeight;
+    
+    // Scale down if image is larger than max dimensions
+    if (newWidth > maxWidth) {
+      newWidth = maxWidth;
+      newHeight = newWidth / aspectRatio;
+    }
+    
+    if (newHeight > maxHeight) {
+      newHeight = maxHeight;
+      newWidth = newHeight * aspectRatio;
+    }
+    
+    return { width: Math.round(newWidth), height: Math.round(newHeight) };
+  };
+
   const applyFilters = () => {
     if (!canvasRef.current || !imageUrl) return;
     
@@ -107,6 +129,9 @@ export default function ImageEditorPanel({ imageUrl, onSaveToLibrary }: ImageEdi
     const img = new Image();
     img.crossOrigin = 'anonymous';
     img.onload = () => {
+      // Store original image dimensions
+      setOriginalImageSize({ width: img.naturalWidth, height: img.naturalHeight });
+      
       // Clear canvas
       ctx.clearRect(0, 0, canvas.width, canvas.height);
       
@@ -128,7 +153,7 @@ export default function ImageEditorPanel({ imageUrl, onSaveToLibrary }: ImageEdi
       
       ctx.filter = filterStr;
       
-      // Draw image
+      // Draw image maintaining aspect ratio
       ctx.drawImage(img, -canvas.width / 2, -canvas.height / 2, canvas.width, canvas.height);
       ctx.restore();
       
@@ -255,12 +280,11 @@ export default function ImageEditorPanel({ imageUrl, onSaveToLibrary }: ImageEdi
   // Apply effects when filters or transformations change
   useEffect(() => {
     if (imageUrl) {
-      console.log('Image Editor: Loading new image:', imageUrl);
       applyFilters();
     }
-  }, [filters, rotation, flipH, flipV, textElements, imageUrl]);
+  }, [filters, rotation, flipH, flipV, textElements, imageUrl, canvasSize]);
   
-  // Reset filters when a new image is loaded to make differences more visible
+  // Reset filters and adjust canvas size when a new image is loaded
   useEffect(() => {
     if (imageUrl) {
       console.log('Image Editor: Resetting filters for new image');
@@ -269,6 +293,30 @@ export default function ImageEditorPanel({ imageUrl, onSaveToLibrary }: ImageEdi
       setFlipH(false);
       setFlipV(false);
       setTextElements([]);
+      
+      // Load image to get natural dimensions and adjust canvas size
+      const img = new Image();
+      img.crossOrigin = 'anonymous';
+      img.onload = () => {
+        const naturalWidth = img.naturalWidth;
+        const naturalHeight = img.naturalHeight;
+        
+        console.log('Image Editor: Natural dimensions:', naturalWidth, 'x', naturalHeight);
+        
+        // Fit to maximum canvas size while preserving aspect ratio
+        const fittedSize = fitImageToMaxSize(naturalWidth, naturalHeight, 1200, 800);
+        
+        console.log('Image Editor: Setting canvas size to:', fittedSize.width, 'x', fittedSize.height);
+        setCanvasSize(fittedSize);
+        setOriginalImageSize({ width: naturalWidth, height: naturalHeight });
+      };
+      
+      // Add cache-busting parameter to ensure new images load properly
+      const cacheBustUrl = imageUrl.includes('?') 
+        ? `${imageUrl}&t=${Date.now()}` 
+        : `${imageUrl}?t=${Date.now()}`;
+      
+      img.src = cacheBustUrl;
     }
   }, [imageUrl]);
 
