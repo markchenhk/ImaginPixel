@@ -71,7 +71,9 @@ export default function ModelConfig({ isOpen, onClose }: ModelConfigProps) {
       return response.json();
     },
     onSuccess: () => {
+      // Invalidate and refetch the model config to update all displays immediately
       queryClient.invalidateQueries({ queryKey: ['/api/model-config'] });
+      queryClient.refetchQueries({ queryKey: ['/api/model-config'] });
       toast({
         title: 'Configuration updated',
         description: 'Your model settings have been saved.',

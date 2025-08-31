@@ -29,6 +29,8 @@ export default function ImageEditor() {
   const { data: modelConfig } = useQuery<ModelConfiguration>({
     queryKey: ['/api/model-config'],
     enabled: isAdmin, // Only fetch if user is admin
+    staleTime: 0, // Always check for fresh data
+    gcTime: 0, // Don't cache for long
   });
 
   const handleConversationCreate = (conversation: Conversation) => {
