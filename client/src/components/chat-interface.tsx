@@ -307,13 +307,18 @@ export default function ChatInterface({
                           src={message.imageUrl} 
                           alt={message.role === 'user' ? 'Uploaded image' : 'Generated image'} 
                           className={`rounded-xl transition-transform hover:scale-[1.02] shadow-lg border border-[#3a3a3a] ${
-                            message.role === 'user' ? 'w-full max-w-xs mb-2' : 'w-full max-w-sm mb-3 cursor-pointer'
+                            message.role === 'user' ? 'w-full max-w-xs mb-2' : 'w-full max-w-sm mb-3'
                           }`}
                           data-testid={`message-image-${message.id}`}
+                        />
+                        <div 
+                          className={`absolute inset-0 bg-black/0 hover:bg-black/10 rounded-xl transition-colors ${
+                            message.role === 'assistant' && message.processingStatus === 'completed' ? 'cursor-pointer' : ''
+                          }`}
                           onClick={(e) => {
                             e.preventDefault();
                             e.stopPropagation();
-                            console.log('Image clicked:', { role: message.role, status: message.processingStatus, imageUrl: message.imageUrl });
+                            console.log('Overlay clicked:', { role: message.role, status: message.processingStatus, imageUrl: message.imageUrl });
                             if (message.role === 'assistant' && message.processingStatus === 'completed') {
                               console.log('Setting popup state...');
                               setPopupImageUrl(message.imageUrl!);
@@ -321,7 +326,6 @@ export default function ChatInterface({
                             }
                           }}
                         />
-                        <div className="absolute inset-0 bg-black/0 hover:bg-black/10 rounded-xl transition-colors" />
                         {message.role === 'user' && (
                           <div className="absolute top-2 left-2 bg-[#ffd700] text-black text-xs px-2 py-1 rounded-full font-medium shadow-sm">
                             📷 Your Image
