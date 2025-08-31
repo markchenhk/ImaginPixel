@@ -32,7 +32,6 @@ export default function ChatInterface({
   const [popupMessageId, setPopupMessageId] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-
   // Fetch messages for current conversation
   const { data: messages = [], isLoading: messagesLoading } = useQuery<Message[]>({
     queryKey: ['/api/conversations', conversationId, 'messages'],
@@ -123,36 +122,30 @@ export default function ChatInterface({
               onImageProcessed(job.originalImageUrl, job.processedImageUrl);
             }
             // Force refresh messages to show updated AI response
-            queryClient.invalidateQueries({ queryKey: ['/api/conversations', conversationId, 'messages'] });
-            queryClient.refetchQueries({ queryKey: ['/api/conversations', conversationId, 'messages'] });
-          } else if (job.status === 'processing') {
+            queryClient.invalidateQueries({ 
+              queryKey: ['/api/conversations', conversationId, 'messages']
+            });
+          } else if (job.status === 'failed') {
+            console.error('Job failed:', job.error);
+            // Refresh messages to show failure status
+            queryClient.invalidateQueries({ 
+              queryKey: ['/api/conversations', conversationId, 'messages']
+            });
+          } else if (job.status === 'processing' && pollCount < 60) {
             pollCount++;
-            // Adaptive polling: start fast, then slow down
-            const delay = pollCount < 3 ? 1000 : pollCount < 10 ? 3000 : 5000;
-            setTimeout(pollJob, delay);
+            setTimeout(pollJob, 2000); // Poll every 2 seconds
           }
-        }).catch((error) => {
-          console.log('Polling error:', error);
-          // Stop polling on error after a few retries
-          if (pollCount < 5) {
-            setTimeout(pollJob, 5000);
+        }).catch(err => {
+          console.error('Polling error:', err);
+          if (pollCount < 60) {
             pollCount++;
-          } else {
-            console.log('Stopped polling after 5 retries');
-            // Force refresh messages anyway in case job completed but polling failed
-            queryClient.invalidateQueries({ queryKey: ['/api/conversations', conversationId, 'messages'] });
-            queryClient.refetchQueries({ queryKey: ['/api/conversations', conversationId, 'messages'] });
+            setTimeout(pollJob, 2000);
           }
         });
       };
       
-      setTimeout(pollJob, 500); // Start faster
-      
-      // Also schedule a safety refresh in case polling fails
-      setTimeout(() => {
-        queryClient.invalidateQueries({ queryKey: ['/api/conversations', conversationId, 'messages'] });
-        queryClient.refetchQueries({ queryKey: ['/api/conversations', conversationId, 'messages'] });
-      }, 15000); // Safety refresh after 15 seconds
+      // Start polling after a short delay
+      setTimeout(pollJob, 1000);
     },
     onError: (error: Error) => {
       toast({
@@ -163,7 +156,27 @@ export default function ChatInterface({
     },
   });
 
-  const handleImageUpload = (file: File) => {
+  const handleImageUpload = async (file: File) => {
+    // Validate file type
+    if (!file.type.startsWith('image/')) {
+      toast({
+        title: 'Invalid file type',
+        description: 'Please upload an image file.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    // Validate file size (10MB limit)
+    if (file.size > 10 * 1024 * 1024) {
+      toast({
+        title: 'File too large',
+        description: 'Please upload an image smaller than 10MB.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
     setIsUploading(true);
     uploadImageMutation.mutate(file);
   };
@@ -259,8 +272,7 @@ export default function ChatInterface({
   }, [messages]);
 
   return (
-    <div className="flex-1 flex justify-center bg-[#1e1e1e]">
-      <div className="w-1/2 border-r border-[#2a2a2a] flex flex-col bg-[#1e1e1e]">
+    <div className="h-full flex flex-col bg-[#1e1e1e]">
       {/* Chat Messages */}
       <ScrollArea className="flex-1 p-6">
         <div className="space-y-4">
@@ -334,34 +346,17 @@ export default function ChatInterface({
                     </div>
                   )}
                   
-                  <div className="p-0">
-                    {message.processingStatus === 'processing' && (
-                      <div className="flex items-center gap-3 mb-3">
-                        <div className="loading-dots">
-                          <span></span>
-                          <span></span>
-                          <span></span>
-                        </div>
-                        <span className="font-medium text-[#ffd700] animate-pulse text-sm">Processing image...</span>
-                      </div>
-                    )}
-                    
-                    {message.role === 'user' && message.content && (
-                      <div className={`${message.imageUrl ? 'border-t border-[#3a3a3a] pt-3 mt-3' : ''}`}>
-                        <div className="flex items-center gap-2 mb-2">
-                          <div className="w-2 h-2 bg-[#ffd700] rounded-full"></div>
-                          <span className="text-xs font-medium text-[#ffd700] uppercase tracking-wide">Your Request</span>
-                        </div>
-                        <p className="text-sm leading-relaxed text-[#e0e0e0] whitespace-pre-wrap">{message.content}</p>
-                      </div>
-                    )}
-                    
-                    {message.role === 'assistant' && (
-                      <div className={`${message.imageUrl ? '' : 'p-4'}`}>
-                        <p className="text-sm whitespace-pre-wrap leading-relaxed text-[#e0e0e0]">{message.content}</p>
-                      </div>
-                    )}
-                  </div>
+                  {message.role === 'user' && (
+                    <div className={`${message.imageUrl ? '' : 'p-4'}`}>
+                      <p className="text-sm whitespace-pre-wrap leading-relaxed text-[#e0e0e0]">{message.content}</p>
+                    </div>
+                  )}
+                  
+                  {message.role === 'assistant' && (
+                    <div className={`${message.imageUrl ? '' : 'p-4'}`}>
+                      <p className="text-sm whitespace-pre-wrap leading-relaxed text-[#e0e0e0]">{message.content}</p>
+                    </div>
+                  )}
                 </div>
 
                 {message.role === 'user' && (
@@ -379,8 +374,6 @@ export default function ChatInterface({
 
       {/* Chat Input */}
       <div className="border-t border-[#2a2a2a] p-6 bg-[#1a1a1a]">
-        {/* Image Upload Zone */}
-
         {/* Uploaded Image Preview */}
         {uploadedImage && (
           <div className="mb-4 p-4 bg-[#2a2a2a] rounded-xl border border-[#3a3a3a] flex items-center gap-4 shadow-sm">
@@ -487,21 +480,20 @@ export default function ChatInterface({
           ))}
         </div>
       </div>
-    </div>
-    
-    {/* Image Popup */}
-    {popupImageUrl && popupMessageId && (
-      <ImagePopup
-        isOpen={!!popupImageUrl}
-        onClose={() => {
-          setPopupImageUrl(null);
-          setPopupMessageId(null);
-        }}
-        imageUrl={popupImageUrl}
-        messageId={popupMessageId}
-        onSaveToLibrary={onSaveToLibrary}
-      />
-    )}
+
+      {/* Image Popup */}
+      {popupImageUrl && popupMessageId && (
+        <ImagePopup
+          isOpen={!!popupImageUrl}
+          onClose={() => {
+            setPopupImageUrl(null);
+            setPopupMessageId(null);
+          }}
+          imageUrl={popupImageUrl}
+          messageId={popupMessageId}
+          onSaveToLibrary={onSaveToLibrary}
+        />
+      )}
     </div>
   );
 }
