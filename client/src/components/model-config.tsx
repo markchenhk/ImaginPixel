@@ -119,6 +119,17 @@ export default function ModelConfig({ isOpen, onClose }: ModelConfigProps) {
     }
   }, [config]);
 
+  // Update localConfig when modelPriorities change to immediately reflect the active model
+  useEffect(() => {
+    if (modelPriorities.length > 0 && !useCustomModel) {
+      const activeModel = getActiveModel({ ...localConfig, modelPriorities });
+      setLocalConfig(prev => ({
+        ...prev,
+        selectedModel: activeModel
+      }));
+    }
+  }, [modelPriorities, useCustomModel]);
+
   // Handle OpenRouter API key test and model fetching
   const testOpenRouterApiKey = async (key: string) => {
     if (!key || key === '***hidden***') return;
@@ -222,6 +233,9 @@ export default function ModelConfig({ isOpen, onClose }: ModelConfigProps) {
     // Handle custom model selection
     if (useCustomModel && customModelName) {
       configToSave.selectedModel = customModelName;
+    } else {
+      // Update selectedModel to match the active model from priority system
+      configToSave.selectedModel = getActiveModel({ ...localConfig, modelPriorities });
     }
     
     // Handle OpenRouter API key saving
