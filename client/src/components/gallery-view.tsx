@@ -5,6 +5,8 @@ import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Card, CardContent } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/hooks/useAuth";
+import { apiRequest } from "@/lib/queryClient";
 import {
   Search,
   Download,
@@ -28,24 +30,33 @@ export function GalleryView() {
   const queryClient = useQueryClient();
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedImage, setSelectedImage] = useState<SavedImage | null>(null);
+  const { user, isAuthenticated } = useAuth();
+  
+  // Get user ID from authenticated user
+  const userId = user?.id || 'default';
 
   // Fetch saved images
   const { data: savedImages = [], isLoading } = useQuery<SavedImage[]>({
-    queryKey: ['/api/library', 'default'],
+    queryKey: ['/api/library', userId],
+    queryFn: async () => {
+      if (!isAuthenticated) return [];
+      const response = await apiRequest('GET', `/api/library/${userId}`);
+      const data = await response.json();
+      return Array.isArray(data) ? data : [];
+    },
+    enabled: isAuthenticated, // Only run query when user is authenticated
   });
 
   // Delete image mutation
   const deleteImageMutation = useMutation({
     mutationFn: async (imageId: string) => {
-      const response = await fetch(`/api/library/${imageId}`, {
-        method: 'DELETE',
-      });
+      const response = await apiRequest('DELETE', `/api/library/${imageId}?userId=${userId}`);
       if (!response.ok) {
         throw new Error('Failed to delete image');
       }
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/library', 'default'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/library', userId] });
       toast({
         title: "Success",
         description: "Image deleted from library",
