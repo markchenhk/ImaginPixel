@@ -93,6 +93,21 @@ export const savedImages = pgTable("saved_images", {
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
+// Prompt templates for AI image processing (Admin only)
+export const promptTemplates = pgTable("prompt_templates", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: varchar("name").notNull(),
+  description: varchar("description"),
+  category: varchar("category").notNull().default("image-enhancement"),
+  template: text("template").notNull(),
+  variables: text("variables").array().default([]), // Variables found in template like {variable}
+  isSystem: text("is_system").notNull().default("false"), // System templates vs custom
+  usage: integer("usage").notNull().default(0), // Number of times used
+  createdBy: varchar("created_by").notNull().references(() => users.id),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
 // Insert schemas
 export const insertUserSchema = createInsertSchema(users).omit({
   id: true,
@@ -127,6 +142,12 @@ export const insertSavedImageSchema = createInsertSchema(savedImages).omit({
   updatedAt: true,
 });
 
+export const insertPromptTemplateSchema = createInsertSchema(promptTemplates).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
 // Types
 export type User = typeof users.$inferSelect;
 export type UpsertUser = typeof users.$inferInsert;
@@ -147,11 +168,15 @@ export type InsertModelConfiguration = z.infer<typeof insertModelConfigurationSc
 export type SavedImage = typeof savedImages.$inferSelect;
 export type InsertSavedImage = z.infer<typeof insertSavedImageSchema>;
 
+export type PromptTemplate = typeof promptTemplates.$inferSelect;
+export type InsertPromptTemplate = z.infer<typeof insertPromptTemplateSchema>;
+
 // Relations for user context functionality
 export const usersRelations = relations(users, ({ many }) => ({
   conversations: many(conversations),
   savedImages: many(savedImages),
   modelConfigurations: many(modelConfigurations),
+  promptTemplates: many(promptTemplates),
 }));
 
 export const conversationsRelations = relations(conversations, ({ one, many }) => ({
@@ -187,6 +212,13 @@ export const modelConfigurationsRelations = relations(modelConfigurations, ({ on
 export const savedImagesRelations = relations(savedImages, ({ one }) => ({
   user: one(users, {
     fields: [savedImages.userId],
+    references: [users.id],
+  }),
+}));
+
+export const promptTemplatesRelations = relations(promptTemplates, ({ one }) => ({
+  createdByUser: one(users, {
+    fields: [promptTemplates.createdBy],
     references: [users.id],
   }),
 }));

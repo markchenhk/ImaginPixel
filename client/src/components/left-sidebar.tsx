@@ -12,7 +12,6 @@ import {
 import type { Conversation } from "@shared/schema";
 
 interface LeftSidebarProps {
-  onSettingsClick: () => void;
   onNewChatClick: () => void;
   onConversationSelect: (conversationId: string) => void;
   onGalleryClick: () => void;
@@ -25,7 +24,6 @@ interface ConversationWithMessages extends Conversation {
 }
 
 export function LeftSidebar({ 
-  onSettingsClick, 
   onNewChatClick,
   onConversationSelect,
   onGalleryClick,
@@ -163,15 +161,9 @@ export function LeftSidebar({
 
       {/* Settings at Bottom */}
       <div className="p-2 border-t border-[#2a2a2a]">
-        <Button
-          variant="ghost"
-          className="w-full justify-start h-10 px-3 text-[#e0e0e0] hover:bg-[#2a2a2a] hover:text-white transition-colors font-normal"
-          onClick={onSettingsClick}
-          data-testid="sidebar-settings-button"
-        >
-          <Settings className="w-4 h-4 mr-3 text-[#888888]" />
-          Settings
-        </Button>
+        <div className="text-xs text-gray-500 text-center">
+          Admin settings in top bar
+        </div>
       </div>
     </div>
   );

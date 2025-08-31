@@ -11,6 +11,8 @@ import {
   type MessageWithJob,
   type SavedImage,
   type InsertSavedImage,
+  type PromptTemplate,
+  type InsertPromptTemplate,
   type User,
   type UpsertUser,
   conversations,
@@ -18,6 +20,7 @@ import {
   imageProcessingJobs,
   modelConfigurations,
   savedImages,
+  promptTemplates,
   users
 } from "@shared/schema";
 import { db } from "./db";
@@ -64,6 +67,14 @@ export interface IStorage {
   getSavedImage(id: string): Promise<SavedImage | undefined>;
   getUserSavedImages(userId: string, options?: { page?: number; limit?: number; tags?: string[] }): Promise<SavedImage[]>;
   deleteSavedImage(id: string, userId: string): Promise<boolean>;
+
+  // Prompt Template Functions (Admin Only)
+  getPromptTemplates(): Promise<PromptTemplate[]>;
+  getPromptTemplate(id: string): Promise<PromptTemplate | undefined>;
+  createPromptTemplate(template: InsertPromptTemplate): Promise<PromptTemplate>;
+  updatePromptTemplate(id: string, updates: Partial<PromptTemplate>): Promise<PromptTemplate | undefined>;
+  deletePromptTemplate(id: string): Promise<boolean>;
+  incrementTemplateUsage(id: string): Promise<void>;
 }
 
 
@@ -404,6 +415,50 @@ export class DatabaseStorage implements IStorage {
         )
       );
     return result.rowCount ? result.rowCount > 0 : false;
+  }
+
+  // Prompt Template Functions (Admin Only)
+  async getPromptTemplates(): Promise<PromptTemplate[]> {
+    return await db.select().from(promptTemplates).orderBy(desc(promptTemplates.updatedAt));
+  }
+
+  async getPromptTemplate(id: string): Promise<PromptTemplate | undefined> {
+    const [template] = await db.select().from(promptTemplates).where(eq(promptTemplates.id, id));
+    return template;
+  }
+
+  async createPromptTemplate(template: InsertPromptTemplate): Promise<PromptTemplate> {
+    const [newTemplate] = await db
+      .insert(promptTemplates)
+      .values(template)
+      .returning();
+    return newTemplate;
+  }
+
+  async updatePromptTemplate(id: string, updates: Partial<PromptTemplate>): Promise<PromptTemplate | undefined> {
+    const [updatedTemplate] = await db
+      .update(promptTemplates)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(promptTemplates.id, id))
+      .returning();
+    return updatedTemplate;
+  }
+
+  async deletePromptTemplate(id: string): Promise<boolean> {
+    const result = await db
+      .delete(promptTemplates)
+      .where(eq(promptTemplates.id, id));
+    return result.rowCount ? result.rowCount > 0 : false;
+  }
+
+  async incrementTemplateUsage(id: string): Promise<void> {
+    await db
+      .update(promptTemplates)
+      .set({
+        usage: sql`${promptTemplates.usage} + 1`,
+        updatedAt: new Date()
+      })
+      .where(eq(promptTemplates.id, id));
   }
 }
 

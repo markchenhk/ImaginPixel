@@ -8,6 +8,7 @@ import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
 import ChatInterface from '@/components/chat-interface';
 import ModelConfig from '@/components/model-config';
+import PromptEngineering from '@/components/prompt-engineering';
 import UserLibraryPanel from '@/components/user-library-panel';
 import { LeftSidebar } from '@/components/left-sidebar';
 import { GalleryView } from '@/components/gallery-view';
@@ -22,6 +23,7 @@ export default function ImageEditor() {
   const { user, isAuthenticated, isAdmin } = useAuth();
   const [currentConversation, setCurrentConversation] = useState<Conversation | null>(null);
   const [configOpen, setConfigOpen] = useState(false);
+  const [promptEngineeringOpen, setPromptEngineeringOpen] = useState(false);
   const [processedImageUrl, setProcessedImageUrl] = useState<string | null>(null);
   const [currentView, setCurrentView] = useState<'chat' | 'gallery'>('chat');
 
@@ -123,6 +125,35 @@ export default function ImageEditor() {
           )}
           
           
+          {/* Admin Action Buttons */}
+          {isAdmin && (
+            <div className="flex items-center gap-2">
+              {/* Prompt Engineering Button */}
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setPromptEngineeringOpen(true)}
+                data-testid="prompt-engineering-button"
+                className="text-[#e0e0e0] hover:bg-[#2a2a2a] hover:text-white"
+                title="Prompt Engineering"
+              >
+                <Wand2 className="w-4 h-4" />
+              </Button>
+              
+              {/* Settings Button */}
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setConfigOpen(true)}
+                data-testid="settings-button"
+                className="text-[#e0e0e0] hover:bg-[#2a2a2a] hover:text-white"
+                title="Model Configuration"
+              >
+                <Settings className="w-4 h-4" />
+              </Button>
+            </div>
+          )}
+
           {/* Logout Button */}
           <Button
             variant="ghost"
@@ -140,7 +171,6 @@ export default function ImageEditor() {
       <div className="flex-1 flex overflow-hidden">
         {/* Left Sidebar */}
         <LeftSidebar 
-          onSettingsClick={() => setConfigOpen(true)}
           onNewChatClick={handleNewChat}
           onConversationSelect={handleConversationSelect}
           onGalleryClick={handleGalleryClick}
@@ -246,6 +276,12 @@ export default function ImageEditor() {
         <ModelConfig
           isOpen={configOpen}
           onClose={() => setConfigOpen(false)}
+        />
+
+        {/* Prompt Engineering Module */}
+        <PromptEngineering
+          isOpen={promptEngineeringOpen}
+          onClose={() => setPromptEngineeringOpen(false)}
         />
       </div>
     </div>
