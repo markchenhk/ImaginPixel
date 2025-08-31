@@ -8,6 +8,7 @@ import { useToast } from '@/hooks/use-toast';
 import { apiRequest, queryClient } from '@/lib/queryClient';
 import type { Message, Conversation } from '@shared/schema';
 import { UploadedImage } from '@/types';
+import { ImagePopup } from './image-popup';
 
 interface ChatInterfaceProps {
   conversationId: string | null;
@@ -27,6 +28,8 @@ export default function ChatInterface({
   const [uploadedImage, setUploadedImage] = useState<UploadedImage | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [isDragOver, setIsDragOver] = useState(false);
+  const [popupImageUrl, setPopupImageUrl] = useState<string | null>(null);
+  const [popupMessageId, setPopupMessageId] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   // Fetch messages for current conversation
@@ -299,9 +302,15 @@ export default function ChatInterface({
                           src={message.imageUrl} 
                           alt={message.role === 'user' ? 'Uploaded image' : 'Generated image'} 
                           className={`rounded-xl transition-transform hover:scale-[1.02] shadow-lg border border-[#3a3a3a] ${
-                            message.role === 'user' ? 'w-full max-w-xs mb-2' : 'w-full max-w-sm mb-3'
+                            message.role === 'user' ? 'w-full max-w-xs mb-2' : 'w-full max-w-sm mb-3 cursor-pointer'
                           }`}
                           data-testid={`message-image-${message.id}`}
+                          onClick={() => {
+                            if (message.role === 'assistant' && message.processingStatus === 'completed') {
+                              setPopupImageUrl(message.imageUrl!);
+                              setPopupMessageId(message.id);
+                            }
+                          }}
                         />
                         <div className="absolute inset-0 bg-black/0 hover:bg-black/10 rounded-xl transition-colors" />
                         {message.role === 'user' && (
@@ -309,42 +318,12 @@ export default function ChatInterface({
                             📷 Your Image
                           </div>
                         )}
+                        {message.role === 'assistant' && message.processingStatus === 'completed' && (
+                          <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity rounded-xl bg-black/20">
+                            <span className="text-white text-sm font-medium bg-black/50 px-3 py-1 rounded-full">Click to view larger</span>
+                          </div>
+                        )}
                       </div>
-                      {message.role === 'assistant' && message.processingStatus === 'completed' && (
-                        <div className="flex gap-2 mt-2">
-                          <Button
-                            variant="secondary"
-                            size="sm"
-                            onClick={() => {
-                              const link = document.createElement('a');
-                              link.href = message.imageUrl!;
-                              link.download = `enhanced-image-${message.id}.jpg`;
-                              document.body.appendChild(link);
-                              link.click();
-                              document.body.removeChild(link);
-                            }}
-                            data-testid={`download-image-${message.id}`}
-                            className="text-xs bg-[#3a3a3a] hover:bg-[#4a4a4a] border-[#4a4a4a] text-[#e0e0e0] shadow-sm transition-all"
-                          >
-                            <Download className="w-3 h-3 mr-1" />
-                            Download
-                          </Button>
-                          <Button
-                            variant="secondary" 
-                            size="sm"
-                            onClick={() => {
-                              if (onSaveToLibrary && message.imageUrl) {
-                                onSaveToLibrary(message.imageUrl, `Enhanced Image ${new Date().toLocaleDateString()}`);
-                              }
-                            }}
-                            data-testid={`save-image-${message.id}`}
-                            className="text-xs bg-[#3a3a3a] hover:bg-[#4a4a4a] border-[#4a4a4a] text-[#e0e0e0] shadow-sm transition-all"
-                          >
-                            <Heart className="w-3 h-3 mr-1" />
-                            Save
-                          </Button>
-                        </div>
-                      )}
                     </div>
                   )}
                   
@@ -502,6 +481,20 @@ export default function ChatInterface({
         </div>
       </div>
     </div>
+    
+    {/* Image Popup */}
+    {popupImageUrl && popupMessageId && (
+      <ImagePopup
+        isOpen={!!popupImageUrl}
+        onClose={() => {
+          setPopupImageUrl(null);
+          setPopupMessageId(null);
+        }}
+        imageUrl={popupImageUrl}
+        messageId={popupMessageId}
+        onSaveToLibrary={onSaveToLibrary}
+      />
+    )}
     </div>
   );
 }
