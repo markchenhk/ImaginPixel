@@ -9,6 +9,7 @@ import { Slider } from '@/components/ui/slider';
 import { Card } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
 import { apiRequest, queryClient } from '@/lib/queryClient';
+import { getActiveModel, getModelDisplayName } from '@/lib/openrouter';
 import type { ModelConfiguration } from '@shared/schema';
 import type { OpenRouterModel } from '@/types';
 
@@ -684,7 +685,7 @@ export default function ModelConfig({ isOpen, onClose }: ModelConfigProps) {
                     {useCustomModel ? (
                       <span className="text-orange-400">Custom: {customModelName || 'None'}</span>
                     ) : (
-                      localConfig.selectedModel || 'None'
+                      getModelDisplayName(getActiveModel(localConfig))
                     )}
                   </span>
                 </div>
