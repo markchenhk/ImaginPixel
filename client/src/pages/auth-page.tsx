@@ -139,22 +139,22 @@ export function AuthPage() {
           </div>
           
           <h1 className="text-4xl font-bold mb-4">
-            AI Image Editor
+            AI Product Studio
           </h1>
           
           <p className="text-xl text-[#e0e0e0] mb-8">
-            Transform your images with cutting-edge AI technology. 
-            Generate, enhance, and edit with professional results.
+            Transform ordinary product photos into professional e-commerce images. 
+            Perfect for online marketplaces and driving sales.
           </p>
 
           <div className="grid grid-cols-2 gap-4 text-sm">
             <div className="bg-[#2a2a2a] p-4 rounded-lg">
               <Wand2 className="w-6 h-6 text-[#ffd700] mx-auto mb-2" />
-              <p className="text-[#e0e0e0]">AI Enhancement</p>
+              <p className="text-[#e0e0e0]">Product Enhancement</p>
             </div>
             <div className="bg-[#2a2a2a] p-4 rounded-lg">
               <ImageIcon className="w-6 h-6 text-[#ffd700] mx-auto mb-2" />
-              <p className="text-[#e0e0e0]">Image Generation</p>
+              <p className="text-[#e0e0e0]">Marketplace Ready</p>
             </div>
           </div>
         </div>

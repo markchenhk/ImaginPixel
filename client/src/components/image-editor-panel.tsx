@@ -276,7 +276,7 @@ export default function ImageEditorPanel({ imageUrl, onSaveToLibrary }: ImageEdi
     return (
       <div className="w-full h-full border-l border-[#2a2a2a] bg-[#1a1a1a] flex flex-col">
         <div className="p-4 border-b border-[#2a2a2a]">
-          <h2 className="text-lg font-semibold text-white mb-2">Image Editor</h2>
+          <h2 className="text-lg font-semibold text-white mb-2">Product Editor</h2>
           <p className="text-sm text-[#888888]">
             Professional editing tools for E-commerce and marketing materials
           </p>
@@ -306,7 +306,7 @@ export default function ImageEditorPanel({ imageUrl, onSaveToLibrary }: ImageEdi
       {/* Header */}
       <div className="p-4 border-b border-[#2a2a2a]">
         <div className="flex items-center justify-between mb-2">
-          <h2 className="text-lg font-semibold text-white">Image Editor</h2>
+          <h2 className="text-lg font-semibold text-white">Product Editor</h2>
           <div className="flex items-center gap-2">
             <Button
               variant="ghost"

@@ -10,7 +10,7 @@ export function Navigation() {
       <div className="container mx-auto flex items-center justify-between">
         <div className="flex items-center gap-2">
           <Sparkles className="w-6 h-6 text-primary" />
-          <h1 className="text-xl font-bold">AI Image Editor</h1>
+          <h1 className="text-xl font-bold">AI Product Studio</h1>
         </div>
         
         <div className="flex items-center gap-2">

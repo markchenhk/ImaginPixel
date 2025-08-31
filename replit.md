@@ -1,8 +1,8 @@
-# AI Image Editor
+# AI Product Studio
 
 ## Overview
 
-An AI-powered image editing application that allows users to upload images and interact with them through a chat interface. The application integrates with OpenRouter API to process images using various AI models like GPT-4o and Claude 3.5 Sonnet. Users can apply enhancements, get image analysis, and view before/after comparisons through an intuitive web interface.
+A comprehensive AI-powered image editing SaaS platform specifically designed for e-commerce businesses and online marketplaces. The application allows users to upload product photos and transform them into professional-grade images using advanced AI models via OpenRouter API (featuring Gemini 2.5 Flash Image, GPT-4o, and Claude 3.5 Sonnet). Perfect for creating marketplace-ready product images that drive sales and enhance online presence.
 
 ## User Preferences
 
