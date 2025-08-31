@@ -787,13 +787,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/model-config", isAuthenticated, isAdmin, async (req: any, res) => {
     try {
       const config = await storage.getModelConfiguration();
-      res.json(config || {
-        selectedModel: 'gpt-4-vision',
+      // Create proper default configuration with Google Gemini models
+      const defaultConfig = {
+        selectedModel: 'google/gemini-2.5-flash-image-preview:free',
         outputQuality: 'high',
-        maxResolution: 2048,
+        maxResolution: 4096,
         timeout: 120,
-        apiKeyConfigured: process.env.OPENROUTER_API_KEY ? 'true' : 'false'
-      });
+        apiKeyConfigured: process.env.OPENROUTER_API_KEY ? 'true' : 'false',
+        modelPriorities: [
+          { model: 'google/gemini-2.5-flash-image-preview:free', priority: 1, enabled: true },
+          { model: 'google/gemini-2.5-flash-image', priority: 2, enabled: true },
+          { model: 'google/gemini-2.5-flash-image-preview', priority: 3, enabled: true }
+        ]
+      };
+      
+      res.json(config || defaultConfig);
     } catch (error) {
       res.status(500).json({ 
         message: error instanceof Error ? error.message : "Failed to fetch model configuration" 

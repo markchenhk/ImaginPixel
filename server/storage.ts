@@ -217,24 +217,31 @@ export class DatabaseStorage implements IStorage {
   async createOrUpdateModelConfiguration(insertConfig: InsertModelConfiguration): Promise<ModelConfiguration> {
     const userId = insertConfig.userId || "default";
     
-    // Try to update existing configuration
-    const [updatedConfig] = await db
-      .insert(modelConfigurations)
-      .values({
-        ...insertConfig,
-        userId,
-        updatedAt: new Date()
-      })
-      .onConflictDoUpdate({
-        target: modelConfigurations.userId,
-        set: {
-          ...insertConfig,
-          updatedAt: new Date()
-        }
-      })
-      .returning();
-    
-    return updatedConfig;
+    try {
+      // Try to update existing configuration
+      const [updatedConfig] = await db
+        .insert(modelConfigurations)
+        .values(insertConfig)
+        .onConflictDoUpdate({
+          target: modelConfigurations.userId,
+          set: {
+            selectedModel: insertConfig.selectedModel,
+            outputQuality: insertConfig.outputQuality,
+            maxResolution: insertConfig.maxResolution,
+            timeout: insertConfig.timeout,
+            apiKey: insertConfig.apiKey,
+            apiKeyConfigured: insertConfig.apiKeyConfigured,
+            modelPriorities: insertConfig.modelPriorities,
+            updatedAt: new Date()
+          }
+        })
+        .returning();
+      
+      return updatedConfig;
+    } catch (error) {
+      console.error('[Storage] Model config upsert failed:', error);
+      throw error;
+    }
   }
 
   // User Context Functions - 用户上下文功能
