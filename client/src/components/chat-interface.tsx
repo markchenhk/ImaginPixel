@@ -14,6 +14,7 @@ interface ChatInterfaceProps {
   conversationId: string | null;
   onConversationCreate: (conversation: Conversation) => void;
   onImageProcessed: (originalUrl: string, processedUrl: string) => void;
+  onImageClick?: (imageUrl: string, messageId: string) => void;
   onSaveToLibrary?: (imageUrl: string, title: string) => void;
 }
 
@@ -21,6 +22,7 @@ export default function ChatInterface({
   conversationId, 
   onConversationCreate,
   onImageProcessed,
+  onImageClick,
   onSaveToLibrary
 }: ChatInterfaceProps) {
   const { toast } = useToast();
@@ -32,10 +34,6 @@ export default function ChatInterface({
   const [popupMessageId, setPopupMessageId] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  // Debug popup state changes
-  useEffect(() => {
-    console.log('Popup state changed:', { popupImageUrl, popupMessageId });
-  }, [popupImageUrl, popupMessageId]);
 
   // Fetch messages for current conversation
   const { data: messages = [], isLoading: messagesLoading } = useQuery<Message[]>({
@@ -318,11 +316,14 @@ export default function ChatInterface({
                           onClick={(e) => {
                             e.preventDefault();
                             e.stopPropagation();
-                            console.log('Overlay clicked:', { role: message.role, status: message.processingStatus, imageUrl: message.imageUrl });
                             if (message.role === 'assistant' && message.processingStatus === 'completed') {
-                              console.log('Setting popup state...');
-                              setPopupImageUrl(message.imageUrl!);
-                              setPopupMessageId(message.id);
+                              if (onImageClick) {
+                                onImageClick(message.imageUrl!, message.id);
+                              } else {
+                                // Fallback to popup if onImageClick not provided
+                                setPopupImageUrl(message.imageUrl!);
+                                setPopupMessageId(message.id);
+                              }
                             }
                           }}
                         />
