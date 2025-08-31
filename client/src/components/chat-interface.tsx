@@ -32,10 +32,6 @@ export default function ChatInterface({
   const [popupMessageId, setPopupMessageId] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  // Debug popup state changes
-  useEffect(() => {
-    console.log('Popup state changed:', { popupImageUrl, popupMessageId });
-  }, [popupImageUrl, popupMessageId]);
 
   // Fetch messages for current conversation
   const { data: messages = [], isLoading: messagesLoading } = useQuery<Message[]>({
@@ -318,9 +314,7 @@ export default function ChatInterface({
                           onClick={(e) => {
                             e.preventDefault();
                             e.stopPropagation();
-                            console.log('Overlay clicked:', { role: message.role, status: message.processingStatus, imageUrl: message.imageUrl });
                             if (message.role === 'assistant' && message.processingStatus === 'completed') {
-                              console.log('Setting popup state...');
                               setPopupImageUrl(message.imageUrl!);
                               setPopupMessageId(message.id);
                             }
@@ -500,7 +494,6 @@ export default function ChatInterface({
       <ImagePopup
         isOpen={!!popupImageUrl}
         onClose={() => {
-          console.log('Closing popup...');
           setPopupImageUrl(null);
           setPopupMessageId(null);
         }}
