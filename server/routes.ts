@@ -871,9 +871,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Save generated image to user library
-  app.post("/api/library/save", async (req, res) => {
+  app.post("/api/library/save", isAuthenticated, async (req: any, res) => {
     try {
-      const validatedData = insertSavedImageSchema.parse(req.body);
+      // Get user ID from authenticated session
+      const userId = req.user?.claims?.sub || req.user?.id || 'default';
+      
+      // Override any userId in the request body with the authenticated user ID
+      const requestData = { ...req.body, userId };
+      const validatedData = insertSavedImageSchema.parse(requestData);
+      
+      console.log('Saving image to library for user:', userId);
       const savedImage = await storage.createSavedImage(validatedData);
       res.json(savedImage);
     } catch (error) {

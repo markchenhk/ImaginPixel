@@ -162,7 +162,6 @@ export default function ImageEditor() {
                       method: 'POST',
                       headers: { 'Content-Type': 'application/json' },
                       body: JSON.stringify({
-                        userId: user?.id || '',
                         title,
                         objectPath: imageUrl,
                         prompt: 'AI enhanced image',
@@ -178,7 +177,7 @@ export default function ImageEditor() {
                     setProcessedImageUrl(imageUrl);
                     
                     // Refresh the library to show the new saved image
-                    queryClient.invalidateQueries({ queryKey: ['/api/library', 'default'] });
+                    queryClient.invalidateQueries({ queryKey: ['/api/library', user?.id] });
                     
                     // Show success message
                     toast({
@@ -206,7 +205,6 @@ export default function ImageEditor() {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
-                      userId: user?.id || '',
                       title,
                       objectPath: imageUrl,
                       prompt: 'AI enhanced and edited image',
@@ -219,7 +217,7 @@ export default function ImageEditor() {
                   }
 
                   // Refresh the library to show the new saved image
-                  queryClient.invalidateQueries({ queryKey: ['/api/library', 'default'] });
+                  queryClient.invalidateQueries({ queryKey: ['/api/library', user?.id] });
                   
                   // Show success message
                   toast({

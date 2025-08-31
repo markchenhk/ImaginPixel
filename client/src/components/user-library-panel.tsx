@@ -7,6 +7,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Trash2, Search, Image as ImageIcon, Plus } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/hooks/useAuth";
 
 interface SavedImage {
   id: string;
@@ -21,28 +22,32 @@ interface SavedImage {
 }
 
 interface UserLibraryPanelProps {
-  userId?: string;
   processedImageUrl?: string | null;
   onSaveImage?: () => void;
 }
 
 export default function UserLibraryPanel({ 
-  userId = 'default', 
   processedImageUrl,
   onSaveImage 
 }: UserLibraryPanelProps) {
   const [searchTerm, setSearchTerm] = useState("");
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const { user, isAuthenticated } = useAuth();
+  
+  // Get user ID from authenticated user
+  const userId = user?.id || 'default';
 
   // Fetch saved images
   const { data: savedImages = [], isLoading, error } = useQuery({
     queryKey: ['/api/library', userId],
     queryFn: async () => {
+      if (!isAuthenticated) return [];
       const response = await apiRequest('GET', `/api/library/${userId}`);
       const data = await response.json();
       return Array.isArray(data) ? data : [];
     },
+    enabled: isAuthenticated, // Only run query when user is authenticated
   });
 
   // Save image mutation
@@ -53,7 +58,6 @@ export default function UserLibraryPanel({
       prompt?: string; 
     }) => {
       const response = await apiRequest('POST', '/api/library/save', {
-        userId,
         ...imageData,
         tags: ['ai-generated']
       });
