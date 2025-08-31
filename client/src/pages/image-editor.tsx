@@ -142,7 +142,6 @@ export default function ImageEditor() {
           onGalleryClick={handleGalleryClick}
           currentConversationId={currentConversation?.id || null}
           currentView={currentView}
-          showSettings={isAdmin}
         />
         
         {/* Chat Panel - Left Side */}
