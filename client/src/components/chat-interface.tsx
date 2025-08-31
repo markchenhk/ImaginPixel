@@ -259,7 +259,7 @@ export default function ChatInterface({
       <div className="w-1/2 border-r border-[#2a2a2a] flex flex-col bg-[#1e1e1e]">
       {/* Chat Messages */}
       <ScrollArea className="flex-1 p-6">
-        <div className="space-y-6">
+        <div className="space-y-4">
           {/* Welcome Message */}
           {messages.length === 0 && (
             <div className="chat-message animate-in fade-in-0 slide-in-from-bottom-2 duration-500">
@@ -287,29 +287,31 @@ export default function ChatInterface({
                   </div>
                 )}
                 
-                <div className={`rounded-2xl shadow-lg border transition-all hover:shadow-xl ${
+                <div className={`rounded-2xl p-4 border transition-all ${
                   message.role === 'user' 
-                    ? 'bg-gradient-to-br from-blue-600 to-blue-700 text-white border-blue-500/20 max-w-lg' 
+                    ? 'bg-[#2a2a2a] border-[#3a3a3a] max-w-md' 
                     : 'bg-gradient-to-br from-secondary to-secondary/80 border-border/50 max-w-md'
                 }`}>
                   {message.imageUrl && (
-                    <div className={`mb-4 ${message.role === 'user' ? 'p-3 bg-white/10 rounded-xl border border-white/20' : ''}`}>
+                    <div className="mb-3">
                       <div className="relative group">
                         <img 
                           src={message.imageUrl} 
                           alt={message.role === 'user' ? 'Uploaded image' : 'Generated image'} 
-                          className="rounded-xl w-full max-w-sm mb-3 transition-transform hover:scale-[1.02] shadow-lg border border-white/20"
+                          className={`rounded-xl transition-transform hover:scale-[1.02] shadow-lg border border-[#3a3a3a] ${
+                            message.role === 'user' ? 'w-full max-w-xs mb-2' : 'w-full max-w-sm mb-3'
+                          }`}
                           data-testid={`message-image-${message.id}`}
                         />
                         <div className="absolute inset-0 bg-black/0 hover:bg-black/10 rounded-xl transition-colors" />
                         {message.role === 'user' && (
-                          <div className="absolute top-2 left-2 bg-white/90 text-black text-xs px-2 py-1 rounded-full font-medium shadow-sm">
+                          <div className="absolute top-2 left-2 bg-[#ffd700] text-black text-xs px-2 py-1 rounded-full font-medium shadow-sm">
                             📷 Your Image
                           </div>
                         )}
                       </div>
                       {message.role === 'assistant' && message.processingStatus === 'completed' && (
-                        <div className="flex gap-2">
+                        <div className="flex gap-2 mt-2">
                           <Button
                             variant="secondary"
                             size="sm"
@@ -322,7 +324,7 @@ export default function ChatInterface({
                               document.body.removeChild(link);
                             }}
                             data-testid={`download-image-${message.id}`}
-                            className="text-xs bg-white/10 hover:bg-white/20 border-white/20 text-foreground shadow-sm transition-all"
+                            className="text-xs bg-[#3a3a3a] hover:bg-[#4a4a4a] border-[#4a4a4a] text-[#e0e0e0] shadow-sm transition-all"
                           >
                             <Download className="w-3 h-3 mr-1" />
                             Download
@@ -336,7 +338,7 @@ export default function ChatInterface({
                               }
                             }}
                             data-testid={`save-image-${message.id}`}
-                            className="text-xs bg-white/10 hover:bg-white/20 border-white/20 text-foreground shadow-sm transition-all"
+                            className="text-xs bg-[#3a3a3a] hover:bg-[#4a4a4a] border-[#4a4a4a] text-[#e0e0e0] shadow-sm transition-all"
                           >
                             <Heart className="w-3 h-3 mr-1" />
                             Save
@@ -346,39 +348,39 @@ export default function ChatInterface({
                     </div>
                   )}
                   
-                  <div className={`${
-                    message.role === 'user' ? 'p-5' : 'p-5'
-                  }`}>
+                  <div className="p-0">
                     {message.processingStatus === 'processing' && (
-                      <div className="flex items-center gap-3 mb-4">
+                      <div className="flex items-center gap-3 mb-3">
                         <div className="loading-dots">
                           <span></span>
                           <span></span>
                           <span></span>
                         </div>
-                        <span className="font-medium text-blue-600 animate-pulse text-sm">Processing image...</span>
+                        <span className="font-medium text-[#ffd700] animate-pulse text-sm">Processing image...</span>
                       </div>
                     )}
                     
                     {message.role === 'user' && message.content && (
-                      <div className="border-t border-white/20 pt-4 mt-2">
+                      <div className={`${message.imageUrl ? 'border-t border-[#3a3a3a] pt-3 mt-3' : ''}`}>
                         <div className="flex items-center gap-2 mb-2">
-                          <div className="w-2 h-2 bg-white/60 rounded-full"></div>
-                          <span className="text-xs font-medium text-white/80 uppercase tracking-wide">Your Request</span>
+                          <div className="w-2 h-2 bg-[#ffd700] rounded-full"></div>
+                          <span className="text-xs font-medium text-[#ffd700] uppercase tracking-wide">Your Request</span>
                         </div>
-                        <p className="text-sm leading-relaxed font-medium whitespace-pre-wrap">{message.content}</p>
+                        <p className="text-sm leading-relaxed text-[#e0e0e0] whitespace-pre-wrap">{message.content}</p>
                       </div>
                     )}
                     
                     {message.role === 'assistant' && (
-                      <p className="text-sm whitespace-pre-wrap leading-relaxed">{message.content}</p>
+                      <div className={`${message.imageUrl ? '' : 'p-4'}`}>
+                        <p className="text-sm whitespace-pre-wrap leading-relaxed text-[#e0e0e0]">{message.content}</p>
+                      </div>
                     )}
                   </div>
                 </div>
 
                 {message.role === 'user' && (
-                  <div className="w-10 h-10 bg-gradient-to-br from-blue-600 to-blue-700 rounded-full flex items-center justify-center flex-shrink-0 shadow-lg">
-                    <User className="w-5 h-5 text-white" />
+                  <div className="w-10 h-10 bg-[#3a3a3a] rounded-full flex items-center justify-center flex-shrink-0 border border-[#4a4a4a]">
+                    <User className="w-5 h-5 text-[#e0e0e0]" />
                   </div>
                 )}
               </div>
