@@ -145,8 +145,8 @@ export default function ImageEditor() {
         {/* Main Content Area with Two Columns */}
         {currentView === 'chat' ? (
           <div className="flex-1 flex overflow-hidden">
-            {/* Chat Column (Left) - 50% width */}
-            <div className="w-1/2 h-full">
+            {/* Chat Column (Left) - 35% width */}
+            <div className="w-[35%] h-full">
               <ChatInterface
                 conversationId={currentConversation?.id || null}
                 onConversationCreate={handleConversationCreate}
@@ -192,7 +192,7 @@ export default function ImageEditor() {
               />
             </div>
             
-            {/* Image Editor Panel (Right) - 50% width */}
+            {/* Image Editor Panel (Right) - 65% width */}
             <ImageEditorPanel
               imageUrl={processedImageUrl}
               onSaveToLibrary={async (imageUrl, title) => {

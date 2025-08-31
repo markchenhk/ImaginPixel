@@ -274,7 +274,7 @@ export default function ImageEditorPanel({ imageUrl, onSaveToLibrary }: ImageEdi
 
   if (!imageUrl) {
     return (
-      <div className="w-1/2 h-full border-l border-[#2a2a2a] bg-[#1a1a1a] flex flex-col">
+      <div className="w-full h-full border-l border-[#2a2a2a] bg-[#1a1a1a] flex flex-col">
         <div className="p-4 border-b border-[#2a2a2a]">
           <h2 className="text-lg font-semibold text-white mb-2">Image Editor</h2>
           <p className="text-sm text-[#888888]">
@@ -302,7 +302,7 @@ export default function ImageEditorPanel({ imageUrl, onSaveToLibrary }: ImageEdi
   }
 
   return (
-    <div className="w-1/2 h-full border-l border-[#2a2a2a] bg-[#1a1a1a] flex flex-col">
+    <div className="w-full h-full border-l border-[#2a2a2a] bg-[#1a1a1a] flex flex-col">
       {/* Header */}
       <div className="p-4 border-b border-[#2a2a2a]">
         <div className="flex items-center justify-between mb-2">
@@ -360,7 +360,7 @@ export default function ImageEditorPanel({ imageUrl, onSaveToLibrary }: ImageEdi
         </div>
 
         {/* Tools Panel */}
-        <div className="w-80 border-l border-[#2a2a2a] bg-[#1a1a1a] overflow-y-auto">
+        <div className="w-64 border-l border-[#2a2a2a] bg-[#1a1a1a] overflow-y-auto">
           <Tabs value={activeTab} onValueChange={setActiveTab} className="h-full">
             <TabsList className="w-full bg-[#2a2a2a] p-1">
               <TabsTrigger value="adjustments" className="flex-1 text-xs">
@@ -382,12 +382,12 @@ export default function ImageEditorPanel({ imageUrl, onSaveToLibrary }: ImageEdi
             </TabsList>
 
             {/* Color Adjustments Tab */}
-            <TabsContent value="adjustments" className="p-4 space-y-4">
+            <TabsContent value="adjustments" className="p-3 space-y-3">
               <Card className="bg-[#2a2a2a] border-[#3a3a3a]">
-                <CardHeader className="pb-3">
+                <CardHeader className="pb-2">
                   <CardTitle className="text-sm text-white">Color & Light</CardTitle>
                 </CardHeader>
-                <CardContent className="space-y-4">
+                <CardContent className="space-y-3">
                   <div>
                     <Label className="text-xs text-[#e0e0e0]">Brightness</Label>
                     <Slider
@@ -514,12 +514,12 @@ export default function ImageEditorPanel({ imageUrl, onSaveToLibrary }: ImageEdi
             </TabsContent>
 
             {/* Canvas Tools Tab */}
-            <TabsContent value="canvas" className="p-4 space-y-4">
+            <TabsContent value="canvas" className="p-3 space-y-3">
               <Card className="bg-[#2a2a2a] border-[#3a3a3a]">
                 <CardHeader className="pb-3">
                   <CardTitle className="text-sm text-white">Transform</CardTitle>
                 </CardHeader>
-                <CardContent className="space-y-4">
+                <CardContent className="space-y-3">
                   <div className="grid grid-cols-2 gap-2">
                     <Button
                       variant="outline"
@@ -578,7 +578,7 @@ export default function ImageEditorPanel({ imageUrl, onSaveToLibrary }: ImageEdi
                 <CardHeader className="pb-3">
                   <CardTitle className="text-sm text-white">Canvas Size</CardTitle>
                 </CardHeader>
-                <CardContent className="space-y-4">
+                <CardContent className="space-y-3">
                   <div className="grid grid-cols-2 gap-2">
                     <div>
                       <Label className="text-xs text-[#e0e0e0]">Width</Label>
@@ -642,12 +642,12 @@ export default function ImageEditorPanel({ imageUrl, onSaveToLibrary }: ImageEdi
             </TabsContent>
 
             {/* Text Tab */}
-            <TabsContent value="text" className="p-4 space-y-4">
+            <TabsContent value="text" className="p-3 space-y-3">
               <Card className="bg-[#2a2a2a] border-[#3a3a3a]">
                 <CardHeader className="pb-3">
                   <CardTitle className="text-sm text-white">Add Text</CardTitle>
                 </CardHeader>
-                <CardContent className="space-y-4">
+                <CardContent className="space-y-3">
                   <div>
                     <Label className="text-xs text-[#e0e0e0]">Text Content</Label>
                     <Input
@@ -738,12 +738,12 @@ export default function ImageEditorPanel({ imageUrl, onSaveToLibrary }: ImageEdi
             </TabsContent>
 
             {/* Export Tab */}
-            <TabsContent value="export" className="p-4 space-y-4">
+            <TabsContent value="export" className="p-3 space-y-3">
               <Card className="bg-[#2a2a2a] border-[#3a3a3a]">
                 <CardHeader className="pb-3">
                   <CardTitle className="text-sm text-white">Export Options</CardTitle>
                 </CardHeader>
-                <CardContent className="space-y-4">
+                <CardContent className="space-y-3">
                   <div className="space-y-2">
                     <Button
                       onClick={() => exportImage('png')}
