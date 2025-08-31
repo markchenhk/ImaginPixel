@@ -145,9 +145,9 @@ export default function ImageEditor() {
         />
         
         {/* Chat Panel - Left Side */}
-        <div className={`flex-shrink-0 transition-all duration-300 ${
+        <div className={`transition-all duration-300 ${
           selectedImageForEditor ? 'w-1/2' : 'flex-1'
-        }`}>
+        } bg-red-500 border-2 border-yellow-400`}>
           {currentView === 'chat' ? (
             <ChatInterface
               conversationId={currentConversation?.id || null}
