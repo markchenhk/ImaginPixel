@@ -109,6 +109,24 @@ export function getModelDisplayName(modelId: string): string {
   return AVAILABLE_MODELS[modelId]?.name || modelId;
 }
 
+export function getActiveModel(modelConfig: any): string {
+  // Get the active model based on priority system
+  if (!modelConfig) return 'openai/gpt-4o';
+  
+  // Get enabled models in priority order
+  const modelPriorities = (modelConfig.modelPriorities || [])
+    .filter((item: any) => item.enabled)
+    .sort((a: any, b: any) => a.priority - b.priority);
+  
+  // If priorities are configured, return the highest priority model
+  if (modelPriorities.length > 0) {
+    return modelPriorities[0].model;
+  }
+  
+  // Fallback to selectedModel
+  return modelConfig.selectedModel || 'openai/gpt-4o';
+}
+
 export function getModelPricing(modelId: string): string {
   const model = AVAILABLE_MODELS[modelId];
   if (!model) return 'Unknown';

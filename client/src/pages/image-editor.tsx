@@ -12,7 +12,7 @@ import UserLibraryPanel from '@/components/user-library-panel';
 import { LeftSidebar } from '@/components/left-sidebar';
 import { GalleryView } from '@/components/gallery-view';
 import ImageEditorPanel from '@/components/image-editor-panel';
-import { getModelDisplayName } from '@/lib/openrouter';
+import { getModelDisplayName, getActiveModel } from '@/lib/openrouter';
 import type { Conversation, ModelConfiguration } from '@shared/schema';
 
 export default function ImageEditor() {
@@ -115,7 +115,7 @@ export default function ImageEditor() {
                 modelConfig?.apiKeyConfigured === 'true' ? 'bg-green-500' : 'bg-yellow-500'
               }`} />
               <span data-testid="selected-model">
-                {getModelDisplayName(modelConfig?.selectedModel || 'openai/gpt-4o')}
+                {getModelDisplayName(getActiveModel(modelConfig))}
               </span>
             </div>
           )}
