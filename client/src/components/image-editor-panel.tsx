@@ -141,7 +141,17 @@ export default function ImageEditorPanel({ imageUrl, onSaveToLibrary }: ImageEdi
         }
       });
     };
-    img.src = imageUrl;
+    
+    img.onerror = () => {
+      console.error('Failed to load image:', imageUrl);
+    };
+    
+    // Add cache-busting parameter to ensure new images load properly
+    const cacheBustUrl = imageUrl.includes('?') 
+      ? `${imageUrl}&t=${Date.now()}` 
+      : `${imageUrl}?t=${Date.now()}`;
+    
+    img.src = cacheBustUrl;
   };
 
   const updateFilter = (key: keyof FilterSettings, value: number) => {
@@ -245,9 +255,22 @@ export default function ImageEditorPanel({ imageUrl, onSaveToLibrary }: ImageEdi
   // Apply effects when filters or transformations change
   useEffect(() => {
     if (imageUrl) {
+      console.log('Image Editor: Loading new image:', imageUrl);
       applyFilters();
     }
   }, [filters, rotation, flipH, flipV, textElements, imageUrl]);
+  
+  // Reset filters when a new image is loaded to make differences more visible
+  useEffect(() => {
+    if (imageUrl) {
+      console.log('Image Editor: Resetting filters for new image');
+      resetFilters();
+      setRotation(0);
+      setFlipH(false);
+      setFlipV(false);
+      setTextElements([]);
+    }
+  }, [imageUrl]);
 
   if (!imageUrl) {
     return (
