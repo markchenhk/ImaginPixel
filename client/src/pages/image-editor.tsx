@@ -6,7 +6,8 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
-import ChatInterface from '@/components/chat-interface';
+import { InputSidebar } from '@/components/input-sidebar';
+import { ImageOutputPanel } from '@/components/image-output-panel';
 import ModelConfig from '@/components/model-config';
 import UserLibraryPanel from '@/components/user-library-panel';
 import { LeftSidebar } from '@/components/left-sidebar';
@@ -135,7 +136,7 @@ export default function ImageEditor() {
       <div className="flex-1 flex overflow-hidden">
         {/* Left Sidebar */}
         <LeftSidebar 
-          onSettingsClick={isAdmin ? () => setConfigOpen(true) : undefined}
+          onSettingsClick={isAdmin ? () => setConfigOpen(true) : () => {}}
           onNewChatClick={handleNewChat}
           onConversationSelect={handleConversationSelect}
           onGalleryClick={handleGalleryClick}
@@ -146,49 +147,64 @@ export default function ImageEditor() {
         
         {/* Main Content Area */}
         {currentView === 'chat' ? (
-          <ChatInterface
-            conversationId={currentConversation?.id || null}
-            onConversationCreate={handleConversationCreate}
-            onImageProcessed={handleImageProcessed}
-            onSaveToLibrary={async (imageUrl, title) => {
-              try {
-                const response = await fetch('/api/library/save', {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({
-                    userId: user?.id || '',
-                    title,
-                    objectPath: imageUrl,
-                    prompt: 'AI enhanced image',
-                    tags: ['ai-generated']
-                  })
+          <div className="flex-1 flex">
+            <InputSidebar 
+              conversationId={currentConversation?.id || 'new'}
+              onImageGenerated={() => {
+                // Refresh conversations when a new image is generated
+                queryClient.invalidateQueries({ 
+                  queryKey: ['/api/conversations'] 
                 });
+              }}
+            />
+            <ImageOutputPanel 
+              conversationId={currentConversation?.id || 'new'}
+              onSaveToLibrary={async (messageId: string) => {
+                try {
+                  // First get the message to find the image URL
+                  const response = await fetch(`/api/conversations/${currentConversation?.id}/messages`);
+                  const messages = await response.json();
+                  const message = messages.find((m: any) => m.id === messageId);
+                  
+                  if (!message?.imageUrl) {
+                    throw new Error('Image not found');
+                  }
 
-                if (!response.ok) {
-                  throw new Error('Failed to save image');
+                  const saveResponse = await fetch('/api/library/save', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                      userId: user?.id || '',
+                      title: `Generated image from ${new Date().toLocaleDateString()}`,
+                      objectPath: message.imageUrl,
+                      prompt: message.content || 'AI enhanced image',
+                      tags: ['ai-generated']
+                    })
+                  });
+
+                  if (!saveResponse.ok) {
+                    throw new Error('Failed to save image');
+                  }
+                  
+                  // Refresh the library to show the new saved image
+                  queryClient.invalidateQueries({ queryKey: ['/api/library', 'default'] });
+                  
+                  // Show success message
+                  toast({
+                    title: "Success",
+                    description: "Image saved to library",
+                  });
+                } catch (error) {
+                  console.error('Error saving image:', error);
+                  toast({
+                    title: "Error",
+                    description: "Failed to save image to library",
+                    variant: "destructive",
+                  });
                 }
-
-                // Update the processed image URL for the library panel
-                setProcessedImageUrl(imageUrl);
-                
-                // Refresh the library to show the new saved image
-                queryClient.invalidateQueries({ queryKey: ['/api/library', 'default'] });
-                
-                // Show success message
-                toast({
-                  title: "Success",
-                  description: "Image saved to library",
-                });
-              } catch (error) {
-                console.error('Error saving image:', error);
-                toast({
-                  title: "Error",
-                  description: "Failed to save image to library",
-                  variant: "destructive",
-                });
-              }
-            }}
-          />
+              }}
+            />
+          </div>
         ) : (
           <GalleryView />
         )}
