@@ -32,6 +32,11 @@ export default function ChatInterface({
   const [popupMessageId, setPopupMessageId] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
+  // Debug popup state changes
+  useEffect(() => {
+    console.log('Popup state changed:', { popupImageUrl, popupMessageId });
+  }, [popupImageUrl, popupMessageId]);
+
   // Fetch messages for current conversation
   const { data: messages = [], isLoading: messagesLoading } = useQuery<Message[]>({
     queryKey: ['/api/conversations', conversationId, 'messages'],
@@ -305,8 +310,12 @@ export default function ChatInterface({
                             message.role === 'user' ? 'w-full max-w-xs mb-2' : 'w-full max-w-sm mb-3 cursor-pointer'
                           }`}
                           data-testid={`message-image-${message.id}`}
-                          onClick={() => {
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            console.log('Image clicked:', { role: message.role, status: message.processingStatus, imageUrl: message.imageUrl });
                             if (message.role === 'assistant' && message.processingStatus === 'completed') {
+                              console.log('Setting popup state...');
                               setPopupImageUrl(message.imageUrl!);
                               setPopupMessageId(message.id);
                             }
@@ -487,6 +496,7 @@ export default function ChatInterface({
       <ImagePopup
         isOpen={!!popupImageUrl}
         onClose={() => {
+          console.log('Closing popup...');
           setPopupImageUrl(null);
           setPopupMessageId(null);
         }}
