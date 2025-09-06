@@ -6,9 +6,10 @@ import { Textarea } from '@/components/ui/textarea';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useToast } from '@/hooks/use-toast';
 import { apiRequest, queryClient } from '@/lib/queryClient';
-import type { Message, Conversation } from '@shared/schema';
+import type { Message, Conversation, PromptTemplate } from '@shared/schema';
 import { UploadedImage } from '@/types';
 import { ImagePopup } from './image-popup';
+import { PromptTemplateButtons } from './prompt-template-buttons';
 
 interface ChatInterfaceProps {
   conversationId: string | null;
@@ -213,6 +214,10 @@ export default function ChatInterface({
 
   const handleQuickAction = (action: string) => {
     setInput(action);
+  };
+
+  const handleTemplateSelect = (template: PromptTemplate) => {
+    setInput(template.template);
   };
 
   // Handle image paste from clipboard
@@ -481,26 +486,8 @@ export default function ChatInterface({
           </Button>
         </div>
 
-        {/* Quick Actions */}
-        <div className="flex gap-2 mt-3">
-          {[
-            'Enhance colors',
-            'Remove background', 
-            'Style transfer',
-            'Upscale quality'
-          ].map((action) => (
-            <Button
-              key={action}
-              variant="ghost"
-              size="sm"
-              className="text-xs bg-[#2a2a2a] hover:bg-[#3a3a3a] text-[#e0e0e0] border border-[#3a3a3a]"
-              onClick={() => handleQuickAction(action)}
-              data-testid={`quick-action-${action.toLowerCase().replace(' ', '-')}`}
-            >
-              {action}
-            </Button>
-          ))}
-        </div>
+        {/* Prompt Template Actions */}
+        <PromptTemplateButtons onTemplateSelect={handleTemplateSelect} />
       </div>
 
       {/* Image Popup */}
