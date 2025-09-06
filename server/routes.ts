@@ -1145,10 +1145,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: "Template content is required" });
       }
 
-      // Get the current model configuration  
-      const userId = req.user?.claims?.sub;
-      console.log('Enhancement: User object:', req.user);
-      console.log('Enhancement: Looking for config for user:', userId);
+      // Get the admin model configuration (enhancement is an admin function)
+      const userId = req.user?.id; // Use regular user.id for username/password auth
+      console.log('Enhancement: User ID:', userId);
       
       if (!userId) {
         return res.status(401).json({ message: "User not authenticated" });
