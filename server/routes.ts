@@ -1145,9 +1145,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: "Template content is required" });
       }
 
-      // Get the current model configuration
-      const userId = req.user?.claims?.sub || 'admin';
+      // Get the current model configuration  
+      const userId = req.user?.claims?.sub;
+      console.log('Enhancement: User object:', req.user);
       console.log('Enhancement: Looking for config for user:', userId);
+      
+      if (!userId) {
+        return res.status(401).json({ message: "User not authenticated" });
+      }
+      
       const config = await storage.getModelConfiguration(userId);
       console.log('Enhancement: Found config:', config ? 'YES' : 'NO', config?.apiKey ? 'with API key' : 'without API key');
       
