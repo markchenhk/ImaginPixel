@@ -33,6 +33,7 @@ export default function ChatInterface({
   const [isDragOver, setIsDragOver] = useState(false);
   const [popupImageUrl, setPopupImageUrl] = useState<string | null>(null);
   const [popupMessageId, setPopupMessageId] = useState<string | null>(null);
+  const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   // Fetch messages for current conversation
@@ -185,7 +186,7 @@ export default function ChatInterface({
   };
 
   const handleSendMessage = async () => {
-    if (!input.trim()) return;
+    if (!input.trim() && !selectedTemplateId) return;
     
     let currentConversationId = conversationId;
     
@@ -200,15 +201,32 @@ export default function ChatInterface({
     }
 
     if (currentConversationId) {
+      // Use template content if a template is selected, otherwise use input
+      let messageContent = input;
+      if (selectedTemplateId && !input.trim()) {
+        // Find the selected template and use its content
+        try {
+          const response = await fetch('/api/prompt-templates');
+          const templates = await response.json();
+          const selectedTemplate = templates.find((t: PromptTemplate) => t.id === selectedTemplateId);
+          if (selectedTemplate) {
+            messageContent = selectedTemplate.template;
+          }
+        } catch (error) {
+          console.error('Failed to fetch template:', error);
+        }
+      }
+
       // Send with uploaded image (if any) or use conversation context
       processImageMutation.mutate({
         conversationId: currentConversationId,
         imageUrl: uploadedImage?.imageUrl, // Optional - backend will use conversation context if not provided
-        prompt: input,
+        prompt: messageContent,
       });
       
       setInput('');
       setUploadedImage(null);
+      setSelectedTemplateId(null); // Clear template selection after sending
     }
   };
 
@@ -217,7 +235,9 @@ export default function ChatInterface({
   };
 
   const handleTemplateSelect = (template: PromptTemplate) => {
-    setInput(template.template);
+    // Set the selected template for highlighting
+    setSelectedTemplateId(template.id);
+    // Don't show the prompt content - just keep it selected
   };
 
   // Handle image paste from clipboard
@@ -478,7 +498,7 @@ export default function ChatInterface({
           
           <Button
             onClick={handleSendMessage}
-            disabled={!input.trim() || processImageMutation.isPending}
+            disabled={(!input.trim() && !selectedTemplateId) || processImageMutation.isPending}
             className="bg-[#ffd700] hover:bg-[#ffd700]/90 text-black font-medium"
             data-testid="send-message-button"
           >
@@ -487,7 +507,10 @@ export default function ChatInterface({
         </div>
 
         {/* Prompt Template Actions */}
-        <PromptTemplateButtons onTemplateSelect={handleTemplateSelect} />
+        <PromptTemplateButtons 
+          onTemplateSelect={handleTemplateSelect} 
+          selectedTemplateId={selectedTemplateId || undefined}
+        />
       </div>
 
       {/* Image Popup */}

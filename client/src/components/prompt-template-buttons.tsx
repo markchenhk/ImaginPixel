@@ -5,9 +5,10 @@ import { PromptTemplate } from "@shared/schema";
 
 interface PromptTemplateButtonsProps {
   onTemplateSelect: (template: PromptTemplate) => void;
+  selectedTemplateId?: string;
 }
 
-export function PromptTemplateButtons({ onTemplateSelect }: PromptTemplateButtonsProps) {
+export function PromptTemplateButtons({ onTemplateSelect, selectedTemplateId }: PromptTemplateButtonsProps) {
   const queryClient = useQueryClient();
 
   // Fetch prompt templates
@@ -65,7 +66,11 @@ export function PromptTemplateButtons({ onTemplateSelect }: PromptTemplateButton
           key={template.id}
           variant="ghost"
           size="sm"
-          className="text-xs bg-[#2a2a2a] hover:bg-[#3a3a3a] text-[#e0e0e0] border border-[#3a3a3a] transition-all hover:border-[#ffd700]/30"
+          className={`text-xs transition-all ${
+            selectedTemplateId === template.id
+              ? 'bg-[#ffd700] text-black border border-[#ffd700] shadow-lg'
+              : 'bg-[#2a2a2a] hover:bg-[#3a3a3a] text-[#e0e0e0] border border-[#3a3a3a] hover:border-[#ffd700]/30'
+          }`}
           onClick={() => handleTemplateClick(template)}
           disabled={incrementUsageMutation.isPending}
           data-testid={`template-button-${template.id}`}
