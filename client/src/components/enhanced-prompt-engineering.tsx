@@ -193,7 +193,7 @@ export function EnhancedPromptEngineering({ isOpen, onClose }: EnhancedPromptEng
     const updates = {
       ...editingTemplate,
       variables: extractVariables(editingTemplate.template),
-      enabled: editingTemplate.enabled === "true" || editingTemplate.enabled === true ? "true" : "false"
+      enabled: editingTemplate.enabled === "true" ? "true" : "false"
     };
     updateTemplateMutation.mutate({ id: editingTemplate.id, updates });
   };
@@ -338,13 +338,22 @@ export function EnhancedPromptEngineering({ isOpen, onClose }: EnhancedPromptEng
                 onUpdate={handleUpdateTemplate}
                 onDelete={() => deleteTemplateMutation.mutate(editingTemplate.id)}
                 onCancel={() => setEditingTemplate(null)}
-                onToggleEnabled={(checked) => {
+                onToggleEnabled={(checked: boolean) => {
                   const newEnabled = checked ? "true" : "false";
                   const updatedTemplate = { ...editingTemplate, enabled: newEnabled };
                   setEditingTemplate(updatedTemplate);
                   
-                  // Update the template in the admin list immediately for UI responsiveness
+                  // Update both admin and user template caches immediately for UI responsiveness
                   queryClient.setQueryData(['/api/admin/prompt-templates'], (oldData: PromptTemplate[] | undefined) => {
+                    if (!oldData) return oldData;
+                    return oldData.map(template => 
+                      template.id === editingTemplate.id 
+                        ? { ...template, enabled: newEnabled }
+                        : template
+                    );
+                  });
+                  
+                  queryClient.setQueryData(['/api/prompt-templates'], (oldData: PromptTemplate[] | undefined) => {
                     if (!oldData) return oldData;
                     return oldData.map(template => 
                       template.id === editingTemplate.id 
