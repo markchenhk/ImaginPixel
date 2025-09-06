@@ -342,30 +342,7 @@ export function EnhancedPromptEngineering({ isOpen, onClose }: EnhancedPromptEng
                   const newEnabled = checked ? "true" : "false";
                   const updatedTemplate = { ...editingTemplate, enabled: newEnabled };
                   setEditingTemplate(updatedTemplate);
-                  
-                  // Update both admin and user template caches immediately for UI responsiveness
-                  queryClient.setQueryData(['/api/admin/prompt-templates'], (oldData: PromptTemplate[] | undefined) => {
-                    if (!oldData) return oldData;
-                    return oldData.map(template => 
-                      template.id === editingTemplate.id 
-                        ? { ...template, enabled: newEnabled }
-                        : template
-                    );
-                  });
-                  
-                  queryClient.setQueryData(['/api/prompt-templates'], (oldData: PromptTemplate[] | undefined) => {
-                    if (!oldData) return oldData;
-                    return oldData.map(template => 
-                      template.id === editingTemplate.id 
-                        ? { ...template, enabled: newEnabled }
-                        : template
-                    );
-                  });
-                  
-                  updateTemplateMutation.mutate({ 
-                    id: editingTemplate.id, 
-                    updates: { enabled: newEnabled } 
-                  });
+                  // Note: Only update local state, save when "Update Template" is clicked
                 }}
                 onEnhance={() => handleEnhanceTemplate(editingTemplate.template)}
                 onCopy={() => handleCopyTemplate(editingTemplate)}
