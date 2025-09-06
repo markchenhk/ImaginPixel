@@ -338,7 +338,15 @@ export function EnhancedPromptEngineering({ isOpen, onClose }: EnhancedPromptEng
                 onUpdate={handleUpdateTemplate}
                 onDelete={() => deleteTemplateMutation.mutate(editingTemplate.id)}
                 onCancel={() => setEditingTemplate(null)}
-                onToggleEnabled={() => handleToggleEnabled(editingTemplate)}
+                onToggleEnabled={() => {
+                  const newEnabled = editingTemplate.enabled === "true" ? "false" : "true";
+                  const updatedTemplate = { ...editingTemplate, enabled: newEnabled };
+                  setEditingTemplate(updatedTemplate);
+                  updateTemplateMutation.mutate({ 
+                    id: editingTemplate.id, 
+                    updates: { enabled: newEnabled } 
+                  });
+                }}
                 onEnhance={() => handleEnhanceTemplate(editingTemplate.template)}
                 onCopy={() => handleCopyTemplate(editingTemplate)}
                 isUpdating={updateTemplateMutation.isPending}
@@ -522,9 +530,10 @@ function EditTemplateForm({
             variant="outline"
             size="sm"
             onClick={onToggleEnabled}
-            className={template.enabled === "true" ? "text-green-600" : "text-gray-600"}
+            className={template.enabled === "true" ? "text-green-600 border-green-600 hover:bg-green-50" : "text-gray-600 border-gray-600 hover:bg-gray-50"}
+            data-testid="toggle-enabled-button"
           >
-            {template.enabled === "true" ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />}
+            {template.enabled === "true" ? <Eye className="h-4 w-4 mr-1" /> : <EyeOff className="h-4 w-4 mr-1" />}
             {template.enabled === "true" ? 'Enabled' : 'Disabled'}
           </Button>
           <Button variant="ghost" onClick={onCancel}>Cancel</Button>
