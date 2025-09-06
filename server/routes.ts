@@ -1045,6 +1045,84 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Get prompt templates for quick actions (accessible to all authenticated users)
+  app.get("/api/prompt-templates", async (req: any, res) => {
+    try {
+      const templates = await storage.getPromptTemplates();
+      res.json(templates);
+    } catch (error) {
+      console.error('Error fetching prompt templates:', error);
+      res.status(500).json({ 
+        message: error instanceof Error ? error.message : "Failed to fetch prompt templates" 
+      });
+    }
+  });
+
+  // Create prompt template (admin only)
+  app.post("/api/prompt-templates", isAuthenticated, isAdmin, async (req: any, res) => {
+    try {
+      const template = await storage.createPromptTemplate(req.body);
+      res.json(template);
+    } catch (error) {
+      console.error('Error creating prompt template:', error);
+      res.status(500).json({ 
+        message: error instanceof Error ? error.message : "Failed to create prompt template" 
+      });
+    }
+  });
+
+  // Update prompt template (admin only)
+  app.put("/api/prompt-templates/:id", isAuthenticated, isAdmin, async (req: any, res) => {
+    try {
+      const { id } = req.params;
+      const template = await storage.updatePromptTemplate(id, req.body);
+      
+      if (!template) {
+        return res.status(404).json({ message: "Template not found" });
+      }
+      
+      res.json(template);
+    } catch (error) {
+      console.error('Error updating prompt template:', error);
+      res.status(500).json({ 
+        message: error instanceof Error ? error.message : "Failed to update prompt template" 
+      });
+    }
+  });
+
+  // Delete prompt template (admin only)
+  app.delete("/api/prompt-templates/:id", isAuthenticated, isAdmin, async (req: any, res) => {
+    try {
+      const { id } = req.params;
+      const success = await storage.deletePromptTemplate(id);
+      
+      if (!success) {
+        return res.status(404).json({ message: "Template not found" });
+      }
+      
+      res.json({ message: "Template deleted successfully" });
+    } catch (error) {
+      console.error('Error deleting prompt template:', error);
+      res.status(500).json({ 
+        message: error instanceof Error ? error.message : "Failed to delete prompt template" 
+      });
+    }
+  });
+
+  // Increment template usage
+  app.post("/api/prompt-templates/:id/usage", async (req: any, res) => {
+    try {
+      const { id } = req.params;
+      await storage.incrementTemplateUsage(id);
+      res.json({ message: "Usage incremented" });
+    } catch (error) {
+      console.error('Error incrementing template usage:', error);
+      res.status(500).json({ 
+        message: error instanceof Error ? error.message : "Failed to increment usage" 
+      });
+    }
+  });
+
   // Health check endpoint
   app.get("/api/health", (req, res) => {
     res.json({ 
