@@ -239,9 +239,9 @@ export class DatabaseStorage implements IStorage {
         apiKey: insertConfig.apiKey,
         apiKeyConfigured: insertConfig.apiKeyConfigured,
         // Ensure modelPriorities is properly typed as an array
-        modelPriorities: Array.isArray(insertConfig.modelPriorities) 
+        modelPriorities: (Array.isArray(insertConfig.modelPriorities) 
           ? insertConfig.modelPriorities 
-          : [],
+          : []) as { model: string; priority: number; enabled: boolean; }[],
         updatedAt: new Date()
       };
 
