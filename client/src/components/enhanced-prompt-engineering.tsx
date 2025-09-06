@@ -277,44 +277,49 @@ export function EnhancedPromptEngineering({ isOpen, onClose }: EnhancedPromptEng
               <Label className="text-sm font-medium text-gray-300">
                 Templates ({filteredTemplates.length})
               </Label>
-              {filteredTemplates.map(template => (
-                <Card
-                  key={template.id}
-                  className={`p-3 border-[#3a3a3a] cursor-pointer hover:bg-[#3a3a3a] transition-colors ${
-                    template.enabled === "false" ? 'bg-[#2a2a2a]/50 opacity-60' : 'bg-[#2a2a2a]'
-                  }`}
-                  onClick={() => setEditingTemplate(template)}
-                >
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between">
-                      <span className="font-medium text-white text-sm truncate">{template.name}</span>
-                      <div className="flex items-center gap-1">
-                        {template.isSystem === "true" && (
-                          <Badge className="bg-blue-500/20 text-blue-400 border-blue-500/30 text-xs">
-                            System
-                          </Badge>
-                        )}
-                        {template.enabled === "false" ? (
-                          <div className="flex items-center gap-1">
-                            <EyeOff className="h-3 w-3 text-gray-500" />
-                            <span className="text-xs text-gray-500">Disabled</span>
-                          </div>
-                        ) : (
-                          <div className="flex items-center gap-1">
-                            <Eye className="h-3 w-3 text-green-500" />
-                            <span className="text-xs text-green-500">Enabled</span>
-                          </div>
-                        )}
+              {filteredTemplates.map(template => {
+                // Use editing state if this template is being edited, otherwise use database state
+                const displayTemplate = editingTemplate && editingTemplate.id === template.id ? editingTemplate : template;
+                
+                return (
+                  <Card
+                    key={template.id}
+                    className={`p-3 border-[#3a3a3a] cursor-pointer hover:bg-[#3a3a3a] transition-colors ${
+                      displayTemplate.enabled === "false" ? 'bg-[#2a2a2a]/50 opacity-60' : 'bg-[#2a2a2a]'
+                    }`}
+                    onClick={() => setEditingTemplate(template)}
+                  >
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="font-medium text-white text-sm truncate">{displayTemplate.name}</span>
+                        <div className="flex items-center gap-1">
+                          {displayTemplate.isSystem === "true" && (
+                            <Badge className="bg-blue-500/20 text-blue-400 border-blue-500/30 text-xs">
+                              System
+                            </Badge>
+                          )}
+                          {displayTemplate.enabled === "false" ? (
+                            <div className="flex items-center gap-1">
+                              <EyeOff className="h-3 w-3 text-gray-500" />
+                              <span className="text-xs text-gray-500">Disabled</span>
+                            </div>
+                          ) : (
+                            <div className="flex items-center gap-1">
+                              <Eye className="h-3 w-3 text-green-500" />
+                              <span className="text-xs text-green-500">Enabled</span>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                      <p className="text-xs text-gray-400 line-clamp-2">{displayTemplate.description}</p>
+                      <div className="flex items-center justify-between text-xs text-gray-500">
+                        <span>{displayTemplate.usage || 0} uses</span>
+                        <span>{displayTemplate.variables?.length || 0} vars</span>
                       </div>
                     </div>
-                    <p className="text-xs text-gray-400 line-clamp-2">{template.description}</p>
-                    <div className="flex items-center justify-between text-xs text-gray-500">
-                      <span>{template.usage || 0} uses</span>
-                      <span>{template.variables?.length || 0} vars</span>
-                    </div>
-                  </div>
-                </Card>
-              ))}
+                  </Card>
+                );
+              })}
             </div>
           </div>
 
