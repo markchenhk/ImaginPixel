@@ -1148,7 +1148,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Get the current model configuration
       const config = await storage.getModelConfiguration(req.user?.claims?.sub || 'admin');
       
-      if (!config.apiKey) {
+      if (!config || !config.apiKey) {
         return res.status(400).json({ message: "OpenRouter API key not configured" });
       }
 
