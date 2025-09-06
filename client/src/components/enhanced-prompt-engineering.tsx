@@ -342,6 +342,17 @@ export function EnhancedPromptEngineering({ isOpen, onClose }: EnhancedPromptEng
                   const newEnabled = checked ? "true" : "false";
                   const updatedTemplate = { ...editingTemplate, enabled: newEnabled };
                   setEditingTemplate(updatedTemplate);
+                  
+                  // Update the template in the admin list immediately for UI responsiveness
+                  queryClient.setQueryData(['/api/admin/prompt-templates'], (oldData: PromptTemplate[] | undefined) => {
+                    if (!oldData) return oldData;
+                    return oldData.map(template => 
+                      template.id === editingTemplate.id 
+                        ? { ...template, enabled: newEnabled }
+                        : template
+                    );
+                  });
+                  
                   updateTemplateMutation.mutate({ 
                     id: editingTemplate.id, 
                     updates: { enabled: newEnabled } 
