@@ -338,8 +338,8 @@ export function EnhancedPromptEngineering({ isOpen, onClose }: EnhancedPromptEng
                 onUpdate={handleUpdateTemplate}
                 onDelete={() => deleteTemplateMutation.mutate(editingTemplate.id)}
                 onCancel={() => setEditingTemplate(null)}
-                onToggleEnabled={() => {
-                  const newEnabled = editingTemplate.enabled === "true" ? "false" : "true";
+                onToggleEnabled={(checked) => {
+                  const newEnabled = checked ? "true" : "false";
                   const updatedTemplate = { ...editingTemplate, enabled: newEnabled };
                   setEditingTemplate(updatedTemplate);
                   updateTemplateMutation.mutate({ 
@@ -526,16 +526,17 @@ function EditTemplateForm({
           >
             {wasCopied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
           </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={onToggleEnabled}
-            className={template.enabled === "true" ? "text-green-600 border-green-600 hover:bg-green-50" : "text-gray-600 border-gray-600 hover:bg-gray-50"}
-            data-testid="toggle-enabled-button"
-          >
-            {template.enabled === "true" ? <Eye className="h-4 w-4 mr-1" /> : <EyeOff className="h-4 w-4 mr-1" />}
-            {template.enabled === "true" ? 'Enabled' : 'Disabled'}
-          </Button>
+          <div className="flex items-center gap-2">
+            <Switch
+              id="template-enabled"
+              checked={template.enabled === "true"}
+              onCheckedChange={onToggleEnabled}
+              data-testid="toggle-enabled-switch"
+            />
+            <Label htmlFor="template-enabled" className="text-sm text-gray-300">
+              {template.enabled === "true" ? 'Enabled' : 'Disabled'}
+            </Label>
+          </div>
           <Button variant="ghost" onClick={onCancel}>Cancel</Button>
         </div>
       </div>
