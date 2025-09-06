@@ -279,7 +279,7 @@ export default function ImageEditor() {
         />
 
         {/* Prompt Engineering Module */}
-        <PromptEngineering
+        <EnhancedPromptEngineering
           isOpen={promptEngineeringOpen}
           onClose={() => setPromptEngineeringOpen(false)}
         />
