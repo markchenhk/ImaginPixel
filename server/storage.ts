@@ -438,6 +438,10 @@ export class DatabaseStorage implements IStorage {
     return await db.select().from(promptTemplates).orderBy(desc(promptTemplates.updatedAt));
   }
 
+  async getEnabledPromptTemplates(): Promise<PromptTemplate[]> {
+    return await db.select().from(promptTemplates).where(eq(promptTemplates.enabled, "true")).orderBy(desc(promptTemplates.updatedAt));
+  }
+
   async getPromptTemplate(id: string): Promise<PromptTemplate | undefined> {
     const [template] = await db.select().from(promptTemplates).where(eq(promptTemplates.id, id));
     return template;

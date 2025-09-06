@@ -1045,15 +1045,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Get prompt templates for quick actions (accessible to all authenticated users)
+  // Get enabled prompt templates for quick actions (accessible to all authenticated users)
   app.get("/api/prompt-templates", async (req: any, res) => {
     try {
-      const templates = await storage.getPromptTemplates();
+      const templates = await storage.getEnabledPromptTemplates();
       res.json(templates);
     } catch (error) {
       console.error('Error fetching prompt templates:', error);
       res.status(500).json({ 
         message: error instanceof Error ? error.message : "Failed to fetch prompt templates" 
+      });
+    }
+  });
+
+  // Get all prompt templates for admin (including disabled ones)
+  app.get("/api/admin/prompt-templates", isAuthenticated, isAdmin, async (req: any, res) => {
+    try {
+      const templates = await storage.getPromptTemplates();
+      res.json(templates);
+    } catch (error) {
+      console.error('Error fetching all prompt templates:', error);
+      res.status(500).json({ 
+        message: error instanceof Error ? error.message : "Failed to fetch all prompt templates" 
       });
     }
   });

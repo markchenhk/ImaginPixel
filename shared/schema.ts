@@ -102,6 +102,7 @@ export const promptTemplates = pgTable("prompt_templates", {
   template: text("template").notNull(),
   variables: text("variables").array().default([]), // Variables found in template like {variable}
   isSystem: text("is_system").notNull().default("false"), // System templates vs custom
+  enabled: text("enabled").notNull().default("true"), // Enable/disable template visibility
   usage: integer("usage").notNull().default(0), // Number of times used
   createdBy: varchar("created_by").notNull().references(() => users.id),
   createdAt: timestamp("created_at").defaultNow(),
