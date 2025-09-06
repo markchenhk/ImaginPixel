@@ -94,9 +94,9 @@ export default function PromptEngineering({ isOpen, onClose }: PromptEngineering
     }
   ];
 
-  // Fetch custom templates from API
+  // Fetch all templates (including disabled) from API for admin
   const { data: customTemplates } = useQuery<PromptTemplate[]>({
-    queryKey: ['/api/prompt-templates'],
+    queryKey: ['/api/admin/prompt-templates'],
     enabled: isOpen
   });
 

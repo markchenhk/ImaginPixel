@@ -8,7 +8,7 @@ import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
 import ChatInterface from '@/components/chat-interface';
 import ModelConfig from '@/components/model-config';
-import PromptEngineering from '@/components/prompt-engineering';
+import { EnhancedPromptEngineering } from '@/components/enhanced-prompt-engineering';
 import UserLibraryPanel from '@/components/user-library-panel';
 import { LeftSidebar } from '@/components/left-sidebar';
 import { GalleryView } from '@/components/gallery-view';

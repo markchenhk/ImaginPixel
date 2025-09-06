@@ -1136,6 +1136,66 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Enhance template with LLM
+  app.post("/api/enhance-template", isAuthenticated, isAdmin, async (req: any, res) => {
+    try {
+      const { template } = req.body;
+      
+      if (!template) {
+        return res.status(400).json({ message: "Template content is required" });
+      }
+
+      // Get the current model configuration
+      const config = await storage.getModelConfiguration(req.user?.claims?.sub || 'admin');
+      
+      if (!config.apiKey) {
+        return res.status(400).json({ message: "OpenRouter API key not configured" });
+      }
+
+      // Call OpenRouter API to enhance the template
+      const enhancePrompt = `You are an expert at creating image processing prompts. Please enhance and improve the following prompt template to make it more specific, detailed, and effective for AI image processing. Keep any existing variable placeholders like {variable}.
+
+Original prompt: ${template}
+
+Enhanced prompt:`;
+
+      const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${config.apiKey}`,
+          'Content-Type': 'application/json',
+          'HTTP-Referer': process.env.REPLIT_DOMAINS || 'http://localhost:5000',
+          'X-Title': 'AI Product Studio - Template Enhancement'
+        },
+        body: JSON.stringify({
+          model: 'openai/gpt-4o-mini',
+          messages: [
+            {
+              role: 'user',
+              content: enhancePrompt
+            }
+          ],
+          max_tokens: 500,
+          temperature: 0.7
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error(`OpenRouter API error: ${response.status}`);
+      }
+
+      const result = await response.json();
+      const enhancedTemplate = result.choices[0]?.message?.content || template;
+
+      res.json({ enhancedTemplate: enhancedTemplate.trim() });
+    } catch (error) {
+      console.error('Error enhancing template:', error);
+      res.status(500).json({ 
+        message: error instanceof Error ? error.message : "Failed to enhance template" 
+      });
+    }
+  });
+
   // Health check endpoint
   app.get("/api/health", (req, res) => {
     res.json({ 
