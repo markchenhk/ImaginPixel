@@ -75,6 +75,8 @@ export const modelConfigurations = pgTable("model_configurations", {
   timeout: integer("timeout").notNull().default(120), // seconds
   apiKey: text("api_key"), // OpenRouter API key storage
   openaiApiKey: text("openai_api_key"), // OpenAI API key for DALL-E 3
+  // Separate model for prompt enhancement
+  enhancementModel: text("enhancement_model").notNull().default("openai/gpt-4o-mini"),
   apiKeyConfigured: text("api_key_configured").notNull().default("false"),
   isGlobalDefault: text("is_global_default").notNull().default("false"), // Admin can set global defaults
   updatedAt: timestamp("updated_at").defaultNow().notNull(),

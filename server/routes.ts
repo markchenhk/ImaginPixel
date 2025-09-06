@@ -1152,7 +1152,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: "OpenRouter API key not configured" });
       }
 
-      // Call OpenRouter API to enhance the template
+      // Call OpenRouter API to enhance the template using configured enhancement model
       const enhancePrompt = `You are an expert at creating image processing prompts. Please enhance and improve the following prompt template to make it more specific, detailed, and effective for AI image processing. Keep any existing variable placeholders like {variable}.
 
 Original prompt: ${template}
@@ -1168,7 +1168,7 @@ Enhanced prompt:`;
           'X-Title': 'AI Product Studio - Template Enhancement'
         },
         body: JSON.stringify({
-          model: 'openai/gpt-4o-mini',
+          model: config.enhancementModel || 'openai/gpt-4o-mini',
           messages: [
             {
               role: 'user',

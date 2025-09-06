@@ -295,9 +295,15 @@ export function EnhancedPromptEngineering({ isOpen, onClose }: EnhancedPromptEng
                           </Badge>
                         )}
                         {template.enabled === "false" ? (
-                          <EyeOff className="h-3 w-3 text-gray-500" />
+                          <div className="flex items-center gap-1">
+                            <EyeOff className="h-3 w-3 text-gray-500" />
+                            <span className="text-xs text-gray-500">Disabled</span>
+                          </div>
                         ) : (
-                          <Eye className="h-3 w-3 text-green-500" />
+                          <div className="flex items-center gap-1">
+                            <Eye className="h-3 w-3 text-green-500" />
+                            <span className="text-xs text-green-500">Enabled</span>
+                          </div>
                         )}
                       </div>
                     </div>

@@ -28,6 +28,7 @@ export default function ModelConfig({ isOpen, onClose }: ModelConfigProps) {
   const [customModelName, setCustomModelName] = useState('');
   const [useCustomModel, setUseCustomModel] = useState(false);
   const [hasValidSavedKey, setHasValidSavedKey] = useState(false);
+  const [enhancementModel, setEnhancementModel] = useState('openai/gpt-4o-mini');
   const [modelPriorities, setModelPriorities] = useState<{
     model: string;
     priority: number;
@@ -687,6 +688,31 @@ export default function ModelConfig({ isOpen, onClose }: ModelConfigProps) {
                       <span>300s</span>
                     </div>
                   </div>
+                </div>
+
+                {/* Enhancement Model */}
+                <div>
+                  <Label className="text-sm font-medium text-muted-foreground">
+                    Prompt Enhancement Model
+                  </Label>
+                  <Select
+                    value={localConfig.enhancementModel || 'openai/gpt-4o-mini'}
+                    onValueChange={(value) => setLocalConfig({ ...localConfig, enhancementModel: value })}
+                  >
+                    <SelectTrigger className="mt-2" data-testid="enhancement-model-select">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="openai/gpt-4o-mini">GPT-4o Mini (Recommended)</SelectItem>
+                      <SelectItem value="openai/gpt-4o">GPT-4o</SelectItem>
+                      <SelectItem value="anthropic/claude-3.5-sonnet">Claude 3.5 Sonnet</SelectItem>
+                      <SelectItem value="google/gemini-2.5-flash-text">Gemini 2.5 Flash</SelectItem>
+                      <SelectItem value="meta-llama/llama-3.1-8b-instruct">Llama 3.1 8B</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Separate model used for AI-powered prompt enhancement in the Prompt Engineering module
+                  </p>
                 </div>
               </div>
             </div>
