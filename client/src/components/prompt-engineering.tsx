@@ -94,13 +94,9 @@ export default function PromptEngineering({ isOpen, onClose }: PromptEngineering
     }
   ];
 
-  // Fetch custom templates (this would be from API in real implementation)
+  // Fetch custom templates from API
   const { data: customTemplates } = useQuery<PromptTemplate[]>({
     queryKey: ['/api/prompt-templates'],
-    queryFn: async () => {
-      // For now, return empty array - would implement API endpoint
-      return [];
-    },
     enabled: isOpen
   });
 
