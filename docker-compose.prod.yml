@@ -29,6 +29,7 @@ services:
   app:
     environment:
       NODE_ENV: production
+      PORT: 3003
     deploy:
       resources:
         limits:
@@ -39,19 +40,6 @@ services:
         condition: unless-stopped
         delay: 10s
         max_attempts: 3
-    logging:
-      driver: "json-file"
-      options:
-        max-size: "10m"
-        max-file: "3"
-
-  nginx:
-    deploy:
-      resources:
-        limits:
-          memory: 128M
-        reservations:
-          memory: 64M
     logging:
       driver: "json-file"
       options:
