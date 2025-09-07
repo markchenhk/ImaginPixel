@@ -71,8 +71,8 @@ export function Sidebar({ currentPath }: SidebarProps) {
     <div className="w-16 bg-[#1a1a1a] border-r border-[#2a2a2a] flex flex-col">
       {/* Logo */}
       <div className="h-16 flex items-center justify-center border-b border-[#2a2a2a]">
-        <div className="w-8 h-8 bg-[#ffd700] rounded-lg flex items-center justify-center">
-          <ImageIcon className="w-4 h-4 text-black" />
+        <div className="w-8 h-8 border border-[#444444] rounded-lg flex items-center justify-center">
+          <ImageIcon className="w-4 h-4 text-[#ffd700]" />
         </div>
       </div>
 
@@ -91,7 +91,7 @@ export function Sidebar({ currentPath }: SidebarProps) {
                     size="sm"
                     className={`w-12 h-12 p-0 rounded-xl transition-all ${
                       isActive
-                        ? 'bg-[#ffd700] text-black hover:bg-[#ffd700]/90'
+                        ? 'border border-[#ffd700] text-[#ffd700] bg-[#ffd700]/10 hover:bg-[#ffd700]/20'
                         : 'text-[#888888] hover:text-white hover:bg-[#2a2a2a]'
                     }`}
                     onClick={() => setLocation(item.path)}
@@ -124,7 +124,7 @@ export function Sidebar({ currentPath }: SidebarProps) {
                     size="sm"
                     className={`w-12 h-12 p-0 rounded-xl transition-all ${
                       isActive
-                        ? 'bg-[#ffd700] text-black hover:bg-[#ffd700]/90'
+                        ? 'border border-[#ffd700] text-[#ffd700] bg-[#ffd700]/10 hover:bg-[#ffd700]/20'
                         : 'text-[#888888] hover:text-white hover:bg-[#2a2a2a]'
                     }`}
                     onClick={() => setLocation(item.path)}
@@ -163,9 +163,9 @@ export function Sidebar({ currentPath }: SidebarProps) {
         <div className="px-2 mt-4">
           <Tooltip delayDuration={300}>
             <TooltipTrigger asChild>
-              <div className="w-12 h-12 rounded-xl bg-[#2a2a2a] flex items-center justify-center">
-                <div className="w-8 h-8 rounded-lg bg-[#ffd700] flex items-center justify-center">
-                  <span className="text-xs font-semibold text-black">
+              <div className="w-12 h-12 rounded-xl border border-[#444444] flex items-center justify-center">
+                <div className="w-8 h-8 rounded-lg border border-[#555555] bg-[#2a2a2a] flex items-center justify-center">
+                  <span className="text-xs font-semibold text-[#ffd700]">
                     {user?.firstName?.charAt(0) || user?.username?.charAt(0) || 'U'}
                   </span>
                 </div>
