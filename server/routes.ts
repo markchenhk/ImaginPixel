@@ -665,10 +665,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
 
-      // Get model configuration for the authenticated user
-      const modelConfig = await storage.getModelConfiguration(userId);
-      console.log('[Processing] Model config retrieved:', JSON.stringify(modelConfig, null, 2));
-      const selectedModel = modelConfig?.selectedModel || 'gpt-4-vision';
+      // Get admin model configuration (API key is admin-controlled for all users)
+      const adminUser = await storage.getUserByRole('admin');
+      const adminUserId = adminUser?.id;
+      
+      if (!adminUserId) {
+        return res.status(500).json({ message: "Admin user not found" });
+      }
+      
+      const adminConfig = await storage.getModelConfiguration(adminUserId);
+      console.log('[Processing] Admin config retrieved for all users:', adminConfig ? 'YES' : 'NO');
+      
+      if (!adminConfig || !adminConfig.apiKey) {
+        return res.status(500).json({ 
+          message: "OpenRouter API key not configured by admin. Please contact administrator." 
+        });
+      }
+      
+      // Use admin's configuration for API access, but allow fallback model selection
+      const selectedModel = adminConfig.selectedModel || 'google/gemini-2.5-flash-image';
+      const modelConfig = adminConfig; // Use admin config for all processing
 
       // Create user message (only include imageUrl if it's a new upload)
       const userMessage = await storage.createMessage({
@@ -1146,15 +1162,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // Get the admin model configuration (enhancement is an admin function)
-      const userId = req.user?.id; // Use regular user.id for username/password auth
-      console.log('Enhancement: User ID:', userId);
-      
-      if (!userId) {
-        return res.status(401).json({ message: "User not authenticated" });
+      const adminUser = await storage.getUserByRole('admin');
+      if (!adminUser) {
+        return res.status(500).json({ message: "Admin user not found" });
       }
       
-      const config = await storage.getModelConfiguration(userId);
-      console.log('Enhancement: Found config:', config ? 'YES' : 'NO', config?.apiKey ? 'with API key' : 'without API key');
+      const config = await storage.getModelConfiguration(adminUser.id);
       
       if (!config || !config.apiKey) {
         return res.status(400).json({ message: "OpenRouter API key not configured" });
