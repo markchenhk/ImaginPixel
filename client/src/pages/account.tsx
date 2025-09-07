@@ -26,16 +26,16 @@ export default function Account() {
 
         <Tabs defaultValue="info" className="space-y-6">
           <TabsList className="grid w-full grid-cols-4 bg-[#1a1a1a] border border-[#2a2a2a]">
-            <TabsTrigger value="info" className="data-[state=active]:bg-[#ffd700] data-[state=active]:text-black">
+            <TabsTrigger value="info" className="data-[state=active]:bg-white/10 data-[state=active]:text-white data-[state=active]:border-b-2 data-[state=active]:border-white/30">
               Account Info
             </TabsTrigger>
-            <TabsTrigger value="usage" className="data-[state=active]:bg-[#ffd700] data-[state=active]:text-black">
+            <TabsTrigger value="usage" className="data-[state=active]:bg-white/10 data-[state=active]:text-white data-[state=active]:border-b-2 data-[state=active]:border-white/30">
               Usage
             </TabsTrigger>
-            <TabsTrigger value="security" className="data-[state=active]:bg-[#ffd700] data-[state=active]:text-black">
+            <TabsTrigger value="security" className="data-[state=active]:bg-white/10 data-[state=active]:text-white data-[state=active]:border-b-2 data-[state=active]:border-white/30">
               Security
             </TabsTrigger>
-            <TabsTrigger value="billing" className="data-[state=active]:bg-[#ffd700] data-[state=active]:text-black">
+            <TabsTrigger value="billing" className="data-[state=active]:bg-white/10 data-[state=active]:text-white data-[state=active]:border-b-2 data-[state=active]:border-white/30">
               Billing
             </TabsTrigger>
           </TabsList>

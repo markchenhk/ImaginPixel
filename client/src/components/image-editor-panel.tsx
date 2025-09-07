@@ -913,7 +913,7 @@ export default function ImageEditorPanel({ imageUrl, onSaveToLibrary }: ImageEdi
                   <div className="space-y-2">
                     <Button
                       onClick={() => exportImage('png')}
-                      className="w-full bg-[#ffd700] text-black hover:bg-[#ffd700]/90"
+                      className="w-full border border-[#ffd700] bg-[#ffd700]/10 text-[#ffd700] hover:bg-[#ffd700]/20"
                     >
                       <Download className="w-4 h-4 mr-2" />
                       Export as PNG
