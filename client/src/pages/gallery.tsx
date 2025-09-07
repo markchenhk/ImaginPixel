@@ -14,7 +14,7 @@ export default function Gallery() {
   // Fetch user's saved images
   const { data: savedImages = [], isLoading } = useQuery<SavedImage[]>({
     queryKey: ['/api/library'],
-    queryFn: getQueryFn()
+    queryFn: getQueryFn({ on401: "returnNull" })
   });
 
   const filteredImages = savedImages.filter(image =>
