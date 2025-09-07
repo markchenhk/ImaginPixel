@@ -156,10 +156,10 @@ export function Landing() {
         <div className="max-w-6xl mx-auto">
           <div className="text-center mb-16">
             <h2 className="text-3xl md:text-4xl font-bold mb-4">
-              E-commerce Image Solutions
+              AI-Powered Visual Solutions
             </h2>
             <p className="text-xl text-[#e0e0e0] max-w-2xl mx-auto">
-              Professional-grade tools designed specifically for online sellers and marketplace success
+              Professional-grade tools designed for businesses across every industry and use case
             </p>
           </div>
 
@@ -191,26 +191,89 @@ export function Landing() {
         </div>
       </section>
 
-      {/* CTA Section */}
+      {/* Industries Section */}
       <section className="px-6 py-20 bg-[#1a1a1a]">
+        <div className="max-w-6xl mx-auto">
+          <div className="text-center mb-16">
+            <h2 className="text-3xl md:text-4xl font-bold mb-4">
+              Built for Every Industry
+            </h2>
+            <p className="text-xl text-[#e0e0e0] max-w-3xl mx-auto">
+              From small businesses to large enterprises, our AI visual platform adapts to your specific industry needs and workflows
+            </p>
+          </div>
+
+          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
+            {industries.map((industry, index) => {
+              const IconComponent = industry.icon;
+              return (
+                <Card
+                  key={index}
+                  className="bg-[#0f0f0f] border-[#2a2a2a] hover:border-[#3a3a3a] transition-all duration-300 group cursor-pointer"
+                  onClick={() => setLocation("/editor")}
+                  data-testid={`industry-card-${index}`}
+                >
+                  <CardContent className="p-6">
+                    <div className="flex items-center gap-4 mb-4">
+                      <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-purple-600 rounded-xl flex items-center justify-center flex-shrink-0">
+                        <IconComponent className="w-6 h-6 text-white" />
+                      </div>
+                      <div>
+                        <h3 className="font-semibold text-lg text-white mb-1">
+                          {industry.title}
+                        </h3>
+                        <p className="text-sm text-[#888888]">
+                          {industry.description}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      {industry.applications.map((app, appIndex) => (
+                        <div key={appIndex} className="flex items-center gap-2">
+                          <div className="w-1.5 h-1.5 bg-[#ffd700] rounded-full flex-shrink-0" />
+                          <span className="text-sm text-[#e0e0e0]">{app}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </CardContent>
+                </Card>
+              );
+            })}
+          </div>
+        </div>
+      </section>
+
+      {/* CTA Section */}
+      <section className="px-6 py-20 bg-[#0f0f0f]">
         <div className="max-w-4xl mx-auto text-center">
           <h2 className="text-3xl md:text-4xl font-bold mb-6">
-            Ready to Boost Your Sales?
+            Ready to Transform Your Business Visuals?
           </h2>
           <p className="text-xl text-[#e0e0e0] mb-8 max-w-2xl mx-auto">
-            Join thousands of e-commerce businesses using AI to create professional product images that convert. 
-            Start transforming your product photos in seconds.
+            Join thousands of businesses across industries using AI to create professional visual content that drives results. 
+            Start enhancing your images and content in seconds.
           </p>
-          <Button
-            onClick={() => setLocation("/editor")}
-            size="lg"
-            className="bg-[#ffd700] hover:bg-[#ffd700]/90 text-black font-semibold px-12 py-4 text-lg"
-            data-testid="button-get-started"
-          >
-            <Sparkles className="w-5 h-5 mr-2" />
-            Transform Products Free
-            <ArrowRight className="w-5 h-5 ml-2" />
-          </Button>
+          <div className="flex flex-col sm:flex-row gap-4 justify-center">
+            <Button
+              onClick={() => setLocation("/editor")}
+              size="lg"
+              className="border border-[#ffd700] bg-[#ffd700]/10 hover:bg-[#ffd700]/20 text-[#ffd700] font-semibold px-12 py-4 text-lg"
+              data-testid="button-get-started"
+            >
+              <Sparkles className="w-5 h-5 mr-2" />
+              Start Creating Free
+              <ArrowRight className="w-5 h-5 ml-2" />
+            </Button>
+            <Button
+              variant="outline"
+              size="lg"
+              className="border-[#2a2a2a] text-[#e0e0e0] hover:bg-[#2a2a2a] hover:text-white px-8 py-4 text-lg"
+              data-testid="button-view-demo"
+            >
+              <Target className="w-5 h-5 mr-2" />
+              View Demo
+            </Button>
+          </div>
         </div>
       </section>
 
@@ -221,10 +284,10 @@ export function Landing() {
             <div className="w-6 h-6 bg-[#ffd700] rounded-lg flex items-center justify-center">
               <ImageIcon className="w-3 h-3 text-black" />
             </div>
-            <span className="font-semibold">AI Product Studio</span>
+            <span className="font-semibold">AI Visual Studio</span>
           </div>
           <p className="text-sm text-[#888888]">
-            Powered by advanced AI LLMs for professional e-commerce product image enhancement
+            Powered by advanced AI technology for professional visual content creation across all industries
           </p>
         </div>
       </footer>
