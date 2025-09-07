@@ -307,13 +307,13 @@ export default function ChatInterface({
           {messages.length === 0 && (
             <div className="chat-message animate-in fade-in-0 slide-in-from-bottom-2 duration-500">
               <div className="flex items-start gap-4">
-                <div className="w-10 h-10 bg-[#ffd700] rounded-full flex items-center justify-center flex-shrink-0">
-                  <Bot className="w-5 h-5 text-black" />
+                <div className="w-10 h-10 border border-[#ffd700] bg-[#ffd700]/10 rounded-full flex items-center justify-center flex-shrink-0">
+                  <Bot className="w-5 h-5 text-[#ffd700]" />
                 </div>
                 <div className="bg-[#2a2a2a] rounded-2xl p-5 max-w-md border border-[#3a3a3a]">
                   <p className="text-sm leading-relaxed text-[#e0e0e0]">
                     Welcome! Upload an image and tell me how you'd like to enhance or modify it. 
-                    I can help with <span className="font-medium text-[#ffd700]">color correction</span>, <span className="font-medium text-[#ffd700]">style transfer</span>, <span className="font-medium text-[#ffd700]">object removal</span>, and much more.
+                    I can help with <span className="font-medium text-[#aaaaaa]">color correction</span>, <span className="font-medium text-[#aaaaaa]">style transfer</span>, <span className="font-medium text-[#aaaaaa]">object removal</span>, and much more.
                   </p>
                 </div>
               </div>
@@ -325,8 +325,8 @@ export default function ChatInterface({
             <div key={message.id} className="chat-message animate-in fade-in-0 slide-in-from-bottom-1 duration-300" style={{animationDelay: `${index * 50}ms`}}>
               <div className={`flex items-start gap-4 ${message.role === 'user' ? 'justify-end' : ''}`}>
                 {message.role === 'assistant' && (
-                  <div className="w-10 h-10 bg-[#ffd700] rounded-full flex items-center justify-center flex-shrink-0">
-                    <Bot className="w-5 h-5 text-black" />
+                  <div className="w-10 h-10 border border-[#ffd700] bg-[#ffd700]/10 rounded-full flex items-center justify-center flex-shrink-0">
+                    <Bot className="w-5 h-5 text-[#ffd700]" />
                   </div>
                 )}
                 
@@ -360,7 +360,7 @@ export default function ChatInterface({
                           }}
                         />
                         {message.role === 'user' && (
-                          <div className="absolute top-2 left-2 bg-[#ffd700] text-black text-xs px-2 py-1 rounded-full font-medium shadow-sm">
+                          <div className="absolute top-2 left-2 border border-[#666666] bg-black/60 text-[#e0e0e0] text-xs px-2 py-1 rounded-full font-medium shadow-sm">
                             📷 Your Image
                           </div>
                         )}
@@ -381,7 +381,7 @@ export default function ChatInterface({
                                     });
                                   }
                                 }}
-                                className="bg-[#ffd700] hover:bg-[#e6c200] text-black px-3 py-1 text-sm font-medium rounded-full"
+                                className="border border-[#ffd700] bg-[#ffd700]/10 hover:bg-[#ffd700]/20 text-[#ffd700] px-3 py-1 text-sm font-medium rounded-full"
                                 data-testid={`button-edit-image-${message.id}`}
                               >
                                 Edit Image
@@ -499,7 +499,7 @@ export default function ChatInterface({
           <Button
             onClick={handleSendMessage}
             disabled={(!input.trim() && !selectedTemplateId) || processImageMutation.isPending}
-            className="bg-[#ffd700] hover:bg-[#ffd700]/90 text-black font-medium"
+            className="border border-[#ffd700] bg-[#ffd700]/10 hover:bg-[#ffd700]/20 text-[#ffd700] font-medium"
             data-testid="send-message-button"
           >
             <Send className="w-4 h-4" />
