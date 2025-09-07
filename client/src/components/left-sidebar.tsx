@@ -58,7 +58,7 @@ export function LeftSidebar({
       <div className="p-4 border-b border-[#2a2a2a]">
         <Button
           onClick={onNewChatClick}
-          className="w-full bg-[#ffd700] hover:bg-[#ffd700]/90 text-black font-medium mb-3"
+          className="w-full border border-[#ffd700] bg-[#ffd700]/10 hover:bg-[#ffd700]/20 text-[#ffd700] font-medium mb-3"
           data-testid="new-chat-button"
         >
           <Plus className="w-4 h-4 mr-2" />
@@ -73,7 +73,7 @@ export function LeftSidebar({
             onClick={() => currentView !== 'chat' && onNewChatClick()}
             className={`flex-1 h-8 ${
               currentView === 'chat' 
-                ? 'bg-[#ffd700] text-black hover:bg-[#ffd700]/90' 
+                ? 'bg-white/10 text-white border border-white/20' 
                 : 'text-[#e0e0e0] hover:bg-[#3a3a3a]'
             }`}
             data-testid="chat-view-button"
@@ -87,7 +87,7 @@ export function LeftSidebar({
             onClick={onGalleryClick}
             className={`flex-1 h-8 ${
               currentView === 'gallery' 
-                ? 'bg-[#ffd700] text-black hover:bg-[#ffd700]/90' 
+                ? 'bg-white/10 text-white border border-white/20' 
                 : 'text-[#e0e0e0] hover:bg-[#3a3a3a]'
             }`}
             data-testid="gallery-view-button"
@@ -126,7 +126,7 @@ export function LeftSidebar({
                     onClick={() => onConversationSelect(conversation.id)}
                     className={`w-full justify-start h-auto p-3 text-left hover:bg-[#2a2a2a] transition-colors ${
                       currentConversationId === conversation.id 
-                        ? 'bg-[#2a2a2a] border-l-2 border-[#ffd700]' 
+                        ? 'bg-[#2a2a2a] border-l-2 border-[#666666]' 
                         : ''
                     }`}
                     data-testid={`conversation-${conversation.id}`}
