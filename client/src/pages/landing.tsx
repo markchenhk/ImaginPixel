@@ -10,6 +10,14 @@ import {
   Download,
   ArrowRight,
   Stars,
+  Building2,
+  GraduationCap,
+  ShoppingBag,
+  Briefcase,
+  Camera,
+  Presentation,
+  Users,
+  Target,
 } from "lucide-react";
 
 export function Landing() {
@@ -18,27 +26,66 @@ export function Landing() {
   const features = [
     {
       icon: Sparkles,
-      title: "Product Enhancement",
-      description: "Transform ordinary product photos into professional marketplace-ready images",
+      title: "Smart Content Creation",
+      description: "Generate professional visuals for marketing, presentations, and brand materials",
       gradient: "from-blue-500 to-purple-600",
     },
     {
       icon: Wand2,
-      title: "Background Replacement",
-      description: "Remove backgrounds and create clean, professional product shots instantly",
+      title: "Background & Style Transfer",
+      description: "Replace backgrounds and transform image styles for any business context",
       gradient: "from-purple-500 to-pink-600",
     },
     {
       icon: Palette,
-      title: "Lighting & Quality",
-      description: "Perfect lighting, shadows, and image quality for maximum sales appeal",
+      title: "Professional Enhancement",
+      description: "Perfect lighting, colors, and quality for business-grade visual content",
       gradient: "from-green-500 to-blue-600",
     },
     {
       icon: Zap,
-      title: "Marketplace Ready",
-      description: "Generate multiple variations optimized for Amazon, eBay, Shopify and more",
+      title: "Multi-Platform Ready",
+      description: "Create optimized visuals for websites, social media, presentations, and print",
       gradient: "from-orange-500 to-red-600",
+    },
+  ];
+
+  const industries = [
+    {
+      icon: ShoppingBag,
+      title: "E-commerce & Retail",
+      description: "Product catalogs, marketplace listings, promotional materials",
+      applications: ["Product photos", "Banner ads", "Social media content"],
+    },
+    {
+      icon: Building2,
+      title: "Corporate & Office",
+      description: "Professional presentations, reports, internal communications",
+      applications: ["Company reports", "Presentation slides", "Team photos"],
+    },
+    {
+      icon: GraduationCap,
+      title: "Education & Training",
+      description: "Course materials, educational content, student presentations",
+      applications: ["Learning materials", "Course thumbnails", "Academic presentations"],
+    },
+    {
+      icon: Briefcase,
+      title: "Professional Services",
+      description: "Client proposals, marketing materials, portfolio showcases",
+      applications: ["Service portfolios", "Client presentations", "Marketing collateral"],
+    },
+    {
+      icon: Camera,
+      title: "Creative & Media",
+      description: "Content creation, social media, digital marketing campaigns",
+      applications: ["Social content", "Ad creatives", "Brand materials"],
+    },
+    {
+      icon: Users,
+      title: "Marketing Agencies",
+      description: "Client campaigns, brand assets, multi-channel content creation",
+      applications: ["Campaign assets", "Brand guidelines", "Client deliverables"],
     },
   ];
 
@@ -51,7 +98,7 @@ export function Landing() {
             <div className="w-8 h-8 bg-[#ffd700] rounded-lg flex items-center justify-center">
               <ImageIcon className="w-4 h-4 text-black" />
             </div>
-            <h1 className="text-lg font-semibold">AI Product Studio</h1>
+            <h1 className="text-lg font-semibold">AI Visual Studio</h1>
           </div>
           <Button
             onClick={() => setLocation("/editor")}
@@ -71,14 +118,14 @@ export function Landing() {
           </div>
           
           <h1 className="text-5xl md:text-6xl font-bold mb-6 leading-tight">
-            Professional Product Images
+            AI-Powered Visual Content
             <br />
-            for <span className="text-[#ffd700]">E-commerce</span> Success
+            for <span className="text-[#ffd700]">Every Business</span> Need
           </h1>
           
           <p className="text-xl text-[#e0e0e0] mb-12 max-w-3xl mx-auto leading-relaxed">
-            Transform ordinary product photos into stunning, professional-grade images that drive sales. 
-            Perfect backgrounds, optimal lighting, and marketplace-ready quality powered by advanced AI.
+            Transform any image into professional-grade visual content for your business. 
+            From e-commerce to education, corporate to creative - enhance, edit, and optimize visuals powered by advanced AI technology.
           </p>
 
           <div className="flex flex-col sm:flex-row gap-4 justify-center mb-16">
@@ -89,7 +136,7 @@ export function Landing() {
               data-testid="button-start-creating"
             >
               <Wand2 className="w-5 h-5 mr-2" />
-              Enhance Products
+              Start Creating
               <ArrowRight className="w-5 h-5 ml-2" />
             </Button>
             <Button
@@ -98,7 +145,7 @@ export function Landing() {
               className="border-[#2a2a2a] text-[#e0e0e0] hover:bg-[#2a2a2a] hover:text-white px-8 py-4 text-lg"
               data-testid="button-learn-more"
             >
-              Learn More
+              Explore Features
             </Button>
           </div>
         </div>
