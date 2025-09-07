@@ -31,10 +31,25 @@ function ProtectedRoute({ path, component: Component }: { path: string; componen
 }
 
 function Router() {
+  const { isAuthenticated, isLoading } = useAuth();
+
   return (
     <div className="min-h-screen">
       <Switch>
-        <Route path="/" component={Landing} />
+        <Route path="/">
+          {isLoading ? (
+            <div className="min-h-screen flex items-center justify-center">
+              <div className="text-center">
+                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto"></div>
+                <p className="mt-4 text-muted-foreground">Loading...</p>
+              </div>
+            </div>
+          ) : isAuthenticated ? (
+            <ImageEditor />
+          ) : (
+            <Landing />
+          )}
+        </Route>
         <Route path="/auth" component={AuthPage} />
         <Route path="/editor">
           <ProtectedRoute path="/editor" component={ImageEditor} />
