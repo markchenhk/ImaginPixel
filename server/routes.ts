@@ -1227,6 +1227,26 @@ Enhanced prompt:`;
     });
   });
 
+  // Logout route
+  app.get("/api/logout", (req: any, res) => {
+    req.logout((err: any) => {
+      if (err) {
+        console.error("Logout error:", err);
+        return res.status(500).json({ message: "Logout failed" });
+      }
+      // Destroy session completely
+      req.session.destroy((err: any) => {
+        if (err) {
+          console.error("Session destroy error:", err);
+        }
+        // Clear session cookie
+        res.clearCookie('connect.sid');
+        // Redirect to home page
+        res.redirect('/');
+      });
+    });
+  });
+
   const httpServer = createServer(app);
   return httpServer;
 }
