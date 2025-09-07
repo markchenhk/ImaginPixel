@@ -13,6 +13,7 @@ import UserLibraryPanel from '@/components/user-library-panel';
 import { LeftSidebar } from '@/components/left-sidebar';
 import { GalleryView } from '@/components/gallery-view';
 import ImageEditorPanel from '@/components/image-editor-panel';
+import { ResizablePanels } from '@/components/resizable-panels';
 import { getModelDisplayName, getActiveModel } from '@/lib/openrouter';
 import type { Conversation, ModelConfiguration } from '@shared/schema';
 
@@ -178,11 +179,13 @@ export default function ImageEditor() {
           currentView={currentView}
         />
         
-        {/* Main Content Area with Two Columns */}
+        {/* Main Content Area with Resizable Panels */}
         {currentView === 'chat' ? (
-          <div className="flex-1 flex overflow-hidden">
-            {/* Chat Column (Left) - 35% width */}
-            <div className="w-[35%] h-full">
+          <ResizablePanels
+            defaultLeftWidth={35}
+            minLeftWidth={25}
+            maxLeftWidth={75}
+            leftPanel={
               <ChatInterface
                 conversationId={currentConversation?.id || null}
                 onConversationCreate={handleConversationCreate}
@@ -226,47 +229,47 @@ export default function ImageEditor() {
                   }
                 }}
               />
-            </div>
-            
-            {/* Image Editor Panel (Right) - 65% width */}
-            <ImageEditorPanel
-              imageUrl={processedImageUrl}
-              onSaveToLibrary={async (imageUrl, title) => {
-                try {
-                  const response = await fetch('/api/library/save', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                      title,
-                      objectPath: imageUrl,
-                      prompt: 'AI enhanced and edited image',
-                      tags: ['ai-generated', 'edited']
-                    })
-                  });
+            }
+            rightPanel={
+              <ImageEditorPanel
+                imageUrl={processedImageUrl}
+                onSaveToLibrary={async (imageUrl, title) => {
+                  try {
+                    const response = await fetch('/api/library/save', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({
+                        title,
+                        objectPath: imageUrl,
+                        prompt: 'AI enhanced and edited image',
+                        tags: ['ai-generated', 'edited']
+                      })
+                    });
 
-                  if (!response.ok) {
-                    throw new Error('Failed to save image');
+                    if (!response.ok) {
+                      throw new Error('Failed to save image');
+                    }
+
+                    // Refresh the library to show the new saved image
+                    queryClient.invalidateQueries({ queryKey: ['/api/library', user?.id] });
+                    
+                    // Show success message
+                    toast({
+                      title: "Success",
+                      description: "Edited image saved to library",
+                    });
+                  } catch (error) {
+                    console.error('Error saving image:', error);
+                    toast({
+                      title: "Error",
+                      description: "Failed to save edited image to library",
+                      variant: "destructive",
+                    });
                   }
-
-                  // Refresh the library to show the new saved image
-                  queryClient.invalidateQueries({ queryKey: ['/api/library', user?.id] });
-                  
-                  // Show success message
-                  toast({
-                    title: "Success",
-                    description: "Edited image saved to library",
-                  });
-                } catch (error) {
-                  console.error('Error saving image:', error);
-                  toast({
-                    title: "Error",
-                    description: "Failed to save edited image to library",
-                    variant: "destructive",
-                  });
-                }
-              }}
-            />
-          </div>
+                }}
+              />
+            }
+          />
         ) : (
           <GalleryView />
         )}
