@@ -445,7 +445,10 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getEnabledPromptTemplates(): Promise<PromptTemplate[]> {
-    return await db.select().from(promptTemplates).where(eq(promptTemplates.enabled, "true")).orderBy(desc(promptTemplates.updatedAt));
+    // Handle both text "true" and boolean true values for compatibility
+    return await db.select().from(promptTemplates).where(
+      sql`${promptTemplates.enabled} = 'true' OR ${promptTemplates.enabled} = 't' OR ${promptTemplates.enabled} = true`
+    ).orderBy(desc(promptTemplates.updatedAt));
   }
 
   async getPromptTemplate(id: string): Promise<PromptTemplate | undefined> {
