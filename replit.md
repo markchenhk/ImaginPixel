@@ -1,8 +1,8 @@
-# AI Product Studio
+# AI Visual Studio
 
 ## Overview
 
-A comprehensive AI-powered image editing SaaS platform specifically designed for e-commerce businesses and online marketplaces. The application allows users to upload product photos and transform them into professional-grade images using advanced AI models via OpenRouter API (featuring Gemini 2.5 Flash Image, GPT-4o, and Claude 3.5 Sonnet). Perfect for creating marketplace-ready product images that drive sales and enhance online presence.
+A comprehensive AI-powered visual content creation SaaS platform designed for businesses across all industries. The application allows users to upload images and transform them into professional-grade visual content using advanced AI models via OpenRouter API (featuring Gemini 2.5 Flash Image, GPT-4o, and Claude 3.5 Sonnet). Supports diverse business applications including e-commerce, corporate presentations, educational materials, marketing campaigns, and professional services - perfect for creating high-quality visual content that drives business results.
 
 ## User Preferences
 
