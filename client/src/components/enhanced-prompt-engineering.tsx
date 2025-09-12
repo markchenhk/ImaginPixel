@@ -7,7 +7,6 @@ import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { 
   Select,
   SelectContent,
@@ -379,24 +378,21 @@ export function EnhancedPromptEngineering({ isOpen, onClose, selectedFunction = 
 
         {/* Content */}
         <div className="flex-1 flex overflow-hidden">
-          <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as 'functions' | 'templates')} className="flex-1 flex flex-col">
-            {/* Tab Navigation */}
+          <div className="flex-1 flex flex-col">
+            {/* Header Section */}
             <div className="px-6 pt-4 border-b border-[#2a2a2a]">
-              <TabsList className="grid w-full grid-cols-2 bg-[#2a2a2a] max-w-md">
-                <TabsTrigger value="functions" className="data-[state=active]:bg-[#ffd700] data-[state=active]:text-black" data-testid="tab-functions">
-                  <Settings className="h-4 w-4 mr-2" />
-                  Functions ({functions.length})
-                </TabsTrigger>
-                <TabsTrigger value="templates" className="data-[state=active]:bg-[#ffd700] data-[state=active]:text-black" data-testid="tab-templates">
-                  <Layers className="h-4 w-4 mr-2" />
-                  Templates ({templates.length})
-                </TabsTrigger>
-              </TabsList>
+              <div className="flex items-center gap-3 pb-4">
+                <Settings className="h-5 w-5 text-[#ffd700]" />
+                <h3 className="text-lg font-semibold text-white">Application Functions & Prompt Templates</h3>
+                <Badge className="bg-[#ffd700]/20 text-[#ffd700] border-[#ffd700]/30 text-xs">
+                  {functions.length} Functions | {templates.length} Templates
+                </Badge>
+              </div>
             </div>
 
             <div className="flex-1 flex overflow-hidden">
-              {/* Functions Tab */}
-              <TabsContent value="functions" className="flex-1 flex m-0 overflow-hidden">
+              {/* Main Content */}
+              <div className="flex-1 flex overflow-hidden">
                 {/* Sidebar */}
                 <div className="w-80 border-r border-[#2a2a2a] p-4 space-y-4">
                   <Button
@@ -574,146 +570,9 @@ export function EnhancedPromptEngineering({ isOpen, onClose, selectedFunction = 
                     </div>
                   )}
                 </div>
-              </TabsContent>
-
-              {/* Templates Tab */}
-              <TabsContent value="templates" className="flex-1 flex m-0 overflow-hidden">
-                {/* Sidebar */}
-                <div className="w-80 border-r border-[#2a2a2a] p-4 space-y-4">
-                  <div className="space-y-2">
-                    <Label className="text-sm font-medium text-gray-300">Filter by Function</Label>
-                    <Select value={selectedFunctionId} onValueChange={setSelectedFunctionId}>
-                      <SelectTrigger data-testid="select-function-filter">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="all">All Functions</SelectItem>
-                        {functions.map(func => (
-                          <SelectItem key={func.id} value={func.id}>
-                            {func.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  <Button
-                    onClick={() => {
-                      resetNewTemplate();
-                      setShowNewTemplateForm(true);
-                      setEditingTemplate(null);
-                    }}
-                    className="w-full bg-[#ffd700] text-black hover:bg-[#ffd700]/90"
-                    data-testid="button-new-template"
-                  >
-                    <Plus className="h-4 w-4 mr-2" />
-                    New Template
-                  </Button>
-
-                  <div className="space-y-2 max-h-96 overflow-y-auto">
-                    <Label className="text-sm font-medium text-gray-300">
-                      Templates ({filteredTemplates.length})
-                    </Label>
-                    {filteredTemplates.map(template => {
-                      const displayTemplate = editingTemplate && editingTemplate.id === template.id ? editingTemplate : template;
-                      const associatedFunction = functions.find(f => f.id === template.functionId);
-                      
-                      return (
-                        <Card
-                          key={template.id}
-                          className={`p-3 border-[#3a3a3a] cursor-pointer hover:bg-[#3a3a3a] transition-colors ${
-                            displayTemplate.enabled === "false" ? 'bg-[#2a2a2a]/50 opacity-60' : 'bg-[#2a2a2a]'
-                          }`}
-                          onClick={() => {
-                            setEditingTemplate(template);
-                            setShowNewTemplateForm(false);
-                          }}
-                          data-testid={`card-template-${template.id}`}
-                        >
-                          <div className="space-y-2">
-                            <div className="flex items-center justify-between">
-                              <span className="font-medium text-white text-sm truncate">{displayTemplate.name}</span>
-                              <div className="flex items-center gap-1">
-                                {displayTemplate.isSystem === "true" && (
-                                  <Badge className="bg-blue-500/20 text-blue-400 border-blue-500/30 text-xs">
-                                    System
-                                  </Badge>
-                                )}
-                                {displayTemplate.enabled === "false" ? (
-                                  <div className="flex items-center gap-1">
-                                    <EyeOff className="h-3 w-3 text-gray-500" />
-                                    <span className="text-xs text-gray-500">Disabled</span>
-                                  </div>
-                                ) : (
-                                  <div className="flex items-center gap-1">
-                                    <Eye className="h-3 w-3 text-green-500" />
-                                    <span className="text-xs text-green-500">Enabled</span>
-                                  </div>
-                                )}
-                              </div>
-                            </div>
-                            <p className="text-xs text-gray-400 line-clamp-2">{displayTemplate.description}</p>
-                            <div className="text-xs text-gray-500">
-                              <div>Function: {associatedFunction?.name || 'Unknown'}</div>
-                              <div className="flex items-center justify-between mt-1">
-                                <span>{displayTemplate.usage || 0} uses</span>
-                                <span>{displayTemplate.variables?.length || 0} vars</span>
-                              </div>
-                            </div>
-                          </div>
-                        </Card>
-                      );
-                    })}
-                  </div>
-                </div>
-
-                {/* Main Content - Templates */}
-                <div className="flex-1 p-6 overflow-y-auto">
-                  {showNewTemplateForm ? (
-                    <NewTemplateForm 
-                      newTemplate={newTemplate}
-                      setNewTemplate={setNewTemplate}
-                      onSave={handleSaveTemplate}
-                      onCancel={() => { setShowNewTemplateForm(false); resetNewTemplate(); }}
-                      onEnhance={() => handleEnhanceTemplate(newTemplate.template)}
-                      isSaving={createTemplateMutation.isPending}
-                      isEnhancing={enhancingTemplate === newTemplate.template}
-                      categories={templateCategories}
-                      functions={functions}
-                    />
-                  ) : editingTemplate ? (
-                    <EditTemplateForm 
-                      template={editingTemplate}
-                      setTemplate={setEditingTemplate}
-                      onUpdate={handleUpdateTemplate}
-                      onDelete={() => deleteTemplateMutation.mutate(editingTemplate.id)}
-                      onCancel={() => setEditingTemplate(null)}
-                      onToggleEnabled={(checked: boolean) => {
-                        const newEnabled = checked ? "true" : "false";
-                        const updatedTemplate = { ...editingTemplate, enabled: newEnabled };
-                        setEditingTemplate(updatedTemplate);
-                      }}
-                      onEnhance={() => handleEnhanceTemplate(editingTemplate.template)}
-                      onCopy={() => handleCopyTemplate(editingTemplate)}
-                      isUpdating={updateTemplateMutation.isPending}
-                      isDeleting={deleteTemplateMutation.isPending}
-                      isEnhancing={enhancingTemplate === editingTemplate.template}
-                      wasCopied={copiedTemplate === editingTemplate.id}
-                      categories={templateCategories}
-                      functions={functions}
-                    />
-                  ) : (
-                    <div className="flex items-center justify-center h-full">
-                      <div className="text-center text-gray-400">
-                        <Layers className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                        <p>Select a template to edit or create a new one</p>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </TabsContent>
+              </div>
             </div>
-          </Tabs>
+          </div>
         </div>
       </div>
     </div>
