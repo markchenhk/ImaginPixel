@@ -33,9 +33,11 @@ import {
 interface EnhancedPromptEngineeringProps {
   isOpen: boolean;
   onClose: () => void;
+  selectedFunction?: 'image-enhancement' | 'image-to-video';
+  isAdmin: boolean;
 }
 
-export function EnhancedPromptEngineering({ isOpen, onClose }: EnhancedPromptEngineeringProps) {
+export function EnhancedPromptEngineering({ isOpen, onClose, selectedFunction = 'image-enhancement', isAdmin }: EnhancedPromptEngineeringProps) {
   const { toast } = useToast();
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [editingTemplate, setEditingTemplate] = useState<PromptTemplate | null>(null);
@@ -43,33 +45,76 @@ export function EnhancedPromptEngineering({ isOpen, onClose }: EnhancedPromptEng
   const [enhancingTemplate, setEnhancingTemplate] = useState<string | null>(null);
   const [copiedTemplate, setCopiedTemplate] = useState<string | null>(null);
   
+  // Effect to handle selectedFunction changes
+  useEffect(() => {
+    // Reset selectedCategory when function changes
+    setSelectedCategory('all');
+    
+    // Clear editing states when switching functions
+    setEditingTemplate(null);
+    setShowNewForm(false);
+    setEnhancingTemplate(null);
+    setCopiedTemplate(null);
+    
+  }, [selectedFunction]);
+
+  // Effect to clear editing states when modal closes
+  useEffect(() => {
+    if (!isOpen) {
+      setEditingTemplate(null);
+      setShowNewForm(false);
+      setEnhancingTemplate(null);
+      setCopiedTemplate(null);
+      setSelectedCategory('all');
+    }
+  }, [isOpen]);
+  
   const [newTemplate, setNewTemplate] = useState({
     name: '',
     description: '',
-    category: 'image-enhancement',
+    category: selectedFunction === 'image-enhancement' ? 'background-removal' : 'animation-effects',
     template: '',
     variables: [] as string[],
     enabled: true
   });
 
-  const categories = [
+  const imageEnhancementCategories = [
     { value: 'all', label: 'All Templates' },
-    { value: 'image-enhancement', label: 'Image Enhancement' },
     { value: 'background-removal', label: 'Background Removal' },
+    { value: 'lighting-enhancement', label: 'Lighting Enhancement' },
+    { value: 'color-correction', label: 'Color Correction' },
     { value: 'style-transfer', label: 'Style Transfer' },
     { value: 'upscaling', label: 'Upscaling' },
-    { value: 'color-correction', label: 'Color Correction' },
     { value: 'custom', label: 'Custom' }
   ];
 
-  // Fetch all templates from API
+  const imageToVideoCategories = [
+    { value: 'all', label: 'All Templates' },
+    { value: 'animation-effects', label: 'Animation Effects' },
+    { value: '3d-transforms', label: '3D Transforms' },
+    { value: 'motion-graphics', label: 'Motion Graphics' },
+    { value: 'promotional-clips', label: 'Promotional Clips' },
+    { value: 'custom', label: 'Custom' }
+  ];
+
+  const categories = selectedFunction === 'image-enhancement' 
+    ? imageEnhancementCategories 
+    : imageToVideoCategories;
+
+  // Fetch all templates from API (admin only)
   const { data: templates = [], isLoading } = useQuery<PromptTemplate[]>({
     queryKey: ['/api/admin/prompt-templates'],
-    enabled: isOpen
+    enabled: isOpen && isAdmin
   });
 
   const filteredTemplates = selectedCategory === 'all' 
-    ? templates 
+    ? templates.filter(t => {
+        // Filter templates based on selected function
+        const functionCategories = selectedFunction === 'image-enhancement' 
+          ? ['background-removal', 'lighting-enhancement', 'color-correction', 'style-transfer', 'upscaling', 'custom']
+          : ['animation-effects', '3d-transforms', 'motion-graphics', 'promotional-clips', 'custom'];
+        return functionCategories.includes(t.category);
+      })
     : templates.filter(t => t.category === selectedCategory);
 
   // Extract variables from template text
@@ -171,7 +216,7 @@ export function EnhancedPromptEngineering({ isOpen, onClose }: EnhancedPromptEng
     setNewTemplate({
       name: '',
       description: '',
-      category: 'image-enhancement',
+      category: selectedFunction === 'image-enhancement' ? 'background-removal' : 'animation-effects',
       template: '',
       variables: [],
       enabled: true
@@ -266,7 +311,10 @@ export function EnhancedPromptEngineering({ isOpen, onClose }: EnhancedPromptEng
             </div>
 
             <Button
-              onClick={() => setShowNewForm(true)}
+              onClick={() => {
+                resetNewTemplate();
+                setShowNewForm(true);
+              }}
               className="w-full bg-[#ffd700] text-black hover:bg-[#ffd700]/90"
             >
               <Plus className="h-4 w-4 mr-2" />
@@ -410,7 +458,7 @@ function NewTemplateForm({
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              {categories.filter(cat => cat.value !== 'all').map(cat => (
+              {categories.filter((cat: { value: string; label: string }) => cat.value !== 'all').map((cat: { value: string; label: string }) => (
                 <SelectItem key={cat.value} value={cat.value}>
                   {cat.label}
                 </SelectItem>
@@ -562,7 +610,7 @@ function EditTemplateForm({
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              {categories.filter(cat => cat.value !== 'all').map(cat => (
+              {categories.filter((cat: { value: string; label: string }) => cat.value !== 'all').map((cat: { value: string; label: string }) => (
                 <SelectItem key={cat.value} value={cat.value}>
                   {cat.label}
                 </SelectItem>

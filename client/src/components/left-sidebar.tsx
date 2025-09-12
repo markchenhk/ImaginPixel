@@ -6,20 +6,16 @@ import {
   Video,
   ImageIcon,
   Sparkles,
-  Settings2,
-  ChevronRight,
 } from "lucide-react";
 
 interface LeftSidebarProps {
   selectedFunction: 'image-enhancement' | 'image-to-video';
   onFunctionSelect: (functionType: 'image-enhancement' | 'image-to-video') => void;
-  onConfigureFunction: (functionType: 'image-enhancement' | 'image-to-video') => void;
 }
 
 export function LeftSidebar({ 
   selectedFunction,
-  onFunctionSelect,
-  onConfigureFunction
+  onFunctionSelect
 }: LeftSidebarProps) {
   const functions = [
     {
@@ -107,22 +103,6 @@ export function LeftSidebar({
                     ))}
                   </div>
                   
-                  {isSelected && (
-                    <Button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onConfigureFunction(func.id);
-                      }}
-                      variant="outline"
-                      size="sm"
-                      className="w-full mt-3 border-[#ffd700] text-[#ffd700] hover:bg-[#ffd700]/10 text-xs"
-                      data-testid={`configure-${func.id}`}
-                    >
-                      <Settings2 className="w-3 h-3 mr-2" />
-                      Configure Prompts
-                      <ChevronRight className="w-3 h-3 ml-auto" />
-                    </Button>
-                  )}
                 </CardContent>
               </Card>
             );

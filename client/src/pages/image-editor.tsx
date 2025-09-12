@@ -46,10 +46,6 @@ export default function ImageEditor() {
     setCurrentConversation(null);
   };
 
-  const handleConfigureFunction = (functionType: 'image-enhancement' | 'image-to-video') => {
-    setPromptEngineeringOpen(true);
-    // You could also store the function type to configure specific prompts
-  };
 
   const handleImageProcessed = (originalUrl: string, processedUrl: string) => {
     setProcessedImageUrl(processedUrl);
@@ -111,21 +107,21 @@ export default function ImageEditor() {
           
           <div className="h-6 w-px bg-[#2a2a2a] mx-2" />
 
-          {/* Prompt Engineering Button */}
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => setPromptEngineeringOpen(true)}
-            data-testid="prompt-engineering-button"
-            className="text-[#e0e0e0] hover:bg-[#2a2a2a] hover:text-white"
-            title="Prompt Engineering"
-          >
-            <Wand2 className="w-4 h-4" />
-          </Button>
 
-          {/* Model Configuration (Admin Only) */}
+          {/* Admin-Only Controls */}
           {isAdmin && (
             <div className="flex items-center gap-2">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setPromptEngineeringOpen(true)}
+                data-testid="admin-prompt-templates-button"
+                className="text-[#e0e0e0] hover:bg-[#2a2a2a] hover:text-white"
+                title="Manage Prompt Templates (Admin)"
+              >
+                <Wand2 className="w-4 h-4 mr-1" />
+                <span className="text-xs">Templates</span>
+              </Button>
               <Button
                 variant="ghost"
                 size="sm"
@@ -158,7 +154,6 @@ export default function ImageEditor() {
         <LeftSidebar 
           selectedFunction={selectedFunction}
           onFunctionSelect={handleFunctionSelect}
-          onConfigureFunction={handleConfigureFunction}
         />
         
         {/* Main Content Area with Resizable Panels */}
@@ -286,6 +281,8 @@ export default function ImageEditor() {
         <EnhancedPromptEngineering
           isOpen={promptEngineeringOpen}
           onClose={() => setPromptEngineeringOpen(false)}
+          selectedFunction={selectedFunction}
+          isAdmin={isAdmin}
         />
       </div>
     </div>
