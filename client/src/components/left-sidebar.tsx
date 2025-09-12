@@ -1,6 +1,10 @@
+import React from "react";
+import { useQuery } from '@tanstack/react-query';
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { ApplicationFunction } from '@shared/schema';
+import * as LucideIcons from "lucide-react";
 import {
   Wand2,
   Video,
@@ -10,29 +14,60 @@ import {
 
 interface LeftSidebarProps {
   selectedFunction: 'image-enhancement' | 'image-to-video';
-  onFunctionSelect: (functionType: 'image-enhancement' | 'image-to-video') => void;
+  onFunctionSelect: (functionKey: 'image-enhancement' | 'image-to-video') => void;
 }
 
 export function LeftSidebar({ 
   selectedFunction,
   onFunctionSelect
 }: LeftSidebarProps) {
-  const functions = [
-    {
-      id: 'image-enhancement' as const,
-      title: 'Product Image Enhancement',
-      description: 'Transform product photos into professional marketplace-ready images',
-      icon: Wand2,
-      features: ['Background removal', 'Lighting enhancement', 'Color correction', 'Style transfer']
-    },
-    {
-      id: 'image-to-video' as const,
-      title: 'Product Image to Video',
-      description: 'Convert static product images into engaging promotional videos',
-      icon: Video,
-      features: ['Animation effects', '3D transforms', 'Motion graphics', 'Promotional clips']
+  // Fetch enabled application functions from API
+  const { data: functions = [], isLoading, error } = useQuery<ApplicationFunction[]>({
+    queryKey: ['/api/application-functions'],
+    refetchOnWindowFocus: false,
+  });
+
+  // Helper function to get icon component from icon name
+  const getIconComponent = (iconName: string) => {
+    const Icon = (LucideIcons as any)[iconName];
+    return Icon || Wand2; // fallback to Wand2 if icon not found
+  };
+
+  // Type guard to ensure function key is valid
+  const isValidFunctionKey = (key: string): key is 'image-enhancement' | 'image-to-video' => {
+    return key === 'image-enhancement' || key === 'image-to-video';
+  };
+
+  // Helper function to get features based on function key
+  const getFunctionFeatures = (functionKey: string) => {
+    switch (functionKey) {
+      case 'image-enhancement':
+        return ['Background removal', 'Lighting enhancement', 'Color correction', 'Style transfer'];
+      case 'image-to-video':
+        return ['Animation effects', '3D transforms', 'Motion graphics', 'Promotional clips'];
+      default:
+        return ['AI-powered processing', 'Professional results', 'Easy to use'];
     }
-  ];
+  };
+
+  if (isLoading) {
+    return (
+      <div className="w-80 h-full bg-[#1a1a1a] border-r border-[#2a2a2a] flex items-center justify-center">
+        <div className="text-[#888888]">Loading functions...</div>
+      </div>
+    );
+  }
+
+  if (error || functions.length === 0) {
+    return (
+      <div className="w-80 h-full bg-[#1a1a1a] border-r border-[#2a2a2a] flex items-center justify-center">
+        <div className="text-[#888888] text-center">
+          <p>No functions available</p>
+          {error && <p className="text-xs mt-1">Error loading functions</p>}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="w-80 h-full bg-[#1a1a1a] border-r border-[#2a2a2a] flex flex-col">
@@ -53,8 +88,9 @@ export function LeftSidebar({
       <ScrollArea className="flex-1">
         <div className="p-4 space-y-4">
           {functions.map((func) => {
-            const IconComponent = func.icon;
-            const isSelected = selectedFunction === func.id;
+            const IconComponent = getIconComponent(func.icon);
+            const isSelected = selectedFunction === func.functionKey;
+            const features = getFunctionFeatures(func.functionKey);
             
             return (
               <Card 
@@ -64,8 +100,12 @@ export function LeftSidebar({
                     ? 'bg-[#2a2a2a] border-[#ffd700] border-2' 
                     : 'bg-[#0f0f0f] border-[#2a2a2a] hover:border-[#3a3a3a]'
                 }`}
-                onClick={() => onFunctionSelect(func.id)}
-                data-testid={`function-card-${func.id}`}
+                onClick={() => {
+                  if (isValidFunctionKey(func.functionKey)) {
+                    onFunctionSelect(func.functionKey);
+                  }
+                }}
+                data-testid={`function-card-${func.functionKey}`}
               >
                 <CardHeader className="pb-3">
                   <div className="flex items-start justify-between">
@@ -81,7 +121,7 @@ export function LeftSidebar({
                         <CardTitle className={`text-sm ${
                           isSelected ? 'text-[#ffd700]' : 'text-white'
                         }`}>
-                          {func.title}
+                          {func.name}
                         </CardTitle>
                       </div>
                     </div>
@@ -92,10 +132,10 @@ export function LeftSidebar({
                 </CardHeader>
                 <CardContent className="pt-0">
                   <p className="text-xs text-[#888888] mb-3 leading-relaxed">
-                    {func.description}
+                    {func.description || `Advanced ${func.name.toLowerCase()} capabilities`}
                   </p>
                   <div className="space-y-1">
-                    {func.features.map((feature, index) => (
+                    {features.map((feature, index) => (
                       <div key={index} className="flex items-center gap-2">
                         <div className="w-1 h-1 bg-[#666666] rounded-full" />
                         <span className="text-xs text-[#aaaaaa]">{feature}</span>

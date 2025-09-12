@@ -7,6 +7,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { 
   Select,
   SelectContent,
@@ -16,7 +17,7 @@ import {
 } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
 import { apiRequest, queryClient } from '@/lib/queryClient';
-import { PromptTemplate } from '@shared/schema';
+import { PromptTemplate, ApplicationFunction } from '@shared/schema';
 import { 
   Wand2, 
   X, 
@@ -27,7 +28,13 @@ import {
   EyeOff, 
   Sparkles,
   Copy,
-  Check 
+  Check,
+  Settings,
+  Layers,
+  Save,
+  AlertTriangle,
+  Hash,
+  ArrowUpDown
 } from 'lucide-react';
 
 interface EnhancedPromptEngineeringProps {
@@ -39,57 +46,54 @@ interface EnhancedPromptEngineeringProps {
 
 export function EnhancedPromptEngineering({ isOpen, onClose, selectedFunction = 'image-enhancement', isAdmin }: EnhancedPromptEngineeringProps) {
   const { toast } = useToast();
-  const [selectedCategory, setSelectedCategory] = useState('all');
+  const [activeTab, setActiveTab] = useState<'functions' | 'templates'>('functions');
+  const [selectedFunctionId, setSelectedFunctionId] = useState<string>('all');
   const [editingTemplate, setEditingTemplate] = useState<PromptTemplate | null>(null);
-  const [showNewForm, setShowNewForm] = useState(false);
+  const [editingFunction, setEditingFunction] = useState<ApplicationFunction | null>(null);
+  const [showNewTemplateForm, setShowNewTemplateForm] = useState(false);
+  const [showNewFunctionForm, setShowNewFunctionForm] = useState(false);
   const [enhancingTemplate, setEnhancingTemplate] = useState<string | null>(null);
   const [copiedTemplate, setCopiedTemplate] = useState<string | null>(null);
   
-  // Effect to handle selectedFunction changes
-  useEffect(() => {
-    // Reset selectedCategory when function changes
-    setSelectedCategory('all');
-    
-    // Clear editing states when switching functions
-    setEditingTemplate(null);
-    setShowNewForm(false);
-    setEnhancingTemplate(null);
-    setCopiedTemplate(null);
-    
-  }, [selectedFunction]);
-
   // Effect to clear editing states when modal closes
   useEffect(() => {
     if (!isOpen) {
       setEditingTemplate(null);
-      setShowNewForm(false);
+      setEditingFunction(null);
+      setShowNewTemplateForm(false);
+      setShowNewFunctionForm(false);
       setEnhancingTemplate(null);
       setCopiedTemplate(null);
-      setSelectedCategory('all');
+      setSelectedFunctionId('all');
     }
   }, [isOpen]);
   
   const [newTemplate, setNewTemplate] = useState({
     name: '',
     description: '',
-    category: selectedFunction === 'image-enhancement' ? 'background-removal' : 'animation-effects',
+    category: 'custom',
+    functionId: '',
     template: '',
     variables: [] as string[],
     enabled: true
   });
 
-  const imageEnhancementCategories = [
-    { value: 'all', label: 'All Templates' },
+  const [newFunction, setNewFunction] = useState({
+    name: '',
+    description: '',
+    functionKey: '',
+    icon: 'Wand2',
+    enabled: true,
+    sortOrder: 0
+  });
+
+  // Template categories based on common use cases
+  const templateCategories = [
     { value: 'background-removal', label: 'Background Removal' },
     { value: 'lighting-enhancement', label: 'Lighting Enhancement' },
     { value: 'color-correction', label: 'Color Correction' },
     { value: 'style-transfer', label: 'Style Transfer' },
     { value: 'upscaling', label: 'Upscaling' },
-    { value: 'custom', label: 'Custom' }
-  ];
-
-  const imageToVideoCategories = [
-    { value: 'all', label: 'All Templates' },
     { value: 'animation-effects', label: 'Animation Effects' },
     { value: '3d-transforms', label: '3D Transforms' },
     { value: 'motion-graphics', label: 'Motion Graphics' },
@@ -97,25 +101,27 @@ export function EnhancedPromptEngineering({ isOpen, onClose, selectedFunction = 
     { value: 'custom', label: 'Custom' }
   ];
 
-  const categories = selectedFunction === 'image-enhancement' 
-    ? imageEnhancementCategories 
-    : imageToVideoCategories;
+  // Available icons for functions
+  const availableIcons = [
+    'Wand2', 'Sparkles', 'Settings', 'Layers', 'Edit3', 'Eye', 'Camera', 'Video', 'Image', 'Palette'
+  ];
+
+  // Fetch all functions from API (admin only)
+  const { data: functions = [], isLoading: isFunctionsLoading } = useQuery<ApplicationFunction[]>({
+    queryKey: ['/api/admin/application-functions'],
+    enabled: isOpen && isAdmin
+  });
 
   // Fetch all templates from API (admin only)
-  const { data: templates = [], isLoading } = useQuery<PromptTemplate[]>({
+  const { data: templates = [], isLoading: isTemplatesLoading } = useQuery<PromptTemplate[]>({
     queryKey: ['/api/admin/prompt-templates'],
     enabled: isOpen && isAdmin
   });
 
-  const filteredTemplates = selectedCategory === 'all' 
-    ? templates.filter(t => {
-        // Filter templates based on selected function
-        const functionCategories = selectedFunction === 'image-enhancement' 
-          ? ['background-removal', 'lighting-enhancement', 'color-correction', 'style-transfer', 'upscaling', 'custom']
-          : ['animation-effects', '3d-transforms', 'motion-graphics', 'promotional-clips', 'custom'];
-        return functionCategories.includes(t.category);
-      })
-    : templates.filter(t => t.category === selectedCategory);
+  // Filter templates based on selected function
+  const filteredTemplates = selectedFunctionId === 'all' 
+    ? templates
+    : templates.filter(t => t.functionId === selectedFunctionId);
 
   // Extract variables from template text
   const extractVariables = (template: string): string[] => {
@@ -123,7 +129,59 @@ export function EnhancedPromptEngineering({ isOpen, onClose, selectedFunction = 
     return matches ? matches.map(match => match.slice(1, -1)) : [];
   };
 
-  // Create template mutation
+  // Function mutations
+  const createFunctionMutation = useMutation({
+    mutationFn: async (func: Partial<ApplicationFunction>) => {
+      const response = await apiRequest('POST', '/api/admin/application-functions', func);
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/admin/application-functions'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/application-functions'] });
+      toast({
+        title: 'Function created',
+        description: 'New application function has been created successfully.',
+      });
+      setShowNewFunctionForm(false);
+      resetNewFunction();
+    },
+  });
+
+  const updateFunctionMutation = useMutation({
+    mutationFn: async ({ id, updates }: { id: string; updates: Partial<ApplicationFunction> }) => {
+      const response = await apiRequest('PUT', `/api/admin/application-functions/${id}`, updates);
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/admin/application-functions'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/application-functions'] });
+      toast({
+        title: 'Function updated',
+        description: 'Application function has been updated successfully.',
+      });
+      setEditingFunction(null);
+    },
+  });
+
+  const deleteFunctionMutation = useMutation({
+    mutationFn: async (functionId: string) => {
+      const response = await apiRequest('DELETE', `/api/admin/application-functions/${functionId}`);
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/admin/application-functions'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/application-functions'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/admin/prompt-templates'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/prompt-templates'] });
+      toast({
+        title: 'Function deleted',
+        description: 'Application function has been deleted successfully.',
+      });
+      setEditingFunction(null);
+    },
+  });
+
+  // Template mutations
   const createTemplateMutation = useMutation({
     mutationFn: async (template: Partial<PromptTemplate>) => {
       const response = await apiRequest('POST', '/api/prompt-templates', template);
@@ -136,12 +194,11 @@ export function EnhancedPromptEngineering({ isOpen, onClose, selectedFunction = 
         title: 'Template created',
         description: 'New prompt template has been created successfully.',
       });
-      setShowNewForm(false);
+      setShowNewTemplateForm(false);
       resetNewTemplate();
     },
   });
 
-  // Update template mutation
   const updateTemplateMutation = useMutation({
     mutationFn: async ({ id, updates }: { id: string; updates: Partial<PromptTemplate> }) => {
       const response = await apiRequest('PUT', `/api/prompt-templates/${id}`, updates);
@@ -158,7 +215,6 @@ export function EnhancedPromptEngineering({ isOpen, onClose, selectedFunction = 
     },
   });
 
-  // Delete template mutation
   const deleteTemplateMutation = useMutation({
     mutationFn: async (templateId: string) => {
       const response = await apiRequest('DELETE', `/api/prompt-templates/${templateId}`);
@@ -178,7 +234,6 @@ export function EnhancedPromptEngineering({ isOpen, onClose, selectedFunction = 
   // LLM enhance template mutation
   const enhanceTemplateMutation = useMutation({
     mutationFn: async (templateContent: string) => {
-      // Call OpenRouter API to enhance the template
       const response = await apiRequest('POST', '/api/enhance-template', {
         template: templateContent
       });
@@ -216,10 +271,22 @@ export function EnhancedPromptEngineering({ isOpen, onClose, selectedFunction = 
     setNewTemplate({
       name: '',
       description: '',
-      category: selectedFunction === 'image-enhancement' ? 'background-removal' : 'animation-effects',
+      category: 'custom',
+      functionId: '',
       template: '',
       variables: [],
       enabled: true
+    });
+  };
+
+  const resetNewFunction = () => {
+    setNewFunction({
+      name: '',
+      description: '',
+      functionKey: '',
+      icon: 'Wand2',
+      enabled: true,
+      sortOrder: Math.max(...functions.map(f => f.sortOrder || 0), 0) + 1
     });
   };
 
@@ -233,6 +300,15 @@ export function EnhancedPromptEngineering({ isOpen, onClose, selectedFunction = 
     createTemplateMutation.mutate(templateData);
   };
 
+  const handleSaveFunction = () => {
+    const functionData = {
+      ...newFunction,
+      enabled: newFunction.enabled ? "true" : "false",
+      createdBy: 'admin' // This should come from auth context
+    };
+    createFunctionMutation.mutate(functionData);
+  };
+
   const handleUpdateTemplate = () => {
     if (!editingTemplate) return;
     const updates = {
@@ -243,12 +319,13 @@ export function EnhancedPromptEngineering({ isOpen, onClose, selectedFunction = 
     updateTemplateMutation.mutate({ id: editingTemplate.id, updates });
   };
 
-  const handleToggleEnabled = (template: PromptTemplate) => {
-    const newEnabled = template.enabled === "true" ? "false" : "true";
-    updateTemplateMutation.mutate({ 
-      id: template.id, 
-      updates: { enabled: newEnabled } 
-    });
+  const handleUpdateFunction = () => {
+    if (!editingFunction) return;
+    const updates = {
+      ...editingFunction,
+      enabled: editingFunction.enabled === "true" ? "true" : "false"
+    };
+    updateFunctionMutation.mutate({ id: editingFunction.id, updates });
   };
 
   const handleEnhanceTemplate = (templateContent: string) => {
@@ -285,6 +362,7 @@ export function EnhancedPromptEngineering({ isOpen, onClose, selectedFunction = 
             size="sm"
             onClick={onClose}
             className="text-gray-400 hover:text-white"
+            data-testid="button-close"
           >
             <X className="h-5 w-5" />
           </Button>
@@ -292,128 +370,498 @@ export function EnhancedPromptEngineering({ isOpen, onClose, selectedFunction = 
 
         {/* Content */}
         <div className="flex-1 flex overflow-hidden">
-          {/* Sidebar */}
-          <div className="w-80 border-r border-[#2a2a2a] p-4 space-y-4">
-            <div className="space-y-2">
-              <Label className="text-sm font-medium text-gray-300">Category</Label>
-              <Select value={selectedCategory} onValueChange={setSelectedCategory}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {categories.map(cat => (
-                    <SelectItem key={cat.value} value={cat.value}>
-                      {cat.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+          <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as 'functions' | 'templates')} className="flex-1 flex flex-col">
+            {/* Tab Navigation */}
+            <div className="px-6 pt-4 border-b border-[#2a2a2a]">
+              <TabsList className="grid w-full grid-cols-2 bg-[#2a2a2a] max-w-md">
+                <TabsTrigger value="functions" className="data-[state=active]:bg-[#ffd700] data-[state=active]:text-black" data-testid="tab-functions">
+                  <Settings className="h-4 w-4 mr-2" />
+                  Functions ({functions.length})
+                </TabsTrigger>
+                <TabsTrigger value="templates" className="data-[state=active]:bg-[#ffd700] data-[state=active]:text-black" data-testid="tab-templates">
+                  <Layers className="h-4 w-4 mr-2" />
+                  Templates ({templates.length})
+                </TabsTrigger>
+              </TabsList>
             </div>
 
-            <Button
-              onClick={() => {
-                resetNewTemplate();
-                setShowNewForm(true);
-              }}
-              className="w-full bg-[#ffd700] text-black hover:bg-[#ffd700]/90"
-            >
-              <Plus className="h-4 w-4 mr-2" />
-              New Template
-            </Button>
-
-            <div className="space-y-2 max-h-96 overflow-y-auto">
-              <Label className="text-sm font-medium text-gray-300">
-                Templates ({filteredTemplates.length})
-              </Label>
-              {filteredTemplates.map(template => {
-                // Use editing state if this template is being edited, otherwise use database state
-                const displayTemplate = editingTemplate && editingTemplate.id === template.id ? editingTemplate : template;
-                
-                return (
-                  <Card
-                    key={template.id}
-                    className={`p-3 border-[#3a3a3a] cursor-pointer hover:bg-[#3a3a3a] transition-colors ${
-                      displayTemplate.enabled === "false" ? 'bg-[#2a2a2a]/50 opacity-60' : 'bg-[#2a2a2a]'
-                    }`}
-                    onClick={() => setEditingTemplate(template)}
+            <div className="flex-1 flex overflow-hidden">
+              {/* Functions Tab */}
+              <TabsContent value="functions" className="flex-1 flex m-0 overflow-hidden">
+                {/* Sidebar */}
+                <div className="w-80 border-r border-[#2a2a2a] p-4 space-y-4">
+                  <Button
+                    onClick={() => {
+                      resetNewFunction();
+                      setShowNewFunctionForm(true);
+                      setEditingFunction(null);
+                    }}
+                    className="w-full bg-[#ffd700] text-black hover:bg-[#ffd700]/90"
+                    data-testid="button-new-function"
                   >
-                    <div className="space-y-2">
-                      <div className="flex items-center justify-between">
-                        <span className="font-medium text-white text-sm truncate">{displayTemplate.name}</span>
-                        <div className="flex items-center gap-1">
-                          {displayTemplate.isSystem === "true" && (
-                            <Badge className="bg-blue-500/20 text-blue-400 border-blue-500/30 text-xs">
-                              System
-                            </Badge>
-                          )}
-                          {displayTemplate.enabled === "false" ? (
-                            <div className="flex items-center gap-1">
-                              <EyeOff className="h-3 w-3 text-gray-500" />
-                              <span className="text-xs text-gray-500">Disabled</span>
+                    <Plus className="h-4 w-4 mr-2" />
+                    New Function
+                  </Button>
+
+                  <div className="space-y-2 max-h-96 overflow-y-auto">
+                    <Label className="text-sm font-medium text-gray-300">
+                      Application Functions ({functions.length})
+                    </Label>
+                    {functions
+                      .sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0))
+                      .map(func => {
+                        const displayFunction = editingFunction && editingFunction.id === func.id ? editingFunction : func;
+                        
+                        return (
+                          <Card
+                            key={func.id}
+                            className={`p-3 border-[#3a3a3a] cursor-pointer hover:bg-[#3a3a3a] transition-colors ${
+                              displayFunction.enabled === "false" ? 'bg-[#2a2a2a]/50 opacity-60' : 'bg-[#2a2a2a]'
+                            }`}
+                            onClick={() => {
+                              setEditingFunction(func);
+                              setShowNewFunctionForm(false);
+                            }}
+                            data-testid={`card-function-${func.functionKey}`}
+                          >
+                            <div className="space-y-2">
+                              <div className="flex items-center justify-between">
+                                <span className="font-medium text-white text-sm truncate">{displayFunction.name}</span>
+                                <div className="flex items-center gap-1">
+                                  {displayFunction.enabled === "false" ? (
+                                    <div className="flex items-center gap-1">
+                                      <EyeOff className="h-3 w-3 text-gray-500" />
+                                      <span className="text-xs text-gray-500">Disabled</span>
+                                    </div>
+                                  ) : (
+                                    <div className="flex items-center gap-1">
+                                      <Eye className="h-3 w-3 text-green-500" />
+                                      <span className="text-xs text-green-500">Enabled</span>
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                              <p className="text-xs text-gray-400 line-clamp-2">{displayFunction.description}</p>
+                              <div className="flex items-center justify-between text-xs text-gray-500">
+                                <span>Key: {displayFunction.functionKey}</span>
+                                <span>Order: {displayFunction.sortOrder || 0}</span>
+                              </div>
                             </div>
-                          ) : (
-                            <div className="flex items-center gap-1">
-                              <Eye className="h-3 w-3 text-green-500" />
-                              <span className="text-xs text-green-500">Enabled</span>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                      <p className="text-xs text-gray-400 line-clamp-2">{displayTemplate.description}</p>
-                      <div className="flex items-center justify-between text-xs text-gray-500">
-                        <span>{displayTemplate.usage || 0} uses</span>
-                        <span>{displayTemplate.variables?.length || 0} vars</span>
+                          </Card>
+                        );
+                      })}
+                  </div>
+                </div>
+
+                {/* Main Content - Functions */}
+                <div className="flex-1 p-6 overflow-y-auto">
+                  {showNewFunctionForm ? (
+                    <NewFunctionForm 
+                      newFunction={newFunction}
+                      setNewFunction={setNewFunction}
+                      onSave={handleSaveFunction}
+                      onCancel={() => { setShowNewFunctionForm(false); resetNewFunction(); }}
+                      isSaving={createFunctionMutation.isPending}
+                      availableIcons={availableIcons}
+                    />
+                  ) : editingFunction ? (
+                    <EditFunctionForm 
+                      func={editingFunction}
+                      setFunction={setEditingFunction}
+                      onUpdate={handleUpdateFunction}
+                      onDelete={() => deleteFunctionMutation.mutate(editingFunction.id)}
+                      onCancel={() => setEditingFunction(null)}
+                      isUpdating={updateFunctionMutation.isPending}
+                      isDeleting={deleteFunctionMutation.isPending}
+                      availableIcons={availableIcons}
+                    />
+                  ) : (
+                    <div className="flex items-center justify-center h-full">
+                      <div className="text-center text-gray-400">
+                        <Settings className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                        <p>Select a function to edit or create a new one</p>
                       </div>
                     </div>
-                  </Card>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* Main Content */}
-          <div className="flex-1 p-6 overflow-y-auto">
-            {showNewForm ? (
-              <NewTemplateForm 
-                newTemplate={newTemplate}
-                setNewTemplate={setNewTemplate}
-                onSave={handleSaveTemplate}
-                onCancel={() => { setShowNewForm(false); resetNewTemplate(); }}
-                onEnhance={() => handleEnhanceTemplate(newTemplate.template)}
-                isSaving={createTemplateMutation.isPending}
-                isEnhancing={enhancingTemplate === newTemplate.template}
-                categories={categories}
-              />
-            ) : editingTemplate ? (
-              <EditTemplateForm 
-                template={editingTemplate}
-                setTemplate={setEditingTemplate}
-                onUpdate={handleUpdateTemplate}
-                onDelete={() => deleteTemplateMutation.mutate(editingTemplate.id)}
-                onCancel={() => setEditingTemplate(null)}
-                onToggleEnabled={(checked: boolean) => {
-                  const newEnabled = checked ? "true" : "false";
-                  const updatedTemplate = { ...editingTemplate, enabled: newEnabled };
-                  setEditingTemplate(updatedTemplate);
-                  // Note: Only update local state, save when "Update Template" is clicked
-                }}
-                onEnhance={() => handleEnhanceTemplate(editingTemplate.template)}
-                onCopy={() => handleCopyTemplate(editingTemplate)}
-                isUpdating={updateTemplateMutation.isPending}
-                isDeleting={deleteTemplateMutation.isPending}
-                isEnhancing={enhancingTemplate === editingTemplate.template}
-                wasCopied={copiedTemplate === editingTemplate.id}
-                categories={categories}
-              />
-            ) : (
-              <div className="flex items-center justify-center h-full">
-                <div className="text-center text-gray-400">
-                  <Wand2 className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                  <p>Select a template to edit or create a new one</p>
+                  )}
                 </div>
-              </div>
-            )}
+              </TabsContent>
+
+              {/* Templates Tab */}
+              <TabsContent value="templates" className="flex-1 flex m-0 overflow-hidden">
+                {/* Sidebar */}
+                <div className="w-80 border-r border-[#2a2a2a] p-4 space-y-4">
+                  <div className="space-y-2">
+                    <Label className="text-sm font-medium text-gray-300">Filter by Function</Label>
+                    <Select value={selectedFunctionId} onValueChange={setSelectedFunctionId}>
+                      <SelectTrigger data-testid="select-function-filter">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All Functions</SelectItem>
+                        {functions.map(func => (
+                          <SelectItem key={func.id} value={func.id}>
+                            {func.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <Button
+                    onClick={() => {
+                      resetNewTemplate();
+                      setShowNewTemplateForm(true);
+                      setEditingTemplate(null);
+                    }}
+                    className="w-full bg-[#ffd700] text-black hover:bg-[#ffd700]/90"
+                    data-testid="button-new-template"
+                  >
+                    <Plus className="h-4 w-4 mr-2" />
+                    New Template
+                  </Button>
+
+                  <div className="space-y-2 max-h-96 overflow-y-auto">
+                    <Label className="text-sm font-medium text-gray-300">
+                      Templates ({filteredTemplates.length})
+                    </Label>
+                    {filteredTemplates.map(template => {
+                      const displayTemplate = editingTemplate && editingTemplate.id === template.id ? editingTemplate : template;
+                      const associatedFunction = functions.find(f => f.id === template.functionId);
+                      
+                      return (
+                        <Card
+                          key={template.id}
+                          className={`p-3 border-[#3a3a3a] cursor-pointer hover:bg-[#3a3a3a] transition-colors ${
+                            displayTemplate.enabled === "false" ? 'bg-[#2a2a2a]/50 opacity-60' : 'bg-[#2a2a2a]'
+                          }`}
+                          onClick={() => {
+                            setEditingTemplate(template);
+                            setShowNewTemplateForm(false);
+                          }}
+                          data-testid={`card-template-${template.id}`}
+                        >
+                          <div className="space-y-2">
+                            <div className="flex items-center justify-between">
+                              <span className="font-medium text-white text-sm truncate">{displayTemplate.name}</span>
+                              <div className="flex items-center gap-1">
+                                {displayTemplate.isSystem === "true" && (
+                                  <Badge className="bg-blue-500/20 text-blue-400 border-blue-500/30 text-xs">
+                                    System
+                                  </Badge>
+                                )}
+                                {displayTemplate.enabled === "false" ? (
+                                  <div className="flex items-center gap-1">
+                                    <EyeOff className="h-3 w-3 text-gray-500" />
+                                    <span className="text-xs text-gray-500">Disabled</span>
+                                  </div>
+                                ) : (
+                                  <div className="flex items-center gap-1">
+                                    <Eye className="h-3 w-3 text-green-500" />
+                                    <span className="text-xs text-green-500">Enabled</span>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                            <p className="text-xs text-gray-400 line-clamp-2">{displayTemplate.description}</p>
+                            <div className="text-xs text-gray-500">
+                              <div>Function: {associatedFunction?.name || 'Unknown'}</div>
+                              <div className="flex items-center justify-between mt-1">
+                                <span>{displayTemplate.usage || 0} uses</span>
+                                <span>{displayTemplate.variables?.length || 0} vars</span>
+                              </div>
+                            </div>
+                          </div>
+                        </Card>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Main Content - Templates */}
+                <div className="flex-1 p-6 overflow-y-auto">
+                  {showNewTemplateForm ? (
+                    <NewTemplateForm 
+                      newTemplate={newTemplate}
+                      setNewTemplate={setNewTemplate}
+                      onSave={handleSaveTemplate}
+                      onCancel={() => { setShowNewTemplateForm(false); resetNewTemplate(); }}
+                      onEnhance={() => handleEnhanceTemplate(newTemplate.template)}
+                      isSaving={createTemplateMutation.isPending}
+                      isEnhancing={enhancingTemplate === newTemplate.template}
+                      categories={templateCategories}
+                      functions={functions}
+                    />
+                  ) : editingTemplate ? (
+                    <EditTemplateForm 
+                      template={editingTemplate}
+                      setTemplate={setEditingTemplate}
+                      onUpdate={handleUpdateTemplate}
+                      onDelete={() => deleteTemplateMutation.mutate(editingTemplate.id)}
+                      onCancel={() => setEditingTemplate(null)}
+                      onToggleEnabled={(checked: boolean) => {
+                        const newEnabled = checked ? "true" : "false";
+                        const updatedTemplate = { ...editingTemplate, enabled: newEnabled };
+                        setEditingTemplate(updatedTemplate);
+                      }}
+                      onEnhance={() => handleEnhanceTemplate(editingTemplate.template)}
+                      onCopy={() => handleCopyTemplate(editingTemplate)}
+                      isUpdating={updateTemplateMutation.isPending}
+                      isDeleting={deleteTemplateMutation.isPending}
+                      isEnhancing={enhancingTemplate === editingTemplate.template}
+                      wasCopied={copiedTemplate === editingTemplate.id}
+                      categories={templateCategories}
+                      functions={functions}
+                    />
+                  ) : (
+                    <div className="flex items-center justify-center h-full">
+                      <div className="text-center text-gray-400">
+                        <Layers className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                        <p>Select a template to edit or create a new one</p>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </TabsContent>
+            </div>
+          </Tabs>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// New Function Form Component
+function NewFunctionForm({ 
+  newFunction, 
+  setNewFunction, 
+  onSave, 
+  onCancel, 
+  isSaving,
+  availableIcons 
+}: any) {
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <h3 className="text-xl font-medium text-white">Create New Function</h3>
+        <Button variant="ghost" onClick={onCancel}>Cancel</Button>
+      </div>
+
+      <div className="grid grid-cols-2 gap-4">
+        <div>
+          <Label className="text-sm font-medium text-gray-300">Function Name</Label>
+          <Input
+            value={newFunction.name}
+            onChange={(e) => setNewFunction({...newFunction, name: e.target.value})}
+            placeholder="Enter function name"
+            className="mt-1"
+            data-testid="input-function-name"
+          />
+        </div>
+        <div>
+          <Label className="text-sm font-medium text-gray-300">Function Key</Label>
+          <Input
+            value={newFunction.functionKey}
+            onChange={(e) => setNewFunction({...newFunction, functionKey: e.target.value})}
+            placeholder="e.g., image-enhancement"
+            className="mt-1"
+            data-testid="input-function-key"
+          />
+          <p className="text-xs text-gray-500 mt-1">Unique identifier for this function</p>
+        </div>
+      </div>
+
+      <div>
+        <Label className="text-sm font-medium text-gray-300">Description</Label>
+        <Input
+          value={newFunction.description}
+          onChange={(e) => setNewFunction({...newFunction, description: e.target.value})}
+          placeholder="Describe what this function does"
+          className="mt-1"
+          data-testid="input-function-description"
+        />
+      </div>
+
+      <div className="grid grid-cols-2 gap-4">
+        <div>
+          <Label className="text-sm font-medium text-gray-300">Icon</Label>
+          <Select
+            value={newFunction.icon}
+            onValueChange={(value) => setNewFunction({...newFunction, icon: value})}
+          >
+            <SelectTrigger className="mt-1" data-testid="select-function-icon">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {availableIcons.map((icon: string) => (
+                <SelectItem key={icon} value={icon}>
+                  {icon}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <div>
+          <Label className="text-sm font-medium text-gray-300">Sort Order</Label>
+          <Input
+            type="number"
+            value={newFunction.sortOrder}
+            onChange={(e) => setNewFunction({...newFunction, sortOrder: parseInt(e.target.value) || 0})}
+            placeholder="0"
+            className="mt-1"
+            data-testid="input-function-sort-order"
+          />
+          <p className="text-xs text-gray-500 mt-1">Lower numbers appear first</p>
+        </div>
+      </div>
+
+      <div className="flex items-center space-x-2">
+        <Switch
+          id="function-enabled"
+          checked={newFunction.enabled}
+          onCheckedChange={(checked) => setNewFunction({...newFunction, enabled: checked})}
+          data-testid="switch-function-enabled"
+        />
+        <Label htmlFor="function-enabled" className="text-sm text-gray-300">
+          Enable function (visible to users)
+        </Label>
+      </div>
+
+      <div className="flex justify-end space-x-2">
+        <Button variant="outline" onClick={onCancel}>Cancel</Button>
+        <Button 
+          onClick={onSave} 
+          disabled={!newFunction.name || !newFunction.functionKey || isSaving}
+          className="bg-[#ffd700] text-black hover:bg-[#ffd700]/90"
+          data-testid="button-save-function"
+        >
+          {isSaving ? 'Creating...' : 'Create Function'}
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+// Edit Function Form Component
+function EditFunctionForm({ 
+  func, 
+  setFunction, 
+  onUpdate, 
+  onDelete, 
+  onCancel, 
+  isUpdating,
+  isDeleting,
+  availableIcons 
+}: any) {
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <h3 className="text-xl font-medium text-white">Edit Function</h3>
+        </div>
+        <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2">
+            <Switch
+              id="function-enabled"
+              checked={func.enabled === "true"}
+              onCheckedChange={(checked) => setFunction({...func, enabled: checked ? "true" : "false"})}
+              data-testid="switch-edit-function-enabled"
+            />
+            <Label htmlFor="function-enabled" className="text-sm text-gray-300">
+              {func.enabled === "true" ? 'Enabled' : 'Disabled'}
+            </Label>
           </div>
+          <Button variant="ghost" onClick={onCancel}>Cancel</Button>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 gap-4">
+        <div>
+          <Label className="text-sm font-medium text-gray-300">Function Name</Label>
+          <Input
+            value={func.name}
+            onChange={(e) => setFunction({...func, name: e.target.value})}
+            className="mt-1"
+            data-testid="input-edit-function-name"
+          />
+        </div>
+        <div>
+          <Label className="text-sm font-medium text-gray-300">Function Key</Label>
+          <Input
+            value={func.functionKey}
+            onChange={(e) => setFunction({...func, functionKey: e.target.value})}
+            className="mt-1"
+            data-testid="input-edit-function-key"
+          />
+          <p className="text-xs text-gray-500 mt-1">Unique identifier for this function</p>
+        </div>
+      </div>
+
+      <div>
+        <Label className="text-sm font-medium text-gray-300">Description</Label>
+        <Input
+          value={func.description || ''}
+          onChange={(e) => setFunction({...func, description: e.target.value})}
+          className="mt-1"
+          data-testid="input-edit-function-description"
+        />
+      </div>
+
+      <div className="grid grid-cols-2 gap-4">
+        <div>
+          <Label className="text-sm font-medium text-gray-300">Icon</Label>
+          <Select
+            value={func.icon}
+            onValueChange={(value) => setFunction({...func, icon: value})}
+          >
+            <SelectTrigger className="mt-1" data-testid="select-edit-function-icon">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {availableIcons.map((icon: string) => (
+                <SelectItem key={icon} value={icon}>
+                  {icon}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <div>
+          <Label className="text-sm font-medium text-gray-300">Sort Order</Label>
+          <Input
+            type="number"
+            value={func.sortOrder || 0}
+            onChange={(e) => setFunction({...func, sortOrder: parseInt(e.target.value) || 0})}
+            className="mt-1"
+            data-testid="input-edit-function-sort-order"
+          />
+          <p className="text-xs text-gray-500 mt-1">Lower numbers appear first</p>
+        </div>
+      </div>
+
+      <div className="flex items-center justify-between">
+        <div className="flex items-center space-x-4 text-sm text-gray-400">
+          <span>ID: {func.id}</span>
+          <span>Created: {new Date(func.createdAt).toLocaleDateString()}</span>
+        </div>
+        
+        <div className="flex space-x-2">
+          <Button 
+            variant="destructive" 
+            onClick={onDelete}
+            disabled={isDeleting}
+            data-testid="button-delete-function"
+          >
+            <Trash2 className="h-4 w-4 mr-2" />
+            {isDeleting ? 'Deleting...' : 'Delete'}
+          </Button>
+          <Button 
+            onClick={onUpdate} 
+            disabled={isUpdating}
+            className="bg-[#ffd700] text-black hover:bg-[#ffd700]/90"
+            data-testid="button-update-function"
+          >
+            {isUpdating ? 'Updating...' : 'Update Function'}
+          </Button>
         </div>
       </div>
     </div>
@@ -429,7 +877,8 @@ function NewTemplateForm({
   onEnhance,
   isSaving,
   isEnhancing,
-  categories 
+  categories,
+  functions
 }: any) {
   return (
     <div className="space-y-6">
@@ -446,21 +895,22 @@ function NewTemplateForm({
             onChange={(e) => setNewTemplate({...newTemplate, name: e.target.value})}
             placeholder="Enter template name"
             className="mt-1"
+            data-testid="input-template-name"
           />
         </div>
         <div>
-          <Label className="text-sm font-medium text-gray-300">Category</Label>
+          <Label className="text-sm font-medium text-gray-300">Function</Label>
           <Select
-            value={newTemplate.category}
-            onValueChange={(value) => setNewTemplate({...newTemplate, category: value})}
+            value={newTemplate.functionId}
+            onValueChange={(value) => setNewTemplate({...newTemplate, functionId: value})}
           >
-            <SelectTrigger className="mt-1">
-              <SelectValue />
+            <SelectTrigger className="mt-1" data-testid="select-template-function">
+              <SelectValue placeholder="Select a function" />
             </SelectTrigger>
             <SelectContent>
-              {categories.filter((cat: { value: string; label: string }) => cat.value !== 'all').map((cat: { value: string; label: string }) => (
-                <SelectItem key={cat.value} value={cat.value}>
-                  {cat.label}
+              {functions.map((func: any) => (
+                <SelectItem key={func.id} value={func.id}>
+                  {func.name}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -468,14 +918,35 @@ function NewTemplateForm({
         </div>
       </div>
 
-      <div>
-        <Label className="text-sm font-medium text-gray-300">Description</Label>
-        <Input
-          value={newTemplate.description}
-          onChange={(e) => setNewTemplate({...newTemplate, description: e.target.value})}
-          placeholder="Describe what this template does"
-          className="mt-1"
-        />
+      <div className="grid grid-cols-2 gap-4">
+        <div>
+          <Label className="text-sm font-medium text-gray-300">Category</Label>
+          <Select
+            value={newTemplate.category}
+            onValueChange={(value) => setNewTemplate({...newTemplate, category: value})}
+          >
+            <SelectTrigger className="mt-1" data-testid="select-template-category">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {categories.map((cat: { value: string; label: string }) => (
+                <SelectItem key={cat.value} value={cat.value}>
+                  {cat.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <div>
+          <Label className="text-sm font-medium text-gray-300">Description</Label>
+          <Input
+            value={newTemplate.description}
+            onChange={(e) => setNewTemplate({...newTemplate, description: e.target.value})}
+            placeholder="Describe what this template does"
+            className="mt-1"
+            data-testid="input-template-description"
+          />
+        </div>
       </div>
 
       <div>
@@ -488,6 +959,7 @@ function NewTemplateForm({
             onClick={onEnhance}
             disabled={!newTemplate.template.trim() || isEnhancing}
             className="text-xs"
+            data-testid="button-enhance-template"
           >
             {isEnhancing ? (
               <>
@@ -511,17 +983,19 @@ function NewTemplateForm({
           })}
           placeholder="Enter your prompt template here..."
           className="min-h-[200px]"
+          data-testid="textarea-template-content"
         />
         <p className="text-xs text-gray-500 mt-1">Use {`{variable}`} for dynamic content</p>
       </div>
 
       <div className="flex items-center space-x-2">
         <Switch
-          id="enabled"
+          id="template-enabled"
           checked={newTemplate.enabled}
           onCheckedChange={(checked) => setNewTemplate({...newTemplate, enabled: checked})}
+          data-testid="switch-template-enabled"
         />
-        <Label htmlFor="enabled" className="text-sm text-gray-300">
+        <Label htmlFor="template-enabled" className="text-sm text-gray-300">
           Enable template (visible to users)
         </Label>
       </div>
@@ -530,8 +1004,9 @@ function NewTemplateForm({
         <Button variant="outline" onClick={onCancel}>Cancel</Button>
         <Button 
           onClick={onSave} 
-          disabled={!newTemplate.name || !newTemplate.template || isSaving}
+          disabled={!newTemplate.name || !newTemplate.template || !newTemplate.functionId || isSaving}
           className="bg-[#ffd700] text-black hover:bg-[#ffd700]/90"
+          data-testid="button-save-template"
         >
           {isSaving ? 'Creating...' : 'Create Template'}
         </Button>
@@ -554,7 +1029,8 @@ function EditTemplateForm({
   isDeleting,
   isEnhancing,
   wasCopied,
-  categories 
+  categories,
+  functions
 }: any) {
   return (
     <div className="space-y-6">
@@ -573,6 +1049,7 @@ function EditTemplateForm({
             size="sm"
             onClick={onCopy}
             disabled={wasCopied}
+            data-testid="button-copy-template"
           >
             {wasCopied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
           </Button>
@@ -581,7 +1058,7 @@ function EditTemplateForm({
               id="template-enabled"
               checked={template.enabled === "true"}
               onCheckedChange={onToggleEnabled}
-              data-testid="toggle-enabled-switch"
+              data-testid="switch-edit-template-enabled"
             />
             <Label htmlFor="template-enabled" className="text-sm text-gray-300">
               {template.enabled === "true" ? 'Enabled' : 'Disabled'}
@@ -598,21 +1075,22 @@ function EditTemplateForm({
             value={template.name}
             onChange={(e) => setTemplate({...template, name: e.target.value})}
             className="mt-1"
+            data-testid="input-edit-template-name"
           />
         </div>
         <div>
-          <Label className="text-sm font-medium text-gray-300">Category</Label>
+          <Label className="text-sm font-medium text-gray-300">Function</Label>
           <Select
-            value={template.category}
-            onValueChange={(value) => setTemplate({...template, category: value})}
+            value={template.functionId}
+            onValueChange={(value) => setTemplate({...template, functionId: value})}
           >
-            <SelectTrigger className="mt-1">
-              <SelectValue />
+            <SelectTrigger className="mt-1" data-testid="select-edit-template-function">
+              <SelectValue placeholder="Select a function" />
             </SelectTrigger>
             <SelectContent>
-              {categories.filter((cat: { value: string; label: string }) => cat.value !== 'all').map((cat: { value: string; label: string }) => (
-                <SelectItem key={cat.value} value={cat.value}>
-                  {cat.label}
+              {functions.map((func: any) => (
+                <SelectItem key={func.id} value={func.id}>
+                  {func.name}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -620,13 +1098,34 @@ function EditTemplateForm({
         </div>
       </div>
 
-      <div>
-        <Label className="text-sm font-medium text-gray-300">Description</Label>
-        <Input
-          value={template.description || ''}
-          onChange={(e) => setTemplate({...template, description: e.target.value})}
-          className="mt-1"
-        />
+      <div className="grid grid-cols-2 gap-4">
+        <div>
+          <Label className="text-sm font-medium text-gray-300">Category</Label>
+          <Select
+            value={template.category}
+            onValueChange={(value) => setTemplate({...template, category: value})}
+          >
+            <SelectTrigger className="mt-1" data-testid="select-edit-template-category">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {categories.map((cat: { value: string; label: string }) => (
+                <SelectItem key={cat.value} value={cat.value}>
+                  {cat.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <div>
+          <Label className="text-sm font-medium text-gray-300">Description</Label>
+          <Input
+            value={template.description || ''}
+            onChange={(e) => setTemplate({...template, description: e.target.value})}
+            className="mt-1"
+            data-testid="input-edit-template-description"
+          />
+        </div>
       </div>
 
       <div>
@@ -639,6 +1138,7 @@ function EditTemplateForm({
             onClick={onEnhance}
             disabled={!template.template.trim() || isEnhancing}
             className="text-xs"
+            data-testid="button-enhance-edit-template"
           >
             {isEnhancing ? (
               <>
@@ -661,6 +1161,7 @@ function EditTemplateForm({
             variables: e.target.value.match(/\{([^}]+)\}/g)?.map(match => match.slice(1, -1)) || []
           })}
           className="min-h-[200px]"
+          data-testid="textarea-edit-template-content"
         />
       </div>
 
@@ -668,6 +1169,7 @@ function EditTemplateForm({
         <div className="flex items-center space-x-4 text-sm text-gray-400">
           <span>Usage: {template.usage || 0}</span>
           <span>Variables: {template.variables?.length || 0}</span>
+          <span>ID: {template.id}</span>
         </div>
         
         <div className="flex space-x-2">
@@ -675,6 +1177,7 @@ function EditTemplateForm({
             variant="destructive" 
             onClick={onDelete}
             disabled={isDeleting}
+            data-testid="button-delete-template"
           >
             <Trash2 className="h-4 w-4 mr-2" />
             {isDeleting ? 'Deleting...' : 'Delete'}
@@ -683,6 +1186,7 @@ function EditTemplateForm({
             onClick={onUpdate} 
             disabled={isUpdating}
             className="bg-[#ffd700] text-black hover:bg-[#ffd700]/90"
+            data-testid="button-update-template"
           >
             {isUpdating ? 'Updating...' : 'Update Template'}
           </Button>

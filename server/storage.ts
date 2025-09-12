@@ -13,6 +13,8 @@ import {
   type InsertSavedImage,
   type PromptTemplate,
   type InsertPromptTemplate,
+  type ApplicationFunction,
+  type InsertApplicationFunction,
   type User,
   type UpsertUser,
   conversations,
@@ -21,6 +23,7 @@ import {
   modelConfigurations,
   savedImages,
   promptTemplates,
+  applicationFunctions,
   users
 } from "@shared/schema";
 import { db } from "./db";
@@ -69,8 +72,17 @@ export interface IStorage {
   getUserSavedImages(userId: string, options?: { page?: number; limit?: number; tags?: string[] }): Promise<SavedImage[]>;
   deleteSavedImage(id: string, userId: string): Promise<boolean>;
 
+  // Application Function Operations (Admin Only)
+  getApplicationFunctions(): Promise<ApplicationFunction[]>;
+  getEnabledApplicationFunctions(): Promise<ApplicationFunction[]>;
+  getApplicationFunction(id: string): Promise<ApplicationFunction | undefined>;
+  createApplicationFunction(func: InsertApplicationFunction): Promise<ApplicationFunction>;
+  updateApplicationFunction(id: string, updates: Partial<ApplicationFunction>): Promise<ApplicationFunction | undefined>;
+  deleteApplicationFunction(id: string): Promise<boolean>;
+
   // Prompt Template Functions (Admin Only)
   getPromptTemplates(): Promise<PromptTemplate[]>;
+  getPromptTemplatesByFunction(functionId: string): Promise<PromptTemplate[]>;
   getPromptTemplate(id: string): Promise<PromptTemplate | undefined>;
   createPromptTemplate(template: InsertPromptTemplate): Promise<PromptTemplate>;
   updatePromptTemplate(id: string, updates: Partial<PromptTemplate>): Promise<PromptTemplate | undefined>;
@@ -439,9 +451,53 @@ export class DatabaseStorage implements IStorage {
     return result.rowCount ? result.rowCount > 0 : false;
   }
 
+  // Application Function Operations (Admin Only)
+  async getApplicationFunctions(): Promise<ApplicationFunction[]> {
+    return await db.select().from(applicationFunctions).orderBy(sql`${applicationFunctions.sortOrder} ASC`);
+  }
+
+  async getEnabledApplicationFunctions(): Promise<ApplicationFunction[]> {
+    return await db.select().from(applicationFunctions).where(
+      sql`${applicationFunctions.enabled} = 'true' OR ${applicationFunctions.enabled} = 't'`
+    ).orderBy(sql`${applicationFunctions.sortOrder} ASC`);
+  }
+
+  async getApplicationFunction(id: string): Promise<ApplicationFunction | undefined> {
+    const [func] = await db.select().from(applicationFunctions).where(eq(applicationFunctions.id, id));
+    return func;
+  }
+
+  async createApplicationFunction(func: InsertApplicationFunction): Promise<ApplicationFunction> {
+    const [newFunction] = await db
+      .insert(applicationFunctions)
+      .values(func)
+      .returning();
+    return newFunction;
+  }
+
+  async updateApplicationFunction(id: string, updates: Partial<ApplicationFunction>): Promise<ApplicationFunction | undefined> {
+    const [updatedFunction] = await db
+      .update(applicationFunctions)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(applicationFunctions.id, id))
+      .returning();
+    return updatedFunction;
+  }
+
+  async deleteApplicationFunction(id: string): Promise<boolean> {
+    const result = await db
+      .delete(applicationFunctions)
+      .where(eq(applicationFunctions.id, id));
+    return result.rowCount ? result.rowCount > 0 : false;
+  }
+
   // Prompt Template Functions (Admin Only)
   async getPromptTemplates(): Promise<PromptTemplate[]> {
     return await db.select().from(promptTemplates).orderBy(desc(promptTemplates.updatedAt));
+  }
+
+  async getPromptTemplatesByFunction(functionId: string): Promise<PromptTemplate[]> {
+    return await db.select().from(promptTemplates).where(eq(promptTemplates.functionId, functionId)).orderBy(desc(promptTemplates.updatedAt));
   }
 
   async getEnabledPromptTemplates(): Promise<PromptTemplate[]> {

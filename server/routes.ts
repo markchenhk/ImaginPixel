@@ -7,7 +7,9 @@ import {
   insertMessageSchema, 
   insertImageProcessingJobSchema,
   insertModelConfigurationSchema,
-  insertSavedImageSchema 
+  insertSavedImageSchema,
+  insertApplicationFunctionSchema,
+  insertPromptTemplateSchema 
 } from "@shared/schema";
 import multer from "multer";
 import path from "path";
@@ -1090,7 +1092,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Create prompt template (admin only)
   app.post("/api/prompt-templates", isAuthenticated, isAdmin, async (req: any, res) => {
     try {
-      const template = await storage.createPromptTemplate(req.body);
+      const parseResult = insertPromptTemplateSchema.safeParse(req.body);
+      if (!parseResult.success) {
+        return res.status(400).json({ message: "Invalid prompt template data", errors: parseResult.error.errors });
+      }
+
+      const templateData = { ...parseResult.data, createdBy: req.user.id };
+      const template = await storage.createPromptTemplate(templateData);
       res.json(template);
     } catch (error) {
       console.error('Error creating prompt template:', error);
@@ -1104,7 +1112,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.put("/api/prompt-templates/:id", isAuthenticated, isAdmin, async (req: any, res) => {
     try {
       const { id } = req.params;
-      const template = await storage.updatePromptTemplate(id, req.body);
+      
+      // For updates, we'll use a partial validation (allow omitting some fields)
+      const updateSchema = insertPromptTemplateSchema.partial();
+      const parseResult = updateSchema.safeParse(req.body);
+      if (!parseResult.success) {
+        return res.status(400).json({ message: "Invalid prompt template update data", errors: parseResult.error.errors });
+      }
+      
+      const template = await storage.updatePromptTemplate(id, parseResult.data);
       
       if (!template) {
         return res.status(404).json({ message: "Template not found" });
@@ -1148,6 +1164,113 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.error('Error incrementing template usage:', error);
       res.status(500).json({ 
         message: error instanceof Error ? error.message : "Failed to increment usage" 
+      });
+    }
+  });
+
+  // ==================== APPLICATION FUNCTION ROUTES ====================
+
+  // Get enabled application functions (accessible to all authenticated users)
+  app.get("/api/application-functions", isAuthenticated, async (req: any, res) => {
+    try {
+      const functions = await storage.getEnabledApplicationFunctions();
+      res.json(functions);
+    } catch (error) {
+      console.error('Error fetching application functions:', error);
+      res.status(500).json({ 
+        message: error instanceof Error ? error.message : "Failed to fetch application functions" 
+      });
+    }
+  });
+
+  // Get all application functions for admin (including disabled ones)
+  app.get("/api/admin/application-functions", isAuthenticated, isAdmin, async (req: any, res) => {
+    try {
+      const functions = await storage.getApplicationFunctions();
+      res.json(functions);
+    } catch (error) {
+      console.error('Error fetching all application functions:', error);
+      res.status(500).json({ 
+        message: error instanceof Error ? error.message : "Failed to fetch application functions" 
+      });
+    }
+  });
+
+  // Create application function (admin only)
+  app.post("/api/admin/application-functions", isAuthenticated, isAdmin, async (req: any, res) => {
+    try {
+      const parseResult = insertApplicationFunctionSchema.safeParse(req.body);
+      if (!parseResult.success) {
+        return res.status(400).json({ message: "Invalid application function data", errors: parseResult.error.errors });
+      }
+
+      const functionData = { ...parseResult.data, createdBy: req.user.id };
+      const func = await storage.createApplicationFunction(functionData);
+      res.json(func);
+    } catch (error) {
+      console.error('Error creating application function:', error);
+      res.status(500).json({ 
+        message: error instanceof Error ? error.message : "Failed to create application function" 
+      });
+    }
+  });
+
+  // Update application function (admin only)
+  app.put("/api/admin/application-functions/:id", isAuthenticated, isAdmin, async (req: any, res) => {
+    try {
+      const { id } = req.params;
+      
+      // For updates, we'll use a partial validation (allow omitting some fields)
+      const updateSchema = insertApplicationFunctionSchema.partial();
+      const parseResult = updateSchema.safeParse(req.body);
+      if (!parseResult.success) {
+        return res.status(400).json({ message: "Invalid application function update data", errors: parseResult.error.errors });
+      }
+      
+      const func = await storage.updateApplicationFunction(id, parseResult.data);
+      
+      if (!func) {
+        return res.status(404).json({ message: "Application function not found" });
+      }
+      
+      res.json(func);
+    } catch (error) {
+      console.error('Error updating application function:', error);
+      res.status(500).json({ 
+        message: error instanceof Error ? error.message : "Failed to update application function" 
+      });
+    }
+  });
+
+  // Delete application function (admin only)
+  app.delete("/api/admin/application-functions/:id", isAuthenticated, isAdmin, async (req: any, res) => {
+    try {
+      const { id } = req.params;
+      const success = await storage.deleteApplicationFunction(id);
+      
+      if (!success) {
+        return res.status(404).json({ message: "Application function not found" });
+      }
+      
+      res.json({ message: "Application function deleted successfully" });
+    } catch (error) {
+      console.error('Error deleting application function:', error);
+      res.status(500).json({ 
+        message: error instanceof Error ? error.message : "Failed to delete application function" 
+      });
+    }
+  });
+
+  // Get prompt templates by function (admin only)
+  app.get("/api/admin/application-functions/:id/templates", isAuthenticated, isAdmin, async (req: any, res) => {
+    try {
+      const { id } = req.params;
+      const templates = await storage.getPromptTemplatesByFunction(id);
+      res.json(templates);
+    } catch (error) {
+      console.error('Error fetching templates by function:', error);
+      res.status(500).json({ 
+        message: error instanceof Error ? error.message : "Failed to fetch templates" 
       });
     }
   });

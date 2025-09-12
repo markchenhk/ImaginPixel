@@ -40,8 +40,8 @@ export default function ImageEditor() {
     setCurrentConversation(conversation);
   };
 
-  const handleFunctionSelect = (functionType: 'image-enhancement' | 'image-to-video') => {
-    setSelectedFunction(functionType);
+  const handleFunctionSelect = (functionKey: 'image-enhancement' | 'image-to-video') => {
+    setSelectedFunction(functionKey);
     // Reset current conversation when switching functions
     setCurrentConversation(null);
   };
@@ -78,12 +78,14 @@ export default function ImageEditor() {
             </div>
             <div>
               <h1 className="font-semibold text-white">
-                {selectedFunction === 'image-enhancement' ? 'Image Enhancement' : 'Image to Video'}
+                {selectedFunction === 'image-enhancement' ? 'Image Enhancement' : selectedFunction === 'image-to-video' ? 'Image to Video' : 'AI Processing'}
               </h1>
               <p className="text-xs text-[#888888]">
                 {selectedFunction === 'image-enhancement' 
                   ? 'Professional product image enhancement'
-                  : 'Convert images to promotional videos'
+                  : selectedFunction === 'image-to-video'
+                  ? 'Convert images to promotional videos'
+                  : 'AI-powered image processing'
                 }
               </p>
             </div>

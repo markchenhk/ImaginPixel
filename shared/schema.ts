@@ -95,12 +95,27 @@ export const savedImages = pgTable("saved_images", {
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
+// Application functions (Admin editable) - e.g., "Product Image Enhancement", "Product Image to Video"
+export const applicationFunctions = pgTable("application_functions", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: varchar("name").notNull(), // e.g., "Product Image Enhancement"
+  description: varchar("description"),
+  functionKey: varchar("function_key").notNull().unique(), // e.g., "image-enhancement"
+  icon: varchar("icon").notNull().default("Wand2"), // Lucide icon name
+  enabled: text("enabled").notNull().default("true"),
+  sortOrder: integer("sort_order").notNull().default(0),
+  createdBy: varchar("created_by").notNull().references(() => users.id),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
 // Prompt templates for AI image processing (Admin only)
 export const promptTemplates = pgTable("prompt_templates", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   name: varchar("name").notNull(),
   description: varchar("description"),
-  category: varchar("category").notNull().default("image-enhancement"),
+  category: varchar("category").notNull().default("custom"),
+  functionId: varchar("function_id").notNull().references(() => applicationFunctions.id),
   template: text("template").notNull(),
   variables: text("variables").array().default([]), // Variables found in template like {variable}
   isSystem: text("is_system").notNull().default("false"), // System templates vs custom
@@ -145,6 +160,12 @@ export const insertSavedImageSchema = createInsertSchema(savedImages).omit({
   updatedAt: true,
 });
 
+export const insertApplicationFunctionSchema = createInsertSchema(applicationFunctions).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
 export const insertPromptTemplateSchema = createInsertSchema(promptTemplates).omit({
   id: true,
   createdAt: true,
@@ -171,6 +192,9 @@ export type InsertModelConfiguration = z.infer<typeof insertModelConfigurationSc
 export type SavedImage = typeof savedImages.$inferSelect;
 export type InsertSavedImage = z.infer<typeof insertSavedImageSchema>;
 
+export type ApplicationFunction = typeof applicationFunctions.$inferSelect;
+export type InsertApplicationFunction = z.infer<typeof insertApplicationFunctionSchema>;
+
 export type PromptTemplate = typeof promptTemplates.$inferSelect;
 export type InsertPromptTemplate = z.infer<typeof insertPromptTemplateSchema>;
 
@@ -180,6 +204,7 @@ export const usersRelations = relations(users, ({ many }) => ({
   savedImages: many(savedImages),
   modelConfigurations: many(modelConfigurations),
   promptTemplates: many(promptTemplates),
+  applicationFunctions: many(applicationFunctions),
 }));
 
 export const conversationsRelations = relations(conversations, ({ one, many }) => ({
@@ -219,10 +244,22 @@ export const savedImagesRelations = relations(savedImages, ({ one }) => ({
   }),
 }));
 
+export const applicationFunctionsRelations = relations(applicationFunctions, ({ one, many }) => ({
+  createdByUser: one(users, {
+    fields: [applicationFunctions.createdBy],
+    references: [users.id],
+  }),
+  promptTemplates: many(promptTemplates),
+}));
+
 export const promptTemplatesRelations = relations(promptTemplates, ({ one }) => ({
   createdByUser: one(users, {
     fields: [promptTemplates.createdBy],
     references: [users.id],
+  }),
+  applicationFunction: one(applicationFunctions, {
+    fields: [promptTemplates.functionId],
+    references: [applicationFunctions.id],
   }),
 }));
 
