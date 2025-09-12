@@ -123,6 +123,15 @@ export function EnhancedPromptEngineering({ isOpen, onClose, selectedFunction = 
     ? templates
     : templates.filter(t => t.functionId === selectedFunctionId);
 
+  // Group templates by function for the Functions tab
+  const templatesByFunction = templates.reduce((acc, template) => {
+    if (!acc[template.functionId]) {
+      acc[template.functionId] = [];
+    }
+    acc[template.functionId].push(template);
+    return acc;
+  }, {} as Record<string, PromptTemplate[]>);
+
   // Extract variables from template text
   const extractVariables = (template: string): string[] => {
     const matches = template.match(/\{([^}]+)\}/g);
@@ -413,41 +422,122 @@ export function EnhancedPromptEngineering({ isOpen, onClose, selectedFunction = 
                         const displayFunction = editingFunction && editingFunction.id === func.id ? editingFunction : func;
                         
                         return (
-                          <Card
-                            key={func.id}
-                            className={`p-3 border-[#3a3a3a] cursor-pointer hover:bg-[#3a3a3a] transition-colors ${
-                              displayFunction.enabled === "false" ? 'bg-[#2a2a2a]/50 opacity-60' : 'bg-[#2a2a2a]'
-                            }`}
-                            onClick={() => {
-                              setEditingFunction(func);
-                              setShowNewFunctionForm(false);
-                            }}
-                            data-testid={`card-function-${func.functionKey}`}
-                          >
-                            <div className="space-y-2">
-                              <div className="flex items-center justify-between">
-                                <span className="font-medium text-white text-sm truncate">{displayFunction.name}</span>
-                                <div className="flex items-center gap-1">
-                                  {displayFunction.enabled === "false" ? (
-                                    <div className="flex items-center gap-1">
-                                      <EyeOff className="h-3 w-3 text-gray-500" />
-                                      <span className="text-xs text-gray-500">Disabled</span>
-                                    </div>
-                                  ) : (
-                                    <div className="flex items-center gap-1">
-                                      <Eye className="h-3 w-3 text-green-500" />
-                                      <span className="text-xs text-green-500">Enabled</span>
-                                    </div>
-                                  )}
+                          <div key={func.id} className="space-y-2">
+                            <Card
+                              className={`p-3 border-[#3a3a3a] cursor-pointer hover:bg-[#3a3a3a] transition-colors ${
+                                displayFunction.enabled === "false" ? 'bg-[#2a2a2a]/50 opacity-60' : 'bg-[#2a2a2a]'
+                              }`}
+                              onClick={() => {
+                                setEditingFunction(func);
+                                setShowNewFunctionForm(false);
+                              }}
+                              data-testid={`card-function-${func.functionKey}`}
+                            >
+                              <div className="space-y-2">
+                                <div className="flex items-center justify-between">
+                                  <span className="font-medium text-white text-sm truncate">{displayFunction.name}</span>
+                                  <div className="flex items-center gap-1">
+                                    {displayFunction.enabled === "false" ? (
+                                      <div className="flex items-center gap-1">
+                                        <EyeOff className="h-3 w-3 text-gray-500" />
+                                        <span className="text-xs text-gray-500">Disabled</span>
+                                      </div>
+                                    ) : (
+                                      <div className="flex items-center gap-1">
+                                        <Eye className="h-3 w-3 text-green-500" />
+                                        <span className="text-xs text-green-500">Enabled</span>
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>
+                                <p className="text-xs text-gray-400 line-clamp-2">{displayFunction.description}</p>
+                                <div className="flex items-center justify-between text-xs text-gray-500">
+                                  <span>Key: {displayFunction.functionKey}</span>
+                                  <span>Order: {displayFunction.sortOrder || 0}</span>
                                 </div>
                               </div>
-                              <p className="text-xs text-gray-400 line-clamp-2">{displayFunction.description}</p>
-                              <div className="flex items-center justify-between text-xs text-gray-500">
-                                <span>Key: {displayFunction.functionKey}</span>
-                                <span>Order: {displayFunction.sortOrder || 0}</span>
+                            </Card>
+                            
+                            {/* Hot Keys (Templates) */}
+                            {templatesByFunction[func.id] && templatesByFunction[func.id].length > 0 && (
+                              <div className="ml-2 space-y-1">
+                                <div className="flex items-center gap-1 mb-2">
+                                  <Hash className="h-3 w-3 text-[#ffd700]" />
+                                  <span className="text-xs font-medium text-[#ffd700]">Hot Keys ({templatesByFunction[func.id].length})</span>
+                                </div>
+                                {templatesByFunction[func.id]
+                                  .filter(template => template.enabled !== "false")
+                                  .slice(0, 3) // Show only first 3 templates
+                                  .map(template => (
+                                    <div
+                                      key={template.id}
+                                      className="flex items-center justify-between p-2 bg-[#1a1a1a] border border-[#333] rounded text-xs cursor-pointer hover:bg-[#2a2a2a] transition-colors"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setEditingTemplate(template);
+                                        setActiveTab('templates');
+                                        setShowNewTemplateForm(false);
+                                      }}
+                                      data-testid={`hotkey-template-${template.id}`}
+                                    >
+                                      <span className="text-gray-300 truncate flex-1">{template.name}</span>
+                                      <div className="flex items-center gap-1 text-gray-500">
+                                        <span>{template.usage || 0}</span>
+                                        <Sparkles className="h-3 w-3" />
+                                      </div>
+                                    </div>
+                                  ))}
+                                
+                                {templatesByFunction[func.id].length > 3 && (
+                                  <div className="text-xs text-gray-500 ml-2">
+                                    +{templatesByFunction[func.id].length - 3} more templates...
+                                  </div>
+                                )}
+                                
+                                {/* Quick Add Template Button */}
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="w-full h-6 text-xs text-[#ffd700] hover:bg-[#ffd700]/10 border border-[#ffd700]/30"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    resetNewTemplate();
+                                    setNewTemplate(prev => ({ ...prev, functionId: func.id }));
+                                    setShowNewTemplateForm(true);
+                                    setActiveTab('templates');
+                                    setEditingTemplate(null);
+                                  }}
+                                  data-testid={`button-add-template-${func.functionKey}`}
+                                >
+                                  <Plus className="h-3 w-3 mr-1" />
+                                  Add Template
+                                </Button>
                               </div>
-                            </div>
-                          </Card>
+                            )}
+                            
+                            {/* Show Add Template button even if no templates exist */}
+                            {(!templatesByFunction[func.id] || templatesByFunction[func.id].length === 0) && (
+                              <div className="ml-2">
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="w-full h-6 text-xs text-gray-500 hover:bg-[#ffd700]/10 hover:text-[#ffd700] border border-gray-600 hover:border-[#ffd700]/30"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    resetNewTemplate();
+                                    setNewTemplate(prev => ({ ...prev, functionId: func.id }));
+                                    setShowNewTemplateForm(true);
+                                    setActiveTab('templates');
+                                    setEditingTemplate(null);
+                                  }}
+                                  data-testid={`button-add-first-template-${func.functionKey}`}
+                                >
+                                  <Plus className="h-3 w-3 mr-1" />
+                                  Add First Template
+                                </Button>
+                              </div>
+                            )}
+                          </div>
                         );
                       })}
                   </div>
