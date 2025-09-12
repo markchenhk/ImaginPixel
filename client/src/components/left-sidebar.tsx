@@ -1,168 +1,140 @@
-import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
-  Settings,
-  Plus,
-  MessageSquare,
-  Images,
-  Clock,
+  Wand2,
+  Video,
+  ImageIcon,
+  Sparkles,
+  Settings2,
+  ChevronRight,
 } from "lucide-react";
-import type { Conversation } from "@shared/schema";
 
 interface LeftSidebarProps {
-  onNewChatClick: () => void;
-  onConversationSelect: (conversationId: string) => void;
-  onGalleryClick: () => void;
-  currentConversationId: string | null;
-  currentView: 'chat' | 'gallery';
-}
-
-interface ConversationWithMessages extends Conversation {
-  messages: any[];
+  selectedFunction: 'image-enhancement' | 'image-to-video';
+  onFunctionSelect: (functionType: 'image-enhancement' | 'image-to-video') => void;
+  onConfigureFunction: (functionType: 'image-enhancement' | 'image-to-video') => void;
 }
 
 export function LeftSidebar({ 
-  onNewChatClick,
-  onConversationSelect,
-  onGalleryClick,
-  currentConversationId,
-  currentView
+  selectedFunction,
+  onFunctionSelect,
+  onConfigureFunction
 }: LeftSidebarProps) {
-  // Fetch conversation history
-  const { data: conversations = [] } = useQuery<ConversationWithMessages[]>({
-    queryKey: ['/api/conversations/history'],
-  });
-
-  const formatTimeAgo = (createdAt: string) => {
-    const now = new Date();
-    const created = new Date(createdAt);
-    const diffInHours = Math.floor((now.getTime() - created.getTime()) / (1000 * 60 * 60));
-    
-    if (diffInHours < 1) return "Just now";
-    if (diffInHours < 24) return `${diffInHours}h ago`;
-    const diffInDays = Math.floor(diffInHours / 24);
-    if (diffInDays < 7) return `${diffInDays}d ago`;
-    return created.toLocaleDateString();
-  };
-
-  const truncateTitle = (title: string, maxLength: number = 30) => {
-    if (title.length <= maxLength) return title;
-    return title.substring(0, maxLength) + "...";
-  };
+  const functions = [
+    {
+      id: 'image-enhancement' as const,
+      title: 'Product Image Enhancement',
+      description: 'Transform product photos into professional marketplace-ready images',
+      icon: Wand2,
+      features: ['Background removal', 'Lighting enhancement', 'Color correction', 'Style transfer']
+    },
+    {
+      id: 'image-to-video' as const,
+      title: 'Product Image to Video',
+      description: 'Convert static product images into engaging promotional videos',
+      icon: Video,
+      features: ['Animation effects', '3D transforms', 'Motion graphics', 'Promotional clips']
+    }
+  ];
 
   return (
-    <div className="w-64 h-full bg-[#1a1a1a] border-r border-[#2a2a2a] flex flex-col">
+    <div className="w-80 h-full bg-[#1a1a1a] border-r border-[#2a2a2a] flex flex-col">
       {/* Header */}
       <div className="p-4 border-b border-[#2a2a2a]">
-        <Button
-          onClick={onNewChatClick}
-          className="w-full border border-[#ffd700] bg-[#ffd700]/10 hover:bg-[#ffd700]/20 text-[#ffd700] font-medium mb-3"
-          data-testid="new-chat-button"
-        >
-          <Plus className="w-4 h-4 mr-2" />
-          New Chat
-        </Button>
-        
-        {/* View Toggle */}
-        <div className="flex rounded-lg bg-[#2a2a2a] p-1">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => currentView !== 'chat' && onNewChatClick()}
-            className={`flex-1 h-8 ${
-              currentView === 'chat' 
-                ? 'bg-white/10 text-white border border-white/20' 
-                : 'text-[#e0e0e0] hover:bg-[#3a3a3a]'
-            }`}
-            data-testid="chat-view-button"
-          >
-            <MessageSquare className="w-3 h-3 mr-2" />
-            Chat
-          </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={onGalleryClick}
-            className={`flex-1 h-8 ${
-              currentView === 'gallery' 
-                ? 'bg-white/10 text-white border border-white/20' 
-                : 'text-[#e0e0e0] hover:bg-[#3a3a3a]'
-            }`}
-            data-testid="gallery-view-button"
-          >
-            <Images className="w-3 h-3 mr-2" />
-            Gallery
-          </Button>
+        <div className="flex items-center gap-3 mb-4">
+          <div className="w-8 h-8 border border-[#ffd700] bg-[#ffd700]/10 rounded-lg flex items-center justify-center">
+            <ImageIcon className="w-4 h-4 text-[#ffd700]" />
+          </div>
+          <div>
+            <h2 className="font-semibold text-white">AI Functions</h2>
+            <p className="text-xs text-[#888888]">Select your workflow</p>
+          </div>
         </div>
       </div>
 
-      {/* Content */}
+      {/* Function Selection */}
       <ScrollArea className="flex-1">
-        {currentView === 'chat' ? (
-          <div className="p-2">
-            {/* Recent Conversations Header */}
-            <div className="flex items-center gap-2 px-2 py-2 text-xs font-medium text-[#888888] uppercase tracking-wide">
-              <Clock className="w-3 h-3" />
-              Recent Chats
-            </div>
+        <div className="p-4 space-y-4">
+          {functions.map((func) => {
+            const IconComponent = func.icon;
+            const isSelected = selectedFunction === func.id;
             
-            {/* Conversations List */}
-            {conversations.length === 0 ? (
-              <div className="px-2 py-8 text-center text-sm text-[#888888]">
-                No conversations yet
-                <br />
-                <span className="text-xs">Start a new chat to begin</span>
-              </div>
-            ) : (
-              <div className="space-y-1">
-                {conversations
-                  .filter(conversation => conversation?.id) // Filter out invalid entries
-                  .map((conversation) => (
-                  <Button
-                    key={conversation.id}
-                    variant="ghost"
-                    onClick={() => onConversationSelect(conversation.id)}
-                    className={`w-full justify-start h-auto p-3 text-left hover:bg-[#2a2a2a] transition-colors ${
-                      currentConversationId === conversation.id 
-                        ? 'bg-[#2a2a2a] border-l-2 border-[#666666]' 
-                        : ''
-                    }`}
-                    data-testid={`conversation-${conversation.id}`}
-                  >
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-start justify-between gap-2">
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium text-[#e0e0e0] truncate">
-                            {truncateTitle(conversation.title)}
-                          </p>
-                          <p className="text-xs text-[#888888] mt-1">
-                            {formatTimeAgo(conversation.createdAt.toString())}
-                          </p>
-                        </div>
+            return (
+              <Card 
+                key={func.id}
+                className={`cursor-pointer transition-all duration-200 ${
+                  isSelected 
+                    ? 'bg-[#2a2a2a] border-[#ffd700] border-2' 
+                    : 'bg-[#0f0f0f] border-[#2a2a2a] hover:border-[#3a3a3a]'
+                }`}
+                onClick={() => onFunctionSelect(func.id)}
+                data-testid={`function-card-${func.id}`}
+              >
+                <CardHeader className="pb-3">
+                  <div className="flex items-start justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
+                        isSelected ? 'bg-[#ffd700]/20 border border-[#ffd700]' : 'bg-[#2a2a2a]'
+                      }`}>
+                        <IconComponent className={`w-5 h-5 ${
+                          isSelected ? 'text-[#ffd700]' : 'text-[#e0e0e0]'
+                        }`} />
+                      </div>
+                      <div className="flex-1">
+                        <CardTitle className={`text-sm ${
+                          isSelected ? 'text-[#ffd700]' : 'text-white'
+                        }`}>
+                          {func.title}
+                        </CardTitle>
                       </div>
                     </div>
-                  </Button>
-                ))}
-              </div>
-            )}
-          </div>
-        ) : (
-          <div className="p-4 text-center">
-            <Images className="w-12 h-12 mx-auto text-[#888888] mb-4" />
-            <p className="text-sm text-[#e0e0e0] mb-2">Gallery View</p>
-            <p className="text-xs text-[#888888]">
-              Your saved images will appear in the main panel
-            </p>
-          </div>
-        )}
+                    {isSelected && (
+                      <Sparkles className="w-4 h-4 text-[#ffd700]" />
+                    )}
+                  </div>
+                </CardHeader>
+                <CardContent className="pt-0">
+                  <p className="text-xs text-[#888888] mb-3 leading-relaxed">
+                    {func.description}
+                  </p>
+                  <div className="space-y-1">
+                    {func.features.map((feature, index) => (
+                      <div key={index} className="flex items-center gap-2">
+                        <div className="w-1 h-1 bg-[#666666] rounded-full" />
+                        <span className="text-xs text-[#aaaaaa]">{feature}</span>
+                      </div>
+                    ))}
+                  </div>
+                  
+                  {isSelected && (
+                    <Button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onConfigureFunction(func.id);
+                      }}
+                      variant="outline"
+                      size="sm"
+                      className="w-full mt-3 border-[#ffd700] text-[#ffd700] hover:bg-[#ffd700]/10 text-xs"
+                      data-testid={`configure-${func.id}`}
+                    >
+                      <Settings2 className="w-3 h-3 mr-2" />
+                      Configure Prompts
+                      <ChevronRight className="w-3 h-3 ml-auto" />
+                    </Button>
+                  )}
+                </CardContent>
+              </Card>
+            );
+          })}
+        </div>
       </ScrollArea>
 
-      {/* Settings at Bottom */}
-      <div className="p-2 border-t border-[#2a2a2a]">
-        <div className="text-xs text-gray-500 text-center">
-          Admin settings in top bar
+      {/* Help Section */}
+      <div className="p-4 border-t border-[#2a2a2a]">
+        <div className="text-xs text-[#888888] text-center">
+          <p>Select a function above to get started</p>
+          <p className="mt-1">Configure prompts for optimal results</p>
         </div>
       </div>
     </div>

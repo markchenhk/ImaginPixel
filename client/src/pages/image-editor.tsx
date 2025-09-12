@@ -26,7 +26,7 @@ export default function ImageEditor() {
   const [configOpen, setConfigOpen] = useState(false);
   const [promptEngineeringOpen, setPromptEngineeringOpen] = useState(false);
   const [processedImageUrl, setProcessedImageUrl] = useState<string | null>(null);
-  const [currentView, setCurrentView] = useState<'chat' | 'gallery'>('chat');
+  const [selectedFunction, setSelectedFunction] = useState<'image-enhancement' | 'image-to-video'>('image-enhancement');
 
   // Fetch model configuration for header display (admin only)
   const { data: modelConfig } = useQuery<ModelConfiguration>({
@@ -40,19 +40,15 @@ export default function ImageEditor() {
     setCurrentConversation(conversation);
   };
 
-  const handleNewChat = () => {
+  const handleFunctionSelect = (functionType: 'image-enhancement' | 'image-to-video') => {
+    setSelectedFunction(functionType);
+    // Reset current conversation when switching functions
     setCurrentConversation(null);
-    setCurrentView('chat');
   };
 
-  const handleConversationSelect = (conversationId: string) => {
-    // Find the conversation from query cache or set it directly
-    setCurrentConversation({ id: conversationId } as Conversation);
-    setCurrentView('chat');
-  };
-
-  const handleGalleryClick = () => {
-    setCurrentView('gallery');
+  const handleConfigureFunction = (functionType: 'image-enhancement' | 'image-to-video') => {
+    setPromptEngineeringOpen(true);
+    // You could also store the function type to configure specific prompts
   };
 
   const handleImageProcessed = (originalUrl: string, processedUrl: string) => {
@@ -73,75 +69,63 @@ export default function ImageEditor() {
             size="sm"
             onClick={() => setLocation('/')}
             className="text-[#e0e0e0] hover:bg-[#2a2a2a] hover:text-white"
-            data-testid="button-home"
+            data-testid="home-button"
           >
-            <ArrowLeft className="w-4 h-4 mr-2" />
-            Home
+            <Home className="w-4 h-4" />
           </Button>
-          <div className="w-px h-6 bg-[#2a2a2a]" />
+          
+          <div className="h-6 w-px bg-[#2a2a2a]" />
+          
           <div className="flex items-center gap-3">
-            <div className="w-8 h-8 bg-[#ffd700] rounded-lg flex items-center justify-center">
-              <Wand2 className="w-4 h-4 text-black" />
+            <div className="w-8 h-8 border border-[#ffd700] bg-[#ffd700]/10 rounded-lg flex items-center justify-center">
+              <Wand2 className="w-4 h-4 text-[#ffd700]" />
             </div>
-            <h1 className="text-lg font-semibold text-white">
-              AI Image Editor
-            </h1>
+            <div>
+              <h1 className="font-semibold text-white">
+                {selectedFunction === 'image-enhancement' ? 'Image Enhancement' : 'Image to Video'}
+              </h1>
+              <p className="text-xs text-[#888888]">
+                {selectedFunction === 'image-enhancement' 
+                  ? 'Professional product image enhancement'
+                  : 'Convert images to promotional videos'
+                }
+              </p>
+            </div>
           </div>
-        </div>
-        
-        <div className="flex items-center gap-4">
-          {/* User Display */}
-          {user && (
-            <div className="flex items-center gap-2 text-sm text-[#e0e0e0]">
-              {user.profileImageUrl ? (
-                <img 
-                  src={user.profileImageUrl} 
-                  alt="Profile" 
-                  className="w-6 h-6 rounded-full object-cover"
-                />
-              ) : (
-                <User className="w-4 h-4" />
-              )}
-              <span data-testid="user-name">
-                {user.firstName} {user.lastName}
-              </span>
-              {isAdmin && (
-                <Badge variant="secondary" className="text-xs bg-[#ffd700] text-black">
-                  Admin
-                </Badge>
-              )}
-            </div>
-          )}
-          
-          {/* Model Status Indicator (admin only) */}
-          {isAdmin && (
-            <div className="flex items-center gap-2 text-sm text-[#e0e0e0]">
-              <div className={`w-2 h-2 rounded-full ${
-                modelConfig?.apiKeyConfigured === 'true' ? 'bg-green-500' : 'bg-yellow-500'
-              }`} />
-              <span data-testid="selected-model">
+
+          {/* Model Display - Show current active model */}
+          {isAdmin && modelConfig && (
+            <div className="flex items-center gap-2">
+              <div className="h-6 w-px bg-[#2a2a2a]" />
+              <Badge variant="outline" className="border-[#3a3a3a] text-[#e0e0e0] bg-[#2a2a2a]">
                 {getModelDisplayName(getActiveModel(modelConfig))}
-              </span>
+              </Badge>
             </div>
           )}
+        </div>
+
+        <div className="flex items-center gap-2">
+          <div className="text-xs text-[#888888]">
+            Welcome, {user?.firstName || user?.username}
+          </div>
           
-          
-          {/* Admin Action Buttons */}
+          <div className="h-6 w-px bg-[#2a2a2a] mx-2" />
+
+          {/* Prompt Engineering Button */}
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setPromptEngineeringOpen(true)}
+            data-testid="prompt-engineering-button"
+            className="text-[#e0e0e0] hover:bg-[#2a2a2a] hover:text-white"
+            title="Prompt Engineering"
+          >
+            <Wand2 className="w-4 h-4" />
+          </Button>
+
+          {/* Model Configuration (Admin Only) */}
           {isAdmin && (
             <div className="flex items-center gap-2">
-              {/* Prompt Engineering Button */}
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setPromptEngineeringOpen(true)}
-                data-testid="prompt-engineering-button"
-                className="text-[#e0e0e0] hover:bg-[#2a2a2a] hover:text-white"
-                title="Prompt Engineering"
-              >
-                <Wand2 className="w-4 h-4" />
-              </Button>
-              
-              {/* Settings Button */}
               <Button
                 variant="ghost"
                 size="sm"
@@ -172,15 +156,13 @@ export default function ImageEditor() {
       <div className="flex-1 flex overflow-hidden">
         {/* Left Sidebar */}
         <LeftSidebar 
-          onNewChatClick={handleNewChat}
-          onConversationSelect={handleConversationSelect}
-          onGalleryClick={handleGalleryClick}
-          currentConversationId={currentConversation?.id || null}
-          currentView={currentView}
+          selectedFunction={selectedFunction}
+          onFunctionSelect={handleFunctionSelect}
+          onConfigureFunction={handleConfigureFunction}
         />
         
         {/* Main Content Area with Resizable Panels */}
-        {currentView === 'chat' ? (
+        {selectedFunction === 'image-enhancement' ? (
           <ResizablePanels
             defaultLeftWidth={35}
             minLeftWidth={25}
@@ -271,7 +253,26 @@ export default function ImageEditor() {
             }
           />
         ) : (
-          <GalleryView />
+          <div className="flex-1 flex items-center justify-center text-[#888888] bg-[#1a1a1a]">
+            <div className="text-center">
+              <div className="w-16 h-16 border-2 border-dashed border-[#444444] rounded-lg flex items-center justify-center mb-4 mx-auto">
+                <Wand2 className="w-6 h-6 text-[#666666]" />
+              </div>
+              <div className="text-sm font-medium text-[#e0e0e0] mb-2">Image to Video Coming Soon</div>
+              <div className="text-xs text-[#888888]">This feature will convert static product images</div>
+              <div className="text-xs text-[#888888]">into engaging promotional videos</div>
+              <div className="mt-4">
+                <Button 
+                  variant="outline"
+                  size="sm"
+                  onClick={() => handleFunctionSelect('image-enhancement')}
+                  className="border-[#ffd700] text-[#ffd700] hover:bg-[#ffd700]/10"
+                >
+                  Try Image Enhancement
+                </Button>
+              </div>
+            </div>
+          </div>
         )}
 
 
