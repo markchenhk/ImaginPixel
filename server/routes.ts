@@ -1067,7 +1067,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       // Use resolved configuration for API access
-      const selectedModel = modelConfig.selectedModel || 'google/gemini-2.5-flash-image';
+      // For video processing, use a model that supports image analysis
+      let selectedModel = modelConfig.selectedModel || 'google/gemini-2.5-flash-image';
+      
+      // Fix model name for video processing - remove :free suffix which may not be valid
+      if (selectedModel.includes(':free')) {
+        selectedModel = selectedModel.replace(':free', '');
+      }
+      
+      // Ensure we use a model that supports vision tasks
+      if (!selectedModel.includes('gemini-2.5-flash')) {
+        selectedModel = 'google/gemini-2.5-flash-image-preview';
+      }
 
       // Create user message (include the final image URL for traceability)
       const userMessage = await storage.createMessage({
