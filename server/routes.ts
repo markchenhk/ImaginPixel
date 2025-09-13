@@ -74,28 +74,71 @@ async function generateVideoFromImage(
       
       console.log('[Video Generation] Source image dimensions:', sourceWidth, 'x', sourceHeight);
       
-      // Create frames with DRAMATIC motion effects that are clearly visible
+      // Parse AI analysis to determine motion type
+      console.log('[Video Generation] Parsing AI analysis for motion effects...');
+      let motionType = 'zoom'; // default fallback
+      let rotationAmount = 360; // default for 360 rotation
+      
+      try {
+        // Extract JSON from AI analysis  
+        const jsonMatch = analysis.match(/```json\s*([\s\S]*?)\s*```/);
+        if (jsonMatch) {
+          const aiData = JSON.parse(jsonMatch[1]);
+          const movements = aiData.cameraMovements || [];
+          const movementText = movements.join(' ').toLowerCase();
+          
+          console.log('[Video Generation] AI suggested movements:', movements);
+          
+          // Determine motion based on AI analysis
+          if (movementText.includes('360') || movementText.includes('rotation')) {
+            motionType = 'rotation360';
+            console.log('[Video Generation] Implementing 360-degree rotation as suggested by AI');
+          } else if (movementText.includes('fly') || movementText.includes('circle')) {
+            motionType = 'flythrough';
+            console.log('[Video Generation] Implementing fly-through effect as suggested by AI');
+          } else if (movementText.includes('zoom') || movementText.includes('pan')) {
+            motionType = 'zoom';
+            console.log('[Video Generation] Implementing zoom effect as suggested by AI');
+          }
+        }
+      } catch (parseError) {
+        console.warn('[Video Generation] Could not parse AI analysis, using default zoom effect');
+      }
+      
+      // Create frames based on AI analysis
       for (let frame = 0; frame < frameCount; frame++) {
         const progress = frame / (frameCount - 1); // 0 to 1
         
-        // DRAMATIC zoom effect: start at 1.5x, end at 1.0x (obvious zoom out)
-        const scale = 1.5 - (progress * 0.5);
+        let scale = 1.0;
+        let rotation = 0;
         
-        // Add rotation for even more obvious motion
-        const rotation = progress * 10; // 0 to 10 degrees rotation
+        // Implement motion based on AI suggestions
+        if (motionType === 'rotation360') {
+          // Full 360-degree rotation as requested
+          scale = 1.1 + (Math.sin(progress * Math.PI * 2) * 0.1); // Gentle zoom variation
+          rotation = progress * 360; // Full 360-degree rotation
+        } else if (motionType === 'flythrough') {
+          // Circular fly-through effect
+          scale = 1.3 - (progress * 0.3); // Zoom out
+          rotation = progress * 180; // 180-degree rotation for fly-through
+        } else {
+          // Default zoom effect
+          scale = 1.5 - (progress * 0.5); // Zoom out from 1.5x to 1.0x
+          rotation = progress * 15; // Gentle rotation
+        }
         
-        // Calculate scaled dimensions - much more dramatic
+        // Calculate scaled dimensions
         const scaledWidth = Math.round(targetWidth * scale);
         const scaledHeight = Math.round(targetHeight * scale);
         
-        // Generate frame with Sharp - with dramatic effects
+        // Generate frame with Sharp
         const framePath = path.join(frameDir, `frame_${frame.toString().padStart(4, '0')}.jpg`);
         
         if (frame % 50 === 0) {
-          console.log(`[Video Generation] Frame ${frame}: scale=${scale.toFixed(3)} rotation=${rotation.toFixed(1)}° size=${scaledWidth}x${scaledHeight}`);
+          console.log(`[Video Generation] Frame ${frame}: ${motionType} scale=${scale.toFixed(3)} rotation=${rotation.toFixed(1)}° size=${scaledWidth}x${scaledHeight}`);
         }
         
-        // Create dramatic motion: zoom + rotation + position shift
+        // Create motion effects based on AI analysis
         await sharp(tempImagePath)
           .rotate(rotation, { background: { r: 0, g: 0, b: 0, alpha: 0 }})
           .resize(scaledWidth, scaledHeight, { 
@@ -105,7 +148,7 @@ async function generateVideoFromImage(
           .resize(targetWidth, targetHeight, { 
             fit: 'contain',
             position: 'center',
-            background: { r: 20, g: 20, b: 20 } // Dark gray background
+            background: { r: 20, g: 20, b: 20 }
           })
           .jpeg({ quality: 90 })
           .toFile(framePath);
