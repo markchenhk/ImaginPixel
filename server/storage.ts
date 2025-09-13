@@ -5,6 +5,8 @@ import {
   type InsertMessage,
   type ImageProcessingJob,
   type InsertImageProcessingJob,
+  type VideoProcessingJob,
+  type InsertVideoProcessingJob,
   type ModelConfiguration,
   type InsertModelConfiguration,
   type ConversationWithMessages,
@@ -20,6 +22,7 @@ import {
   conversations,
   messages,
   imageProcessingJobs,
+  videoProcessingJobs,
   modelConfigurations,
   savedImages,
   promptTemplates,
@@ -54,6 +57,12 @@ export interface IStorage {
   getImageProcessingJobByMessage(messageId: string): Promise<ImageProcessingJob | undefined>;
   createImageProcessingJob(job: InsertImageProcessingJob): Promise<ImageProcessingJob>;
   updateImageProcessingJob(id: string, updates: Partial<ImageProcessingJob>): Promise<ImageProcessingJob | undefined>;
+
+  // Video Processing Jobs
+  getVideoProcessingJob(id: string): Promise<VideoProcessingJob | undefined>;
+  getVideoProcessingJobByMessage(messageId: string): Promise<VideoProcessingJob | undefined>;
+  createVideoProcessingJob(job: InsertVideoProcessingJob): Promise<VideoProcessingJob>;
+  updateVideoProcessingJob(id: string, updates: Partial<VideoProcessingJob>): Promise<VideoProcessingJob | undefined>;
 
   // Model Configuration
   getModelConfiguration(userId?: string): Promise<ModelConfiguration | undefined>;
@@ -230,6 +239,48 @@ export class DatabaseStorage implements IStorage {
       .update(imageProcessingJobs)
       .set(setData)
       .where(eq(imageProcessingJobs.id, id))
+      .returning();
+    return job;
+  }
+
+  // Video Processing Jobs
+  async getVideoProcessingJob(id: string): Promise<VideoProcessingJob | undefined> {
+    const [job] = await db.select().from(videoProcessingJobs).where(eq(videoProcessingJobs.id, id));
+    return job;
+  }
+
+  async getVideoProcessingJobByMessage(messageId: string): Promise<VideoProcessingJob | undefined> {
+    const [job] = await db
+      .select()
+      .from(videoProcessingJobs)
+      .where(eq(videoProcessingJobs.messageId, messageId));
+    return job;
+  }
+
+  async createVideoProcessingJob(insertJob: InsertVideoProcessingJob): Promise<VideoProcessingJob> {
+    const [job] = await db
+      .insert(videoProcessingJobs)
+      .values({
+        messageId: insertJob.messageId,
+        originalImageUrl: insertJob.originalImageUrl,
+        prompt: insertJob.prompt,
+        model: insertJob.model,
+        status: insertJob.status || 'pending'
+      })
+      .returning();
+    return job;
+  }
+
+  async updateVideoProcessingJob(id: string, updates: Partial<VideoProcessingJob>): Promise<VideoProcessingJob | undefined> {
+    const setData: any = { ...updates };
+    if (updates.status === 'completed' || updates.status === 'error') {
+      setData.completedAt = new Date();
+    }
+    
+    const [job] = await db
+      .update(videoProcessingJobs)
+      .set(setData)
+      .where(eq(videoProcessingJobs.id, id))
       .returning();
     return job;
   }

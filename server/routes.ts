@@ -6,11 +6,13 @@ import {
   insertConversationSchema, 
   insertMessageSchema, 
   insertImageProcessingJobSchema,
+  insertVideoProcessingJobSchema,
   insertModelConfigurationSchema,
   insertSavedImageSchema,
   insertApplicationFunctionSchema,
   insertPromptTemplateSchema 
 } from "@shared/schema";
+import { z } from "zod";
 import multer from "multer";
 import path from "path";
 import fs from "fs";
@@ -643,6 +645,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Mock video endpoint for testing
+  app.get("/api/mock-video.mp4", (req, res) => {
+    // Return a minimal valid MP4 header that video players can handle gracefully
+    res.setHeader('Content-Type', 'video/mp4');
+    res.setHeader('Content-Disposition', 'inline');
+    res.setHeader('Accept-Ranges', 'bytes');
+    
+    // Minimal MP4 file structure (just headers, no actual video content)
+    // This prevents player errors while indicating the video is a placeholder
+    const minimalMp4 = Buffer.from([
+      0x00, 0x00, 0x00, 0x20, // Box size
+      0x66, 0x74, 0x79, 0x70, // 'ftyp' box
+      0x69, 0x73, 0x6F, 0x6D, // 'isom' brand
+      0x00, 0x00, 0x02, 0x00, // Version
+      0x69, 0x73, 0x6F, 0x6D, // Compatible brands
+      0x69, 0x73, 0x6F, 0x32,
+      0x61, 0x76, 0x63, 0x31,
+      0x6D, 0x70, 0x34, 0x31
+    ]);
+    
+    res.setHeader('Content-Length', minimalMp4.length.toString());
+    res.status(200).send(minimalMp4);
+  });
+
   // Process image with AI
   app.post("/api/process-image", isAuthenticated, async (req: any, res) => {
     try {
@@ -797,6 +823,183 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       res.status(500).json({ 
         message: error instanceof Error ? error.message : "Failed to fetch processing job" 
+      });
+    }
+  });
+
+  // Process image to video with AI
+  app.post("/api/process-video", isAuthenticated, async (req: any, res) => {
+    try {
+      // Validate request body with Zod
+      const videoRequestSchema = insertVideoProcessingJobSchema
+        .pick({ prompt: true })
+        .extend({
+          conversationId: z.string(),
+          imageUrl: z.string().optional()
+        });
+      
+      const validatedData = videoRequestSchema.parse(req.body);
+      const { conversationId, imageUrl, prompt } = validatedData;
+      
+      const userId = req.user?.claims?.sub || req.user?.id || 'default';
+      console.log('[Video Processing] Request from user:', userId);
+
+      // Verify conversation ownership for security
+      const conversation = await storage.getConversation(conversationId);
+      if (!conversation || conversation.userId !== userId) {
+        return res.status(403).json({ 
+          message: "Unauthorized: You don't have access to this conversation" 
+        });
+      }
+
+      // If no imageUrl provided, get the latest image from conversation context
+      let finalImageUrl = imageUrl;
+      if (!finalImageUrl) {
+        finalImageUrl = await storage.getLatestImageFromConversation(conversationId);
+        if (!finalImageUrl) {
+          return res.status(400).json({ 
+            message: "No image found in conversation context. Please upload an image first." 
+          });
+        }
+      }
+
+      // Get user's model configuration with fallback to global default
+      let modelConfig = await storage.getModelConfiguration(userId);
+      
+      if (!modelConfig) {
+        // Fallback to global default configuration
+        modelConfig = await storage.getGlobalDefaultConfiguration();
+      }
+      
+      if (!modelConfig) {
+        // Final fallback to admin configuration if no global default exists
+        const adminUser = await storage.getUserByRole('admin');
+        if (adminUser?.id) {
+          modelConfig = await storage.getModelConfiguration(adminUser.id);
+        }
+      }
+      
+      console.log('[Video Processing] Model config retrieved for user:', userId, 'Has config:', modelConfig ? 'YES' : 'NO');
+      
+      if (!modelConfig || !modelConfig.apiKey) {
+        return res.status(500).json({ 
+          message: "OpenRouter API key not configured. Please contact administrator." 
+        });
+      }
+      
+      // Use resolved configuration for API access
+      const selectedModel = modelConfig.selectedModel || 'google/gemini-2.5-flash-image';
+
+      // Create user message (include the final image URL for traceability)
+      const userMessage = await storage.createMessage({
+        conversationId,
+        role: 'user',
+        content: prompt,
+        imageUrl: finalImageUrl, // Use finalImageUrl for consistency and traceability
+        mediaType: 'image',
+        processingStatus: 'completed'
+      });
+
+      // Create AI message placeholder
+      const aiMessage = await storage.createMessage({
+        conversationId,
+        role: 'assistant',
+        content: 'Processing your image into video...',
+        mediaType: 'video',
+        processingStatus: 'processing'
+      });
+
+      // Create video processing job
+      const processingJob = await storage.createVideoProcessingJob({
+        messageId: aiMessage.id,
+        originalImageUrl: finalImageUrl,
+        prompt,
+        model: selectedModel,
+        status: 'processing'
+      });
+      
+      console.log('[Video Processing] Created job:', processingJob.id);
+
+      res.json({ 
+        userMessage, 
+        aiMessage, 
+        processingJob 
+      });
+
+      // Process video asynchronously (placeholder for now)
+      setImmediate(async () => {
+        try {
+          console.log('[Video Processing] Starting async processing for job:', processingJob.id);
+          
+          // Placeholder: In real implementation, this would call video generation API
+          await new Promise(resolve => setTimeout(resolve, 5000)); // Simulate processing time
+          
+          const mockVideoUrl = "/api/mock-video.mp4"; // Placeholder video URL
+          
+          // Update processing job
+          await storage.updateVideoProcessingJob(processingJob.id, {
+            status: 'completed',
+            processedVideoUrl: mockVideoUrl,
+            processingTime: 10,
+            enhancementsApplied: ["video-generation"],
+            videoDuration: 10
+          });
+
+          console.log('[Video Processing] Job updated successfully:', processingJob.id);
+
+          // Update AI message
+          await storage.updateMessage(aiMessage.id, {
+            content: `✨ Video generated successfully from your image`,
+            videoUrl: mockVideoUrl,
+            processingStatus: 'completed'
+          });
+
+          console.log('[Video Processing] Message updated successfully for job:', processingJob.id);
+
+        } catch (error) {
+          console.error('[Video Processing] Error during async processing:', error);
+          
+          try {
+            // Update processing job with error
+            await storage.updateVideoProcessingJob(processingJob.id, {
+              status: 'error',
+              errorMessage: error instanceof Error ? error.message : 'Unknown error'
+            });
+
+            // Update AI message with error
+            await storage.updateMessage(aiMessage.id, {
+              content: `Sorry, I encountered an error while generating your video: ${error instanceof Error ? error.message : 'Unknown error'}`,
+              processingStatus: 'error'
+            });
+            
+            console.log('[Video Processing] Error status updated for job:', processingJob.id);
+          } catch (updateError) {
+            console.error('[Video Processing] Failed to update error status:', updateError);
+          }
+        }
+      });
+
+    } catch (error) {
+      res.status(500).json({ 
+        message: error instanceof Error ? error.message : "Failed to process video" 
+      });
+    }
+  });
+
+  // Get video processing job status
+  app.get("/api/video-processing-jobs/:messageId", async (req, res) => {
+    try {
+      const { messageId } = req.params;
+      const job = await storage.getVideoProcessingJobByMessage(messageId);
+      
+      if (!job) {
+        return res.status(404).json({ message: "Video processing job not found" });
+      }
+
+      res.json(job);
+    } catch (error) {
+      res.status(500).json({ 
+        message: error instanceof Error ? error.message : "Failed to fetch video processing job" 
       });
     }
   });
