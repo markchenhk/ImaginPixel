@@ -37,48 +37,77 @@ async function generateVideoFromImage(
   analysis: string, 
   outputPath: string
 ): Promise<void> {
-  return new Promise((resolve, reject) => {
-    console.log('[Video Generation] Creating MP4 from image:', imageUrl);
-    
-    // Create a simple video from the image with Ken Burns effect
-    ffmpeg(imageUrl)
-      .inputOptions([
-        '-loop 1',           // Loop the input image
-        '-t 10'              // Duration: 10 seconds
-      ])
-      .videoCodec('libx264')
-      .audioCodec('aac')
-      .size('1280x720')     // HD resolution
-      .fps(30)              // 30 FPS
-      .outputOptions([
-        '-movflags +faststart',  // Web optimization
-        '-pix_fmt yuv420p',      // Compatibility
-        '-preset fast',          // Encoding speed
-        '-crf 23'               // Quality (lower = better)
-      ])
-      // Add Ken Burns pan/zoom effect
-      .videoFilters([
-        'scale=1440:810',        // Scale up for cropping
-        'crop=1280:720:160*t:90*t', // Slow pan effect
-        'fade=t=in:st=0:d=1',    // Fade in
-        'fade=t=out:st=9:d=1'    // Fade out
-      ])
-      .output(outputPath)
-      .on('start', (commandLine: string) => {
-        console.log('[Video Generation] FFmpeg started:', commandLine);
-      })
-      .on('progress', (progress: any) => {
-        console.log(`[Video Generation] Progress: ${Math.round(progress.percent || 0)}%`);
-      })
-      .on('end', () => {
-        console.log('[Video Generation] Video created successfully');
-        resolve();
-      })
-      .on('error', (err: Error) => {
-        console.error('[Video Generation] Error:', err);
-        reject(err);
-      })
-      .run();
+  return new Promise(async (resolve, reject) => {
+    try {
+      console.log('[Video Generation] Creating MP4 from image:', imageUrl);
+      
+      // Download image locally first to avoid HTTPS issues
+      console.log('[Video Generation] Downloading image locally...');
+      const response = await fetch(imageUrl);
+      if (!response.ok) {
+        throw new Error(`Failed to download image: ${response.status}`);
+      }
+      
+      const imageBuffer = await response.arrayBuffer();
+      const tempImagePath = path.join(process.cwd(), 'temp_videos', `temp_image_${Date.now()}.png`);
+      await fs.promises.writeFile(tempImagePath, Buffer.from(imageBuffer));
+      
+      console.log('[Video Generation] Image downloaded to:', tempImagePath);
+      
+      // Create a simple video with basic effects (no complex time-based filters)
+      ffmpeg(tempImagePath)
+        .inputOptions([
+          '-loop 1',           // Loop the input image
+          '-t 10'              // Duration: 10 seconds
+        ])
+        .videoCodec('libx264')
+        .size('1280x720')     // HD resolution
+        .fps(30)              // 30 FPS
+        .outputOptions([
+          '-movflags +faststart',  // Web optimization
+          '-pix_fmt yuv420p',      // Compatibility
+          '-preset fast',          // Encoding speed
+          '-crf 23'               // Quality (lower = better)
+        ])
+        // Simplified effects - no complex time expressions
+        .videoFilters([
+          'scale=1280:720',        // Simple scaling
+          'fade=t=in:st=0:d=1',    // Fade in
+          'fade=t=out:st=9:d=1'    // Fade out
+        ])
+        .output(outputPath)
+        .on('start', (commandLine: string) => {
+          console.log('[Video Generation] FFmpeg started:', commandLine);
+        })
+        .on('progress', (progress: any) => {
+          console.log(`[Video Generation] Progress: ${Math.round(progress.percent || 0)}%`);
+        })
+        .on('end', async () => {
+          console.log('[Video Generation] Video created successfully');
+          // Clean up temp image
+          try {
+            await fs.promises.unlink(tempImagePath);
+          } catch (err) {
+            console.warn('[Video Generation] Failed to clean up temp image:', err);
+          }
+          resolve();
+        })
+        .on('error', async (err: Error) => {
+          console.error('[Video Generation] Error:', err);
+          // Clean up temp image on error
+          try {
+            await fs.promises.unlink(tempImagePath);
+          } catch (cleanupErr) {
+            console.warn('[Video Generation] Failed to clean up temp image after error:', cleanupErr);
+          }
+          reject(err);
+        })
+        .run();
+        
+    } catch (err) {
+      console.error('[Video Generation] Setup error:', err);
+      reject(err);
+    }
   });
 }
 
