@@ -303,6 +303,8 @@ class MultiFrameVideoProvider implements IVideoProvider {
       'gentle forward movement perspective'
     ];
     
+    // Use the existing processImageWithOpenRouter method that already works
+    // This reuses the proven image generation pipeline
     for (let i = 0; i < frameCount; i++) {
       try {
         const angle = cameraAngles[i % cameraAngles.length];
@@ -310,46 +312,19 @@ class MultiFrameVideoProvider implements IVideoProvider {
         
         console.log(`[MultiFrame Video] Generating frame ${i + 1}/${frameCount} with ${angle}...`);
         
-        const frameResponse = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${apiKey}`,
-            'Content-Type': 'application/json',
-            'HTTP-Referer': baseUrl,
-            'X-Title': 'AI Visual Studio'
-          },
-          body: JSON.stringify({
-            model: model,
-            messages: [{
-              role: 'user',
-              content: [
-                { type: 'text', text: framePrompt },
-                { type: 'image_url', image_url: { url: originalImageUrl } }
-              ]
-            }],
-            max_tokens: 1000,
-            temperature: 0.7
-          })
-        });
+        // Use the existing working image generation method
+        const result = await processImageWithOpenRouter(originalImageUrl, framePrompt, model, apiKey);
         
-        if (!frameResponse.ok) {
-          console.warn(`[MultiFrame Video] Frame ${i + 1} generation failed: ${frameResponse.status}`);
-          continue;
-        }
-        
-        const frameData = await frameResponse.json();
-        const frameImages = this.extractGeneratedImages(frameData);
-        
-        if (frameImages.length > 0) {
-          // Save the generated frame
-          const savedFrameUrl = await this.saveGeneratedFrame(frameImages[0], i);
-          frames.push(savedFrameUrl);
+        if (result.processedImageUrl) {
+          frames.push(result.processedImageUrl);
           console.log(`[MultiFrame Video] Frame ${i + 1} generated successfully`);
+        } else {
+          console.warn(`[MultiFrame Video] Frame ${i + 1} generation returned no image`);
         }
         
         // Small delay to avoid rate limiting
         if (i < frameCount - 1) {
-          await new Promise(resolve => setTimeout(resolve, 500));
+          await new Promise(resolve => setTimeout(resolve, 1000));
         }
         
       } catch (error) {
@@ -362,47 +337,6 @@ class MultiFrameVideoProvider implements IVideoProvider {
     return frames;
   }
   
-  private extractGeneratedImages(responseData: any): string[] {
-    const images: string[] = [];
-    
-    if (responseData.choices && responseData.choices[0]?.message?.content) {
-      const content = responseData.choices[0].message.content;
-      
-      // Extract base64 images from Gemini response
-      if (Array.isArray(content)) {
-        content.forEach((item: any) => {
-          if (item.type === 'image' && item.source?.data) {
-            images.push(`data:image/png;base64,${item.source.data}`);
-          }
-        });
-      }
-      
-      // Extract from text content containing base64
-      if (typeof content === 'string') {
-        const base64Matches = content.match(/data:image\/[^;]+;base64,[A-Za-z0-9+/=]+/g);
-        if (base64Matches) {
-          images.push(...base64Matches);
-        }
-      }
-    }
-    
-    return images;
-  }
-  
-  private async saveGeneratedFrame(base64Image: string, frameIndex: number): Promise<string> {
-    try {
-      const base64Data = base64Image.replace(/^data:image\/[^;]+;base64,/, '');
-      const imageBuffer = Buffer.from(base64Data, 'base64');
-      
-      const frameFilename = `frame_${frameIndex}_${Date.now()}.png`;
-      const objectStorage = new ObjectStorageService();
-      return await objectStorage.uploadToS3(imageBuffer, frameFilename, 'image/png');
-      
-    } catch (error) {
-      console.error('[MultiFrame Video] Failed to save frame:', error);
-      throw error;
-    }
-  }
   
   private async createVideoFromFrames(frameUrls: string[], duration: number): Promise<string> {
     console.log(`[MultiFrame Video] Creating video from ${frameUrls.length} frames with ${duration}s duration...`);
@@ -435,15 +369,15 @@ class MultiFrameVideoProvider implements IVideoProvider {
         throw new Error('Not enough frames downloaded for video creation');
       }
       
-      // Calculate frame rate for smooth playback
-      const framesPerSecond = Math.max(2, Math.min(30, framePaths.length / duration));
+      // Calculate frame rate for smooth playback (use integer for reliability)
+      const framesPerSecond = Math.max(2, Math.min(30, Math.round(framePaths.length / duration)));
       
-      // Create video with smooth transitions and interpolation
+      // Create video with smooth transitions and interpolation (remove shell quotes from filter)
       const ffmpegCommand = [
         'ffmpeg',
         '-framerate', framesPerSecond.toString(),
         '-i', path.join(framesDir, 'frame_%04d.jpg'),
-        '-vf', `scale=1920:1080:force_original_aspect_ratio=decrease,pad=1920:1080:-1:-1:black,minterpolate='mi_mode=mci:mc_mode=aobmc:vsbmc=1:fps=30'`,
+        '-vf', `scale=1920:1080:force_original_aspect_ratio=decrease,pad=1920:1080:-1:-1:black,minterpolate=mi_mode=mci:mc_mode=aobmc:vsbmc=1:fps=30`,
         '-t', duration.toString(),
         '-c:v', 'libx264',
         '-preset', 'medium',
@@ -478,19 +412,35 @@ class MultiFrameVideoProvider implements IVideoProvider {
   
   private async runFFmpegCommand(command: string[]): Promise<void> {
     return new Promise((resolve, reject) => {
-      const process = spawn(command[0], command.slice(1));
+      // Use the configured ffmpeg-static path instead of assuming 'ffmpeg' is on PATH
+      const ffmpegExecutable = ffmpegPath || 'ffmpeg';
+      const actualCommand = [ffmpegExecutable, ...command.slice(1)];
+      
+      console.log('[MultiFrame Video] Running FFmpeg command:', actualCommand.join(' '));
+      const process = spawn(actualCommand[0], actualCommand.slice(1));
       
       process.stderr.on('data', (data: Buffer) => {
         const message = data.toString();
-        if (message.includes('frame=')) {
+        if (message.includes('frame=') || message.includes('time=')) {
           console.log('[MultiFrame Video] FFmpeg progress:', message.trim());
         }
       });
       
+      process.stdout.on('data', (data: Buffer) => {
+        console.log('[MultiFrame Video] FFmpeg stdout:', data.toString().trim());
+      });
+      
+      process.on('error', (error: Error) => {
+        console.error('[MultiFrame Video] FFmpeg process error:', error);
+        reject(error);
+      });
+      
       process.on('close', (code: number | null) => {
         if (code === 0) {
+          console.log('[MultiFrame Video] FFmpeg completed successfully');
           resolve();
         } else {
+          console.error(`[MultiFrame Video] FFmpeg failed with exit code: ${code}`);
           reject(new Error(`FFmpeg failed with code ${code}`));
         }
       });
