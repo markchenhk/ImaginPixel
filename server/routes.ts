@@ -72,40 +72,54 @@ async function generateVideoFromImage(
       const sourceWidth = metadata.width || 1280;
       const sourceHeight = metadata.height || 720;
       
-      // Ensure image is large enough for Ken Burns effect
-      const scaledWidth = Math.max(sourceWidth, targetWidth * 1.5);
-      const scaledHeight = Math.max(sourceHeight, targetHeight * 1.5);
+      console.log('[Video Generation] Source image dimensions:', sourceWidth, 'x', sourceHeight);
+      
+      // First, resize image to ensure we have enough space for Ken Burns effect
+      const workingWidth = Math.max(sourceWidth, targetWidth * 1.8);
+      const workingHeight = Math.max(sourceHeight, targetHeight * 1.8);
+      
+      console.log('[Video Generation] Working dimensions:', workingWidth, 'x', workingHeight);
       
       // Create Ken Burns motion: slow zoom from wide to close
       for (let frame = 0; frame < frameCount; frame++) {
         const progress = frame / (frameCount - 1); // 0 to 1
         
-        // Calculate zoom: start wide (1.0), end closer (1.3)
-        const zoom = 1.0 + (progress * 0.3);
+        // Calculate zoom: start wide (1.0), end closer (1.2) - more conservative
+        const zoom = 1.0 + (progress * 0.2);
         
-        // Calculate crop dimensions
+        // Calculate crop dimensions - ensure they're always valid
         const cropWidth = Math.round(targetWidth / zoom);
         const cropHeight = Math.round(targetHeight / zoom);
         
+        // Ensure crop dimensions don't exceed working dimensions
+        const safeCropWidth = Math.min(cropWidth, workingWidth);
+        const safeCropHeight = Math.min(cropHeight, workingHeight);
+        
         // Center the crop with slight drift for motion
-        const maxDriftX = Math.max(0, scaledWidth - cropWidth);
-        const maxDriftY = Math.max(0, scaledHeight - cropHeight);
-        const cropX = Math.round((maxDriftX / 2) + (progress * maxDriftX * 0.1));
-        const cropY = Math.round((maxDriftY / 2) + (progress * maxDriftY * 0.1));
+        const maxDriftX = Math.max(0, workingWidth - safeCropWidth);
+        const maxDriftY = Math.max(0, workingHeight - safeCropHeight);
+        const driftX = Math.round(progress * maxDriftX * 0.1);
+        const driftY = Math.round(progress * maxDriftY * 0.1);
+        
+        // Calculate final crop coordinates with bounds checking
+        const cropX = Math.max(0, Math.min(maxDriftX / 2 + driftX, workingWidth - safeCropWidth));
+        const cropY = Math.max(0, Math.min(maxDriftY / 2 + driftY, workingHeight - safeCropHeight));
         
         // Generate frame with Sharp
         const framePath = path.join(frameDir, `frame_${frame.toString().padStart(4, '0')}.jpg`);
         
+        console.log(`[Video Generation] Frame ${frame}: crop=${cropX},${cropY} size=${safeCropWidth}x${safeCropHeight}`);
+        
         await sharp(tempImagePath)
-          .resize(scaledWidth, scaledHeight, { 
+          .resize(workingWidth, workingHeight, { 
             fit: 'cover', 
             position: 'center' 
           })
           .extract({ 
-            left: Math.max(0, cropX), 
-            top: Math.max(0, cropY), 
-            width: Math.min(cropWidth, scaledWidth), 
-            height: Math.min(cropHeight, scaledHeight) 
+            left: Math.round(cropX), 
+            top: Math.round(cropY), 
+            width: Math.round(safeCropWidth), 
+            height: Math.round(safeCropHeight) 
           })
           .resize(targetWidth, targetHeight, { fit: 'fill' })
           .jpeg({ quality: 85 })
