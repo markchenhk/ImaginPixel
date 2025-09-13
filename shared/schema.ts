@@ -104,6 +104,7 @@ export const applicationFunctions = pgTable("application_functions", {
   icon: varchar("icon").notNull().default("Wand2"), // Lucide icon name
   enabled: text("enabled").notNull().default("true"),
   sortOrder: integer("sort_order").notNull().default(0),
+  defaultTemplate: text("default_template"), // Default prompt template for this function
   createdBy: varchar("created_by").notNull().references(() => users.id),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
