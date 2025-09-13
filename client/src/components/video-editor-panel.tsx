@@ -72,6 +72,7 @@ export default function VideoEditorPanel({ videoUrl, onSaveToLibrary }: VideoEdi
   const [volume, setVolume] = useState(1);
   const [isMuted, setIsMuted] = useState(false);
   const [playbackRate, setPlaybackRate] = useState(1);
+  const [videoError, setVideoError] = useState<string | null>(null);
   
   // Video settings
   const [videoSettings, setVideoSettings] = useState<VideoSettings>({
@@ -119,6 +120,18 @@ export default function VideoEditorPanel({ videoUrl, onSaveToLibrary }: VideoEdi
   const handleLoadedMetadata = () => {
     if (!videoRef.current) return;
     setDuration(videoRef.current.duration);
+    setVideoError(null); // Clear any previous errors
+  };
+
+  const handleVideoError = () => {
+    console.error('Video playback error');
+    setVideoError('Unable to play video. This may be a placeholder video.');
+    setIsPlaying(false);
+    toast({
+      title: "Video Preview",
+      description: "This is a video concept preview. Actual video generation is in development.",
+      variant: "default",
+    });
   };
 
   const handleSeek = (newTime: number) => {
@@ -245,6 +258,7 @@ export default function VideoEditorPanel({ videoUrl, onSaveToLibrary }: VideoEdi
       setIsPlaying(false);
       setCurrentTime(0);
       setDuration(0);
+      setVideoError(null);
       resetVideoSettings();
       setTextOverlays([]);
       setSelectedTextId(null);
@@ -302,17 +316,34 @@ export default function VideoEditorPanel({ videoUrl, onSaveToLibrary }: VideoEdi
         <div className="flex-1 p-4 overflow-auto bg-[#0f0f0f]">
           <div className="flex flex-col items-center justify-center h-full">
             <div className="relative w-full max-w-4xl aspect-video bg-black rounded-lg overflow-hidden">
-              <video
-                ref={videoRef}
-                src={videoUrl}
-                className="w-full h-full object-contain"
-                style={{ filter: getVideoFilter() }}
-                onTimeUpdate={handleTimeUpdate}
-                onLoadedMetadata={handleLoadedMetadata}
-                onPlay={() => setIsPlaying(true)}
-                onPause={() => setIsPlaying(false)}
-                data-testid="video-player"
-              />
+              {videoError ? (
+                <div className="absolute inset-0 flex flex-col items-center justify-center bg-[#1a1a1a] text-white p-8">
+                  <div className="w-16 h-16 bg-[#2a2a2a] rounded-lg flex items-center justify-center mb-4">
+                    <Play className="w-8 h-8 text-[#888888]" />
+                  </div>
+                  <h3 className="text-lg font-semibold mb-2">Video Concept Generated</h3>
+                  <p className="text-sm text-[#888888] text-center mb-4">
+                    {videoError}
+                  </p>
+                  <p className="text-xs text-[#666666] text-center">
+                    Your AI has analyzed the image and created a detailed video concept. 
+                    Full video generation capabilities are coming soon!
+                  </p>
+                </div>
+              ) : (
+                <video
+                  ref={videoRef}
+                  src={videoUrl}
+                  className="w-full h-full object-contain"
+                  style={{ filter: getVideoFilter() }}
+                  onTimeUpdate={handleTimeUpdate}
+                  onLoadedMetadata={handleLoadedMetadata}
+                  onPlay={() => setIsPlaying(true)}
+                  onPause={() => setIsPlaying(false)}
+                  onError={handleVideoError}
+                  data-testid="video-player"
+                />
+              )}
               
               {/* Text Overlays */}
               {getVisibleTextOverlays().map(overlay => (

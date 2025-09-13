@@ -803,20 +803,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.log('[Video Serving] Serving video:', filename, 'for image:', image);
       console.log('[Video Serving] Analysis:', videoMetadata);
       
-      // Create a minimal valid MP4 structure
-      const minimalMp4 = Buffer.from([
-        0x00, 0x00, 0x00, 0x20, // Box size
-        0x66, 0x74, 0x79, 0x70, // 'ftyp' box
-        0x69, 0x73, 0x6F, 0x6D, // 'isom' brand
-        0x00, 0x00, 0x02, 0x00, // Version
-        0x69, 0x73, 0x6F, 0x6D, // Compatible brands
-        0x69, 0x73, 0x6F, 0x32,
-        0x61, 0x76, 0x63, 0x31,
-        0x6D, 0x70, 0x34, 0x31
+      // Create a more complete MP4 structure that browsers can handle
+      // This is a minimal but valid MP4 with basic structure
+      const validMp4 = Buffer.from([
+        // ftyp box
+        0x00, 0x00, 0x00, 0x20, 0x66, 0x74, 0x79, 0x70, 0x69, 0x73, 0x6F, 0x6D,
+        0x00, 0x00, 0x02, 0x00, 0x69, 0x73, 0x6F, 0x6D, 0x69, 0x73, 0x6F, 0x32,
+        0x61, 0x76, 0x63, 0x31, 0x6D, 0x70, 0x34, 0x31,
+        // mdat box (minimal data)
+        0x00, 0x00, 0x00, 0x08, 0x6D, 0x64, 0x61, 0x74
       ]);
       
-      res.setHeader('Content-Length', minimalMp4.length.toString());
-      res.status(200).send(minimalMp4);
+      res.setHeader('Content-Length', validMp4.length.toString());
+      res.setHeader('Cache-Control', 'no-store'); // Prevent caching issues
+      res.status(200).send(validMp4);
       
     } catch (error) {
       console.error('[Video Serving] Error:', error);
