@@ -13,6 +13,7 @@ import UserLibraryPanel from '@/components/user-library-panel';
 import { LeftSidebar } from '@/components/left-sidebar';
 import { GalleryView } from '@/components/gallery-view';
 import ImageEditorPanel from '@/components/image-editor-panel';
+import VideoEditorPanel from '@/components/video-editor-panel';
 import { ResizablePanels } from '@/components/resizable-panels';
 import { getModelDisplayName, getActiveModel } from '@/lib/openrouter';
 import type { Conversation, ModelConfiguration } from '@shared/schema';
@@ -26,6 +27,7 @@ export default function ImageEditor() {
   const [configOpen, setConfigOpen] = useState(false);
   const [promptEngineeringOpen, setPromptEngineeringOpen] = useState(false);
   const [processedImageUrl, setProcessedImageUrl] = useState<string | null>(null);
+  const [processedVideoUrl, setProcessedVideoUrl] = useState<string | null>(null);
   const [selectedFunction, setSelectedFunction] = useState<'image-enhancement' | 'image-to-video'>('image-enhancement');
 
   // Fetch model configuration for header display (admin only)
@@ -53,6 +55,14 @@ export default function ImageEditor() {
 
   const handleImageSelected = (imageUrl: string) => {
     setProcessedImageUrl(imageUrl);
+  };
+
+  const handleVideoProcessed = (originalUrl: string, videoUrl: string) => {
+    setProcessedVideoUrl(videoUrl);
+  };
+
+  const handleVideoSelected = (videoUrl: string) => {
+    setProcessedVideoUrl(videoUrl);
   };
 
   return (
@@ -159,7 +169,7 @@ export default function ImageEditor() {
         />
         
         {/* Main Content Area with Resizable Panels */}
-        {selectedFunction === 'image-enhancement' ? (
+        {selectedFunction === 'image-enhancement' || selectedFunction === 'image-to-video' ? (
           <ResizablePanels
             defaultLeftWidth={35}
             minLeftWidth={25}
@@ -170,6 +180,8 @@ export default function ImageEditor() {
                 onConversationCreate={handleConversationCreate}
                 onImageProcessed={handleImageProcessed}
                 onImageSelected={handleImageSelected}
+                onVideoProcessed={handleVideoProcessed}
+                onVideoSelected={handleVideoSelected}
                 selectedFunction={selectedFunction}
                 onSaveToLibrary={async (imageUrl, title) => {
                   try {
@@ -211,43 +223,49 @@ export default function ImageEditor() {
               />
             }
             rightPanel={
-              <ImageEditorPanel
-                imageUrl={processedImageUrl}
-                onSaveToLibrary={async (imageUrl, title) => {
-                  try {
-                    const response = await fetch('/api/library/save', {
-                      method: 'POST',
-                      headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify({
-                        title,
-                        objectPath: imageUrl,
-                        prompt: 'AI enhanced and edited image',
-                        tags: ['ai-generated', 'edited']
-                      })
-                    });
+              selectedFunction === 'image-enhancement' ? (
+                <ImageEditorPanel
+                  imageUrl={processedImageUrl}
+                  onSaveToLibrary={async (imageUrl, title) => {
+                    try {
+                      const response = await fetch('/api/library/save', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                          title,
+                          objectPath: imageUrl,
+                          prompt: 'AI enhanced and edited image',
+                          tags: ['ai-generated', 'edited']
+                        })
+                      });
 
-                    if (!response.ok) {
-                      throw new Error('Failed to save image');
+                      if (!response.ok) {
+                        throw new Error('Failed to save image');
+                      }
+
+                      // Refresh the library to show the new saved image
+                      queryClient.invalidateQueries({ queryKey: ['/api/library', user?.id] });
+                      
+                      // Show success message
+                      toast({
+                        title: "Success",
+                        description: "Edited image saved to library",
+                      });
+                    } catch (error) {
+                      console.error('Error saving image:', error);
+                      toast({
+                        title: "Error",
+                        description: "Failed to save edited image to library",
+                        variant: "destructive",
+                      });
                     }
-
-                    // Refresh the library to show the new saved image
-                    queryClient.invalidateQueries({ queryKey: ['/api/library', user?.id] });
-                    
-                    // Show success message
-                    toast({
-                      title: "Success",
-                      description: "Edited image saved to library",
-                    });
-                  } catch (error) {
-                    console.error('Error saving image:', error);
-                    toast({
-                      title: "Error",
-                      description: "Failed to save edited image to library",
-                      variant: "destructive",
-                    });
-                  }
-                }}
-              />
+                  }}
+                />
+              ) : (
+                <VideoEditorPanel
+                  videoUrl={processedVideoUrl}
+                />
+              )
             }
           />
         ) : (
