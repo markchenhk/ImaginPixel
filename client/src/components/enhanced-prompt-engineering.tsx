@@ -369,32 +369,10 @@ export function EnhancedPromptEngineering({ isOpen, onClose, selectedFunction = 
   };
 
   const handleReorderTemplate = (templateId: string, direction: 'up' | 'down') => {
-    // Find the template and its function's templates
-    const template = templates.find(t => t.id === templateId);
-    if (!template) return;
-
-    const functionTemplates = templatesByFunction[template.functionId] || [];
-    const sortedTemplates = functionTemplates
-      .filter(t => t.enabled !== "false")
-      .sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0));
-    
-    const currentIndex = sortedTemplates.findIndex(t => t.id === templateId);
-    if (currentIndex === -1) return;
-
-    const targetIndex = direction === 'up' ? currentIndex - 1 : currentIndex + 1;
-    if (targetIndex < 0 || targetIndex >= sortedTemplates.length) return;
-
-    // Swap sort orders
-    const currentSortOrder = sortedTemplates[currentIndex].sortOrder || currentIndex;
-    const targetSortOrder = sortedTemplates[targetIndex].sortOrder || targetIndex;
-
-    updateTemplateMutation.mutate({ 
-      id: templateId, 
-      updates: { sortOrder: targetSortOrder }
-    });
-    updateTemplateMutation.mutate({ 
-      id: sortedTemplates[targetIndex].id, 
-      updates: { sortOrder: currentSortOrder }
+    // Reordering is disabled until database migration is complete
+    toast({
+      title: 'Template reordering temporarily disabled',
+      description: 'Reordering will be available after database migration.',
     });
   };
 
@@ -510,7 +488,7 @@ export function EnhancedPromptEngineering({ isOpen, onClose, selectedFunction = 
                                 </div>
                                 {templatesByFunction[func.id]
                                   .filter(template => template.enabled !== "false")
-                                  .sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0))
+                                  .sort((a, b) => a.name.localeCompare(b.name)) // Stable alphabetical sort until sortOrder migration
                                   .slice(0, 3) // Show only first 3 templates
                                   .map((template, index) => (
                                     <div
@@ -672,7 +650,33 @@ export function EnhancedPromptEngineering({ isOpen, onClose, selectedFunction = 
 
                 {/* Main Content - Functions */}
                 <div className="flex-1 p-6 overflow-y-auto">
-                  {showNewFunctionForm ? (
+                  {/* Template Forms */}
+                  {showNewTemplateForm ? (
+                    <NewTemplateForm 
+                      newTemplate={newTemplate}
+                      setNewTemplate={setNewTemplate}
+                      onSave={handleSaveTemplate}
+                      onCancel={() => { setShowNewTemplateForm(false); resetNewTemplate(); }}
+                      isSaving={createTemplateMutation.isPending}
+                      functions={functions}
+                    />
+                  ) : editingTemplate ? (
+                    <EditTemplateForm 
+                      template={editingTemplate}
+                      setTemplate={setEditingTemplate}
+                      onUpdate={handleUpdateTemplate}
+                      onDelete={() => deleteTemplateMutation.mutate(editingTemplate.id)}
+                      onCancel={() => setEditingTemplate(null)}
+                      isUpdating={updateTemplateMutation.isPending}
+                      isDeleting={deleteTemplateMutation.isPending}
+                      functions={functions}
+                      onEnhance={handleEnhanceTemplate}
+                      isEnhancing={enhanceTemplateMutation.isPending}
+                      enhancingTemplate={enhancingTemplate}
+                    />
+                  ) : 
+                  /* Function Forms */
+                  showNewFunctionForm ? (
                     <NewFunctionForm 
                       newFunction={newFunction}
                       setNewFunction={setNewFunction}
@@ -696,7 +700,7 @@ export function EnhancedPromptEngineering({ isOpen, onClose, selectedFunction = 
                     <div className="flex items-center justify-center h-full">
                       <div className="text-center text-gray-400">
                         <Settings className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                        <p>Select a function to edit or create a new one</p>
+                        <p>{activeTab === 'templates' ? 'Select a template to edit or create a new one' : 'Select a function to edit or create a new one'}</p>
                       </div>
                     </div>
                   )}
