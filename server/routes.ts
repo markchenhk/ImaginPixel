@@ -32,6 +32,106 @@ if (ffmpegPath) {
   ffmpeg.setFfmpegPath(ffmpegPath);
 }
 
+// AI Video Plan parsing interface
+interface AiVideoPlan {
+  description: string;
+  cameraMovements: string[];
+  visualEffects: string[];
+  textOverlays: string[];
+  duration: number;
+  marketingAngle: string;
+}
+
+function parseAiVideoPlan(analysis: string): AiVideoPlan | null {
+  try {
+    // Extract JSON from AI analysis
+    const jsonMatch = analysis.match(/```json\s*([\s\S]*?)\s*```/);
+    if (jsonMatch) {
+      const aiData = JSON.parse(jsonMatch[1]);
+      return {
+        description: aiData.description || '',
+        cameraMovements: aiData.cameraMovements || [],
+        visualEffects: aiData.visualEffects || [],
+        textOverlays: aiData.textOverlays || [],
+        duration: aiData.duration || 10,
+        marketingAngle: aiData.marketingAngle || ''
+      };
+    }
+    return null;
+  } catch (error) {
+    console.warn('[Video Planning] Could not parse AI analysis JSON:', error);
+    return null;
+  }
+}
+
+function needsOfficeBackground(visualEffects: string[]): boolean {
+  const officeKeywords = ['office', 'desk', 'workspace', 'professional', 'modern office', 'employee', 'background'];
+  const effectsText = visualEffects.join(' ').toLowerCase();
+  return officeKeywords.some(keyword => effectsText.includes(keyword));
+}
+
+async function ensureSceneMatchesPrompt(
+  imageUrl: string, 
+  aiPlan: AiVideoPlan | null, 
+  model: string, 
+  apiKey?: string
+): Promise<{ enhancedImageUrl: string; enhancementsApplied: string[] }> {
+  console.log('[Scene Enhancement] Checking if scene enhancement is needed...');
+  
+  // Check if we need office background and have a generation-capable model
+  if (!aiPlan || !aiPlan.visualEffects || !model.includes('google/gemini-2.5-flash-image')) {
+    console.log('[Scene Enhancement] No enhancement needed - no AI plan or incompatible model');
+    return { enhancedImageUrl: imageUrl, enhancementsApplied: [] };
+  }
+  
+  const needsOffice = needsOfficeBackground(aiPlan.visualEffects);
+  if (!needsOffice) {
+    console.log('[Scene Enhancement] No office background requested in visual effects');
+    return { enhancedImageUrl: imageUrl, enhancementsApplied: [] };
+  }
+  
+  try {
+    console.log('[Scene Enhancement] Generating office background scene...');
+    
+    // Extract office-specific requirements from visual effects
+    const officeElements = aiPlan.visualEffects
+      .filter(effect => effect.toLowerCase().includes('office') || 
+                       effect.toLowerCase().includes('desk') ||
+                       effect.toLowerCase().includes('workspace'))
+      .join('. ');
+    
+    // Create focused prompt for office background generation
+    const scenePrompt = `Place this product in a clean, modern office environment. Requirements: ${officeElements}. 
+    
+Specific elements to add:
+- Clean, modern office desk or workspace surface
+- Professional office lighting (natural light from windows preferred)
+- Minimalist office background with neutral colors
+- Optional: Subtle office elements like a laptop, papers, or office supplies in the background
+- Maintain focus on the product while creating realistic office context
+
+Keep the product exactly as shown but place it naturally in an office setting.`;
+
+    // Use existing AI image generation
+    const result = await processImageWithOpenRouter(imageUrl, scenePrompt, model, apiKey, 120);
+    
+    console.log('[Scene Enhancement] Office background generated successfully');
+    return {
+      enhancedImageUrl: result.processedImageUrl,
+      enhancementsApplied: ['AI scene enhancement', 'Office background generation', ...result.enhancementsApplied]
+    };
+    
+  } catch (error) {
+    console.warn('[Scene Enhancement] Failed to generate office background, using original image:', error);
+    
+    // Graceful fallback - return original image
+    return { 
+      enhancedImageUrl: imageUrl, 
+      enhancementsApplied: ['Scene enhancement attempted (fallback to original)'] 
+    };
+  }
+}
+
 // Frame-based Ken Burns video generation using Sharp + FFmpeg
 async function generateVideoFromImage(
   imageUrl: string, 
@@ -665,6 +765,19 @@ Provide a JSON response with this structure:
     const aiAnalysis = data.choices[0].message.content;
     console.log('[Video Processing] AI Analysis:', aiAnalysis);
 
+    // Parse AI analysis for scene enhancement
+    const aiPlan = parseAiVideoPlan(aiAnalysis);
+    console.log('[Video Processing] Parsed AI plan:', aiPlan ? 'Success' : 'Failed to parse');
+    
+    // Enhance scene if office background is needed
+    const sceneResult = await ensureSceneMatchesPrompt(fullImageUrl, aiPlan, model, keyToUse);
+    const finalImageUrl = sceneResult.enhancedImageUrl;
+    const sceneEnhancements = sceneResult.enhancementsApplied;
+    
+    if (sceneEnhancements.length > 0) {
+      console.log('[Video Processing] Scene enhanced with:', sceneEnhancements);
+    }
+
     console.log('[Video Processing] Starting FFmpeg video generation process...');
     
     // Generate real video using FFmpeg
@@ -679,10 +792,10 @@ Provide a JSON response with this structure:
     const tempVideoPath = path.join(tempDir, videoFilename);
     
     console.log('[Video Processing] Generating real MP4 video at:', tempVideoPath);
-    console.log('[Video Processing] Source image URL:', fullImageUrl);
+    console.log('[Video Processing] Final image URL for video generation:', finalImageUrl);
     
-    // Generate video from image using FFmpeg
-    await generateVideoFromImage(fullImageUrl, aiAnalysis, tempVideoPath);
+    // Generate video from enhanced image using FFmpeg
+    await generateVideoFromImage(finalImageUrl, aiAnalysis, tempVideoPath);
     
     console.log('[Video Processing] Uploading video to S3...');
     
@@ -713,6 +826,7 @@ Provide a JSON response with this structure:
       processedVideoUrl,
       enhancementsApplied: [
         "AI-powered video analysis",
+        ...sceneEnhancements,
         "FFmpeg video generation", 
         "Ken Burns camera effect",
         "Professional video encoding"
