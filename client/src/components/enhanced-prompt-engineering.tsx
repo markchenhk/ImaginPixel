@@ -472,6 +472,17 @@ export function EnhancedPromptEngineering({ isOpen, onClose, selectedFunction = 
                                   </div>
                                 </div>
                                 <p className="text-xs text-gray-400 line-clamp-2">{displayFunction.description}</p>
+                                
+                                {/* Default Template Preview */}
+                                {displayFunction.defaultTemplate && (
+                                  <div className="mt-2 p-2 bg-gray-800/40 rounded border border-gray-700/30">
+                                    <div className="text-xs font-medium text-blue-400 mb-1">🎯 Default Template</div>
+                                    <div className="text-xs text-gray-300 font-mono line-clamp-2">
+                                      {displayFunction.defaultTemplate.substring(0, 100)}{displayFunction.defaultTemplate.length > 100 ? '...' : ''}
+                                    </div>
+                                  </div>
+                                )}
+                                
                                 <div className="flex items-center justify-between text-xs text-gray-500">
                                   <span>Key: {displayFunction.functionKey}</span>
                                   <span>Order: {displayFunction.sortOrder || 0}</span>
@@ -761,10 +772,22 @@ function NewFunctionForm({
         <Input
           value={newFunction.description}
           onChange={(e) => setNewFunction({...newFunction, description: e.target.value})}
-          placeholder="Describe what this function does"
+          placeholder="Describe what this function does and how it helps users create better visual content"
           className="mt-1"
           data-testid="input-function-description"
         />
+      </div>
+
+      <div>
+        <Label className="text-sm font-medium text-gray-300">Default Template</Label>
+        <Textarea
+          value={newFunction.defaultTemplate || ''}
+          onChange={(e) => setNewFunction({...newFunction, defaultTemplate: e.target.value})}
+          placeholder="Enter the default prompt template for this function...\n\nExample:\nAnalyze this {image_type} and enhance the {target_aspect} while maintaining {quality_level} quality."
+          className="min-h-[120px] mt-1 font-mono"
+          data-testid="textarea-function-default-template"
+        />
+        <p className="text-xs text-gray-500 mt-1">This template will be used when no specific hot key template is selected</p>
       </div>
 
       <div className="grid grid-cols-2 gap-4">
@@ -887,9 +910,22 @@ function EditFunctionForm({
         <Input
           value={func.description || ''}
           onChange={(e) => setFunction({...func, description: e.target.value})}
+          placeholder="Describe what this function does and how it helps users create better visual content"
           className="mt-1"
           data-testid="input-edit-function-description"
         />
+      </div>
+
+      <div>
+        <Label className="text-sm font-medium text-gray-300">Default Template</Label>
+        <Textarea
+          value={func.defaultTemplate || ''}
+          onChange={(e) => setFunction({...func, defaultTemplate: e.target.value})}
+          placeholder="Enter the default prompt template for this function...\n\nExample:\nAnalyze this {image_type} and enhance the {target_aspect} while maintaining {quality_level} quality."
+          className="min-h-[120px] mt-1 font-mono"
+          data-testid="textarea-edit-function-default-template"
+        />
+        <p className="text-xs text-gray-500 mt-1">This template will be used when no specific hot key template is selected</p>
       </div>
 
       <div className="grid grid-cols-2 gap-4">
