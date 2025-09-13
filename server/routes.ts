@@ -353,10 +353,14 @@ class MultiFrameVideoProvider implements IVideoProvider {
       // Create frames directory
       fs.mkdirSync(framesDir, { recursive: true });
       
-      // Download and prepare frames
+      // Download and prepare frames (convert relative URLs to absolute)
       const framePaths: string[] = [];
+      const domain = process.env.REPLIT_DOMAINS?.split(',')[0];
+      const baseUrl = domain ? `https://${domain}` : 'http://localhost:5000';
+      
       for (let i = 0; i < frameUrls.length; i++) {
-        const frameResponse = await fetch(frameUrls[i]);
+        const absoluteUrl = frameUrls[i].startsWith('http') ? frameUrls[i] : `${baseUrl}${frameUrls[i]}`;
+        const frameResponse = await fetch(absoluteUrl);
         if (!frameResponse.ok) continue;
         
         const frameBuffer = Buffer.from(await frameResponse.arrayBuffer());
