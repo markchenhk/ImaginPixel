@@ -1172,11 +1172,11 @@ function EditTemplateForm({
               <SelectValue placeholder="Select a function" />
             </SelectTrigger>
             <SelectContent>
-              {functions.map((func: any) => (
+              {functions?.map((func: any) => (
                 <SelectItem key={func.id} value={func.id}>
                   {func.name}
                 </SelectItem>
-              ))}
+              )) || <SelectItem value="">No functions available</SelectItem>}
             </SelectContent>
           </Select>
         </div>
@@ -1193,11 +1193,11 @@ function EditTemplateForm({
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              {categories.map((cat: { value: string; label: string }) => (
+              {templateCategories?.map((cat: { value: string; label: string }) => (
                 <SelectItem key={cat.value} value={cat.value}>
                   {cat.label}
                 </SelectItem>
-              ))}
+              )) || <SelectItem value="">No categories available</SelectItem>}
             </SelectContent>
           </Select>
         </div>
