@@ -42,6 +42,238 @@ interface AiVideoPlan {
   marketingAngle: string;
 }
 
+// Video generation provider interface
+interface IVideoProvider {
+  generate(params: {
+    imageUrl: string;
+    prompt: string;
+    duration: number;
+    model: string;
+    apiKey?: string;
+  }): Promise<{
+    videoUrl: string;
+    processingTime: number;
+    enhancementsApplied: string[];
+    providerUsed: string;
+    modelUsed: string;
+  }>;
+}
+
+interface VideoGenerationResult {
+  processedVideoUrl: string;
+  enhancementsApplied: string[];
+  videoDuration: number;
+  processingTime: number;
+  providerUsed: string;
+  modelUsed: string;
+}
+
+// OpenRouter Video Provider - Real video generation using AI models
+class OpenRouterVideoProvider implements IVideoProvider {
+  async generate(params: {
+    imageUrl: string;
+    prompt: string;
+    duration: number;
+    model: string;
+    apiKey?: string;
+  }): Promise<{
+    videoUrl: string;
+    processingTime: number;
+    enhancementsApplied: string[];
+    providerUsed: string;
+    modelUsed: string;
+  }> {
+    const startTime = Date.now();
+    
+    try {
+      // Check if model supports video generation
+      if (!await this.supportsVideoGeneration(params.model, params.apiKey)) {
+        throw new Error(`Model ${params.model} does not support video generation`);
+      }
+      
+      const keyToUse = params.apiKey || process.env.OPENROUTER_API_KEY || process.env.OPENROUTER_KEY;
+      if (!keyToUse) {
+        throw new Error('OpenRouter API key not configured');
+      }
+
+      const domain = process.env.REPLIT_DOMAINS?.split(',')[0];
+      const baseUrl = domain ? `https://${domain}` : 'http://localhost:5000';
+      
+      // Try video generation endpoint (experimental)
+      const videoResponse = await this.generateVideo(params.imageUrl, params.prompt, params.duration, params.model, keyToUse, baseUrl);
+      
+      const processingTime = Math.round((Date.now() - startTime) / 1000);
+      
+      return {
+        videoUrl: videoResponse.videoUrl,
+        processingTime,
+        enhancementsApplied: [`Real video generated with ${params.model}`, ...videoResponse.enhancementsApplied],
+        providerUsed: 'OpenRouter Video AI',
+        modelUsed: params.model
+      };
+      
+    } catch (error) {
+      console.warn('[OpenRouter Video] Generation failed:', error);
+      throw error;
+    }
+  }
+  
+  private async supportsVideoGeneration(model: string, apiKey?: string): Promise<boolean> {
+    try {
+      const keyToUse = apiKey || process.env.OPENROUTER_API_KEY || process.env.OPENROUTER_KEY;
+      if (!keyToUse) return false;
+      
+      // Check if model supports video modality
+      const response = await fetch('https://openrouter.ai/api/v1/models', {
+        headers: {
+          'Authorization': `Bearer ${keyToUse}`,
+          'Content-Type': 'application/json'
+        }
+      });
+      
+      if (!response.ok) return false;
+      
+      const data = await response.json();
+      const modelInfo = data.data?.find((m: any) => m.id === model);
+      
+      // Check if model supports video generation
+      return modelInfo?.architecture?.modality?.includes('video') || 
+             modelInfo?.capabilities?.includes('video_generation') ||
+             model.includes('video') ||
+             model.includes('runway') ||
+             model.includes('pika') ||
+             model.includes('luma');
+             
+    } catch (error) {
+      console.warn('[OpenRouter Video] Could not check model capabilities:', error);
+      return false;
+    }
+  }
+  
+  private async generateVideo(imageUrl: string, prompt: string, duration: number, model: string, apiKey: string, baseUrl: string): Promise<{
+    videoUrl: string;
+    enhancementsApplied: string[];
+  }> {
+    // For now, return error as we need to research actual video API endpoints
+    throw new Error('Video generation API endpoint not yet implemented - OpenRouter video models need research');
+  }
+}
+
+// Ken Burns Provider - Fallback using existing FFmpeg approach
+class KenBurnsProvider implements IVideoProvider {
+  async generate(params: {
+    imageUrl: string;
+    prompt: string;
+    duration: number;
+    model: string;
+    apiKey?: string;
+  }): Promise<{
+    videoUrl: string;
+    processingTime: number;
+    enhancementsApplied: string[];
+    providerUsed: string;
+    modelUsed: string;
+  }> {
+    const startTime = Date.now();
+    
+    try {
+      console.log('[Ken Burns] Generating video with motion effects');
+      
+      // Generate real video using FFmpeg Ken Burns effects
+      const tempDir = path.join(process.cwd(), 'temp_videos');
+      if (!fs.existsSync(tempDir)) {
+        fs.mkdirSync(tempDir, { recursive: true });
+      }
+      
+      const videoFilename = `video_${Date.now()}_${Math.random().toString(36).substring(7)}.mp4`;
+      const tempVideoPath = path.join(tempDir, videoFilename);
+      
+      // Use existing generateVideoFromImage function which generates to tempVideoPath
+      await generateVideoFromImage(params.imageUrl, params.prompt, tempVideoPath);
+      
+      // Upload to S3
+      const objectStorage = new ObjectStorageService();
+      const videoBuffer = await fs.promises.readFile(tempVideoPath);
+      const s3Path = await objectStorage.uploadToS3(videoBuffer, videoFilename, 'video/mp4');
+      
+      // Clean up temp file
+      try {
+        await fs.promises.unlink(tempVideoPath);
+      } catch (err) {
+        console.warn('[Ken Burns] Failed to clean up temp file:', err);
+      }
+      
+      const processingTime = Math.round((Date.now() - startTime) / 1000);
+      
+      return {
+        videoUrl: s3Path,
+        processingTime,
+        enhancementsApplied: ['Ken Burns motion effects', 'AI-guided camera movements', 'FFmpeg video generation'],
+        providerUsed: 'Ken Burns Effects',
+        modelUsed: 'FFmpeg'
+      };
+      
+    } catch (error) {
+      console.error('[Ken Burns] Video generation failed:', error);
+      throw error;
+    }
+  }
+}
+
+// Video Provider Selection and Management
+class VideoProviderManager {
+  private openRouterProvider = new OpenRouterVideoProvider();
+  private kenBurnsProvider = new KenBurnsProvider();
+  
+  async generateVideo(params: {
+    imageUrl: string;
+    prompt: string;
+    duration: number;
+    model: string;
+    apiKey?: string;
+    preferredMode?: 'real' | 'enhanced' | 'simple';
+  }): Promise<{
+    videoUrl: string;
+    processingTime: number;
+    enhancementsApplied: string[];
+    providerUsed: string;
+    modelUsed: string;
+  }> {
+    const providers = this.getProviderSequence(params.preferredMode);
+    
+    let lastError: Error | null = null;
+    
+    for (const provider of providers) {
+      try {
+        console.log(`[Video Provider] Attempting ${provider.constructor.name}...`);
+        const result = await provider.generate(params);
+        console.log(`[Video Provider] Success with ${result.providerUsed}`);
+        return result;
+      } catch (error) {
+        console.warn(`[Video Provider] ${provider.constructor.name} failed:`, error);
+        lastError = error as Error;
+        continue;
+      }
+    }
+    
+    throw new Error(`All video providers failed. Last error: ${lastError?.message}`);
+  }
+  
+  private getProviderSequence(preferredMode?: 'real' | 'enhanced' | 'simple'): IVideoProvider[] {
+    switch (preferredMode) {
+      case 'real':
+        // Try real video first, fallback to Ken Burns
+        return [this.openRouterProvider, this.kenBurnsProvider];
+      case 'simple':
+        // Only use Ken Burns
+        return [this.kenBurnsProvider];
+      default:
+        // Default: try real video, fallback to Ken Burns
+        return [this.openRouterProvider, this.kenBurnsProvider];
+    }
+  }
+}
+
 function parseAiVideoPlan(analysis: string): AiVideoPlan | null {
   try {
     // Extract JSON from AI analysis
@@ -741,8 +973,9 @@ async function processVideoWithOpenRouter(
   prompt: string, 
   model: string,
   apiKey?: string,
-  timeoutSeconds: number = 120
-): Promise<{ processedVideoUrl: string; enhancementsApplied: string[]; videoDuration: number; processingTime: number }> {
+  timeoutSeconds: number = 120,
+  videoMode: 'real' | 'enhanced' | 'simple' = 'real'
+): Promise<{ processedVideoUrl: string; enhancementsApplied: string[]; videoDuration: number; processingTime: number; providerUsed?: string; modelUsed?: string }> {
   const startTime = Date.now();
   
   console.log(`[Video Processing] Model: ${model}, Prompt: "${prompt}", Timeout: ${timeoutSeconds}s`);
@@ -862,61 +1095,34 @@ Provide a JSON response with this structure:
       console.log('[Video Processing] Scene enhanced with:', sceneEnhancements);
     }
 
-    console.log('[Video Processing] Starting FFmpeg video generation process...');
+    console.log('[Video Processing] Starting video generation with provider system...');
     
-    // Generate real video using FFmpeg
-    const tempDir = path.join(process.cwd(), 'temp_videos');
-    console.log('[Video Processing] Creating temp directory:', tempDir);
-    if (!fs.existsSync(tempDir)) {
-      fs.mkdirSync(tempDir, { recursive: true });
-      console.log('[Video Processing] Temp directory created');
-    }
+    // Use new provider system for video generation
+    const videoManager = new VideoProviderManager();
+    const duration = aiPlan?.duration || 10;
     
-    const videoFilename = `video_${Date.now()}_${Math.random().toString(36).substring(7)}.mp4`;
-    const tempVideoPath = path.join(tempDir, videoFilename);
+    const videoResult = await videoManager.generateVideo({
+      imageUrl: finalImageUrl,
+      prompt: aiAnalysis,
+      duration,
+      model,
+      apiKey: keyToUse,
+      preferredMode: videoMode
+    });
     
-    console.log('[Video Processing] Generating real MP4 video at:', tempVideoPath);
-    console.log('[Video Processing] Final image URL for video generation:', finalImageUrl);
-    
-    // Generate video from enhanced image using FFmpeg
-    await generateVideoFromImage(finalImageUrl, aiAnalysis, tempVideoPath);
-    
-    console.log('[Video Processing] Uploading video to S3...');
-    
-    // Upload to S3
-    const objectStorage = new ObjectStorageService();
-    
-    // Read the generated video file
-    const videoBuffer = await fs.promises.readFile(tempVideoPath);
-    
-    // Upload to S3 (returns the S3 path)
-    const s3Path = await objectStorage.uploadToS3(videoBuffer, videoFilename, 'video/mp4');
-    
-    console.log('[Video Processing] Video uploaded to S3:', s3Path);
-    
-    // Clean up temp file
-    try {
-      await fs.promises.unlink(tempVideoPath);
-    } catch (err) {
-      console.warn('[Video Processing] Failed to clean up temp file:', err);
-    }
-    
-    const processedVideoUrl = s3Path;
-    const processingTime = Math.round((Date.now() - startTime) / 1000);
-    
-    console.log('[Video Processing] Video generation completed, uploaded to:', processedVideoUrl);
+    console.log('[Video Processing] Video generation completed with provider:', videoResult.providerUsed);
     
     return {
-      processedVideoUrl,
+      processedVideoUrl: videoResult.videoUrl,
       enhancementsApplied: [
         "AI-powered video analysis",
         ...sceneEnhancements,
-        "FFmpeg video generation", 
-        "Ken Burns camera effect",
-        "Professional video encoding"
+        ...videoResult.enhancementsApplied
       ],
-      videoDuration: 10,
-      processingTime
+      videoDuration: duration,
+      processingTime: videoResult.processingTime,
+      providerUsed: videoResult.providerUsed,
+      modelUsed: videoResult.modelUsed
     };
     
   } catch (error) {
