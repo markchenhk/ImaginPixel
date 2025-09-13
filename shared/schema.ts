@@ -41,6 +41,8 @@ export const messages = pgTable("messages", {
   role: text("role").notNull(), // 'user' | 'assistant'
   content: text("content").notNull(),
   imageUrl: text("image_url"),
+  videoUrl: text("video_url"), // For video generation results
+  mediaType: text("media_type").default("text"), // 'text' | 'image' | 'video'
   processingStatus: text("processing_status").default("completed"), // 'processing' | 'completed' | 'error'
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
@@ -54,6 +56,22 @@ export const imageProcessingJobs = pgTable("image_processing_jobs", {
   model: text("model").notNull(),
   status: text("status").notNull().default("pending"), // 'pending' | 'processing' | 'completed' | 'error'
   processingTime: integer("processing_time"), // in seconds
+  errorMessage: text("error_message"),
+  enhancementsApplied: json("enhancements_applied").$type<string[]>(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  completedAt: timestamp("completed_at"),
+});
+
+export const videoProcessingJobs = pgTable("video_processing_jobs", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  messageId: varchar("message_id").references(() => messages.id).notNull(),
+  originalImageUrl: text("original_image_url").notNull(),
+  processedVideoUrl: text("processed_video_url"),
+  prompt: text("prompt").notNull(),
+  model: text("model").notNull(),
+  status: text("status").notNull().default("pending"), // 'pending' | 'processing' | 'completed' | 'error'
+  processingTime: integer("processing_time"), // in seconds
+  videoDuration: integer("video_duration").default(10), // duration in seconds
   errorMessage: text("error_message"),
   enhancementsApplied: json("enhancements_applied").$type<string[]>(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
@@ -151,6 +169,12 @@ export const insertImageProcessingJobSchema = createInsertSchema(imageProcessing
   completedAt: true,
 });
 
+export const insertVideoProcessingJobSchema = createInsertSchema(videoProcessingJobs).omit({
+  id: true,
+  createdAt: true,
+  completedAt: true,
+});
+
 export const insertModelConfigurationSchema = createInsertSchema(modelConfigurations).omit({
   id: true,
   updatedAt: true,
@@ -188,6 +212,9 @@ export type InsertMessage = z.infer<typeof insertMessageSchema>;
 export type ImageProcessingJob = typeof imageProcessingJobs.$inferSelect;
 export type InsertImageProcessingJob = z.infer<typeof insertImageProcessingJobSchema>;
 
+export type VideoProcessingJob = typeof videoProcessingJobs.$inferSelect;
+export type InsertVideoProcessingJob = z.infer<typeof insertVideoProcessingJobSchema>;
+
 export type ModelConfiguration = typeof modelConfigurations.$inferSelect;
 export type InsertModelConfiguration = z.infer<typeof insertModelConfigurationSchema>;
 
@@ -223,11 +250,19 @@ export const messagesRelations = relations(messages, ({ one, many }) => ({
     references: [conversations.id],
   }),
   imageProcessingJobs: many(imageProcessingJobs),
+  videoProcessingJobs: many(videoProcessingJobs),
 }));
 
 export const imageProcessingJobsRelations = relations(imageProcessingJobs, ({ one }) => ({
   message: one(messages, {
     fields: [imageProcessingJobs.messageId],
+    references: [messages.id],
+  }),
+}));
+
+export const videoProcessingJobsRelations = relations(videoProcessingJobs, ({ one }) => ({
+  message: one(messages, {
+    fields: [videoProcessingJobs.messageId],
     references: [messages.id],
   }),
 }));
