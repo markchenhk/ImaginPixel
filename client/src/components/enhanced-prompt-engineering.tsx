@@ -659,6 +659,7 @@ export function EnhancedPromptEngineering({ isOpen, onClose, selectedFunction = 
                       onCancel={() => { setShowNewTemplateForm(false); resetNewTemplate(); }}
                       isSaving={createTemplateMutation.isPending}
                       functions={functions}
+                      templateCategories={templateCategories}
                     />
                   ) : editingTemplate ? (
                     <EditTemplateForm 
@@ -670,6 +671,7 @@ export function EnhancedPromptEngineering({ isOpen, onClose, selectedFunction = 
                       isUpdating={updateTemplateMutation.isPending}
                       isDeleting={deleteTemplateMutation.isPending}
                       functions={functions}
+                      templateCategories={templateCategories}
                       onEnhance={handleEnhanceTemplate}
                       isEnhancing={enhanceTemplateMutation.isPending}
                       enhancingTemplate={enhancingTemplate}
@@ -958,11 +960,9 @@ function NewTemplateForm({
   setNewTemplate, 
   onSave, 
   onCancel, 
-  onEnhance,
   isSaving,
-  isEnhancing,
-  categories,
-  functions
+  functions,
+  templateCategories
 }: any) {
   return (
     <div className="space-y-6">
@@ -1013,7 +1013,7 @@ function NewTemplateForm({
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              {categories.map((cat: { value: string; label: string }) => (
+              {templateCategories?.map((cat: { value: string; label: string }) => (
                 <SelectItem key={cat.value} value={cat.value}>
                   {cat.label}
                 </SelectItem>
