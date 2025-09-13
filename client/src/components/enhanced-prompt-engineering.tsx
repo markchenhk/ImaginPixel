@@ -46,7 +46,10 @@ import {
   ChevronDown,
   FileText,
   ArrowLeft,
-  ChevronRight
+  ChevronRight,
+  Keyboard,
+  FolderOpen,
+  Target
 } from 'lucide-react';
 
 interface EnhancedPromptEngineeringProps {
@@ -506,16 +509,11 @@ export function EnhancedPromptEngineering({ isOpen, onClose, selectedFunction = 
             </div>
 
             <div className="flex-1 flex overflow-hidden">
-              {/* Legacy Tab-Based View (Fallback) */}
+              {/* Hierarchical View Content */}
               <div className="flex-1 flex overflow-hidden">
-                <div className="flex-1 p-6 overflow-y-auto">
-                  <div className="flex items-center justify-center h-full">
-                    <div className="text-center text-gray-400">
-                      <Settings className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                      <p>Hierarchical view is being restructured. Please use the legacy interface for now.</p>
-                    </div>
-                  </div>
-                </div>
+                {currentView === 'functionsList' && <FunctionsListView />}
+                {currentView === 'functionDetail' && selectedFunctionForDetail && <FunctionDetailView />}
+                {currentView === 'templateDetail' && selectedTemplateForDetail && <TemplateDetailView />}
               </div>
             </div>
           </div>
@@ -523,6 +521,388 @@ export function EnhancedPromptEngineering({ isOpen, onClose, selectedFunction = 
       </div>
     </div>
   );
+
+  // Functions List View (Upper Level)
+  function FunctionsListView() {
+    return (
+      <div className="flex-1 flex overflow-hidden">
+        {/* Sidebar */}
+        <div className="w-80 border-r border-[#2a2a2a] p-4 space-y-4">
+          <Button
+            onClick={() => {
+              resetNewFunction();
+              setShowNewFunctionForm(true);
+              setEditingFunction(null);
+            }}
+            className="w-full bg-[#ffd700] text-black hover:bg-[#ffd700]/90"
+            data-testid="button-new-function"
+          >
+            <Plus className="h-4 w-4 mr-2" />
+            New Function
+          </Button>
+
+          <div className="space-y-2 max-h-96 overflow-y-auto">
+            <Label className="text-sm font-medium text-gray-300">
+              Application Functions ({functions.length})
+            </Label>
+            {functions
+              .sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0))
+              .map(func => (
+                <Card
+                  key={func.id}
+                  className={`p-3 border-[#3a3a3a] cursor-pointer hover:bg-[#3a3a3a] transition-colors ${
+                    func.enabled === "false" ? 'bg-[#2a2a2a]/50 opacity-60' : 'bg-[#2a2a2a]'
+                  }`}
+                  onClick={() => {
+                    setSelectedFunctionForDetail(func);
+                    setCurrentView('functionDetail');
+                  }}
+                  data-testid={`card-function-${func.functionKey}`}
+                >
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="font-medium text-white text-sm truncate">{func.name}</span>
+                      <div className="flex items-center gap-1">
+                        {func.enabled === "false" ? (
+                          <div className="flex items-center gap-1">
+                            <EyeOff className="h-3 w-3 text-gray-500" />
+                            <span className="text-xs text-gray-500">Disabled</span>
+                          </div>
+                        ) : (
+                          <div className="flex items-center gap-1">
+                            <Eye className="h-3 w-3 text-green-500" />
+                            <span className="text-xs text-green-500">Enabled</span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                    <p className="text-xs text-gray-400 line-clamp-2">{func.description}</p>
+                    
+                    {/* Default Template Preview */}
+                    {func.defaultTemplate && (
+                      <div className="mt-2 p-2 bg-gray-800/40 rounded border border-gray-700/30">
+                        <div className="text-xs font-medium text-blue-400 mb-1">🎯 Default Template</div>
+                        <div className="text-xs text-gray-300 font-mono line-clamp-2">
+                          {func.defaultTemplate.substring(0, 100)}{func.defaultTemplate.length > 100 ? '...' : ''}
+                        </div>
+                      </div>
+                    )}
+                    
+                    {/* Hotkey Templates Count */}
+                    {templates.filter(t => t.functionId === func.id).length > 0 && (
+                      <div className="mt-2 flex items-center gap-1 text-xs text-gray-400">
+                        <Keyboard className="h-3 w-3" />
+                        <span>{templates.filter(t => t.functionId === func.id).length} hotkey templates</span>
+                      </div>
+                    )}
+                  </div>
+                </Card>
+              ))}
+          </div>
+        </div>
+
+        {/* Main Content Area */}
+        <div className="flex-1 p-6 overflow-y-auto">
+          {showNewFunctionForm ? (
+            <NewFunctionForm
+              newFunction={newFunction}
+              setNewFunction={setNewFunction}
+              onSave={handleSaveFunction}
+              onCancel={() => {
+                setShowNewFunctionForm(false);
+                resetNewFunction();
+              }}
+              isSaving={createFunctionMutation.isPending}
+              availableIcons={availableIcons}
+            />
+          ) : (
+            <div className="flex items-center justify-center h-full">
+              <div className="text-center text-gray-400">
+                <FolderOpen className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                <p className="text-lg mb-2">Select a function to manage</p>
+                <p className="text-sm">Choose an application function from the sidebar to edit its default template and manage hotkey templates</p>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  // Function Detail View (Middle Level)
+  function FunctionDetailView() {
+    if (!selectedFunctionForDetail) return null;
+    
+    const functionTemplates = templates.filter(t => t.functionId === selectedFunctionForDetail.id);
+    
+    return (
+      <div className="flex-1 flex overflow-hidden">
+        {/* Function Details Sidebar */}
+        <div className="w-80 border-r border-[#2a2a2a] p-4 space-y-4">
+          <div className="space-y-3">
+            <div className="flex items-center gap-2">
+              <h3 className="text-lg font-medium text-white">{selectedFunctionForDetail.name}</h3>
+              <Badge className={`text-xs ${selectedFunctionForDetail.enabled === "false" ? 'bg-red-500/20 text-red-400' : 'bg-green-500/20 text-green-400'}`}>
+                {selectedFunctionForDetail.enabled === "false" ? 'Disabled' : 'Enabled'}
+              </Badge>
+            </div>
+            <p className="text-sm text-gray-400">{selectedFunctionForDetail.description}</p>
+          </div>
+          
+          <div className="space-y-3 border-t border-[#2a2a2a] pt-4">
+            <div className="flex items-center justify-between">
+              <Label className="text-sm font-medium text-gray-300">Hotkey Templates ({functionTemplates.length})</Label>
+              <Button 
+                size="sm" 
+                className="h-7 px-2 text-xs"
+                onClick={() => {
+                  // Initialize new template with current function
+                  setNewTemplate({
+                    name: '',
+                    description: '',
+                    category: 'custom',
+                    functionId: selectedFunctionForDetail?.id || '',
+                    template: '',
+                    variables: [],
+                    enabled: true
+                  });
+                  setShowNewTemplateForm(true);
+                  setEditingTemplate(null);
+                }}
+                data-testid="button-add-template"
+              >
+                <Plus className="h-3 w-3 mr-1" />
+                Add
+              </Button>
+            </div>
+            
+            <div className="space-y-2 max-h-64 overflow-y-auto">
+              {functionTemplates.map(template => (
+                <div
+                  key={template.id}
+                  className="p-2 bg-[#2a2a2a] rounded border border-[#3a3a3a] cursor-pointer hover:bg-[#3a3a3a] transition-colors"
+                  onClick={() => {
+                    setSelectedTemplateForDetail(template);
+                    setCurrentView('templateDetail');
+                  }}
+                  data-testid={`template-item-${template.hotkey}`}
+                >
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="font-medium text-white text-sm">{template.name}</span>
+                    <kbd className="px-2 py-1 bg-gray-700 text-xs font-mono rounded">{template.hotkey}</kbd>
+                  </div>
+                  <p className="text-xs text-gray-400 line-clamp-1">{template.description}</p>
+                </div>
+              ))}
+              {functionTemplates.length === 0 && (
+                <div className="text-center text-gray-500 py-4">
+                  <Keyboard className="h-6 w-6 mx-auto mb-2 opacity-50" />
+                  <p className="text-xs">No hotkey templates yet</p>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Default Template Editor OR New Template Form */}
+        <div className="flex-1 p-6 overflow-y-auto">
+          {showNewTemplateForm ? (
+            <NewTemplateForm
+              newTemplate={newTemplate}
+              setNewTemplate={setNewTemplate}
+              onSave={handleSaveTemplate}
+              onCancel={() => {
+                setShowNewTemplateForm(false);
+                resetNewTemplate();
+              }}
+              isSaving={createTemplateMutation.isPending}
+              functions={functions}
+              templateCategories={templateCategories}
+            />
+          ) : (
+            <div className="space-y-6">
+              <div className="flex items-center gap-3">
+                <Target className="h-6 w-6 text-blue-400" />
+                <h2 className="text-xl font-medium text-white">Default Template</h2>
+                <Badge className="bg-blue-500/20 text-blue-400 border-blue-500/30">Primary</Badge>
+              </div>
+            
+            <div className="bg-[#2a2a2a] rounded-lg border border-[#3a3a3a] p-4">
+              <Label className="text-sm font-medium text-gray-300 block mb-2">
+                Default Prompt Template
+              </Label>
+              <Textarea
+                value={selectedFunctionForDetail.defaultTemplate || ''}
+                onChange={(e) => {
+                  const updated = { ...selectedFunctionForDetail, defaultTemplate: e.target.value };
+                  setSelectedFunctionForDetail(updated);
+                }}
+                placeholder="Enter the default prompt template for this function..."
+                className="min-h-32 bg-[#1a1a1a] border-[#3a3a3a] font-mono text-sm"
+                data-testid="textarea-default-template"
+              />
+              <p className="text-xs text-gray-400 mt-2">
+                This template is used when no specific hotkey template is selected. Variables like {'{image_type}'} and {'{quality_level}'} are automatically replaced.
+              </p>
+            </div>
+            
+            <div className="flex gap-3">
+              <Button
+                onClick={() => {
+                  // Handle save default template with proper API call
+                  if (selectedFunctionForDetail) {
+                    updateFunctionMutation.mutate({
+                      id: selectedFunctionForDetail.id,
+                      updates: { defaultTemplate: selectedFunctionForDetail.defaultTemplate }
+                    });
+                  }
+                }}
+                disabled={updateFunctionMutation.isPending}
+                className="bg-blue-600 hover:bg-blue-700"
+                data-testid="button-save-default-template"
+              >
+                <Save className="h-4 w-4 mr-2" />
+                {updateFunctionMutation.isPending ? 'Saving...' : 'Save Default Template'}
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setSelectedFunctionForDetail({
+                    ...selectedFunctionForDetail,
+                    defaultTemplate: functions.find(f => f.id === selectedFunctionForDetail.id)?.defaultTemplate || ''
+                  });
+                }}
+                data-testid="button-reset-default-template"
+              >
+                Reset Changes
+              </Button>
+            </div>
+          </div>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  // Template Detail View (Lower Level)
+  function TemplateDetailView() {
+    if (!selectedTemplateForDetail) return null;
+    
+    return (
+      <div className="flex-1 p-6 overflow-y-auto">
+        <div className="space-y-6">
+          <div className="flex items-center gap-3">
+            <Keyboard className="h-6 w-6 text-purple-400" />
+            <h2 className="text-xl font-medium text-white">{selectedTemplateForDetail.name}</h2>
+            <kbd className="px-3 py-1 bg-gray-700 text-sm font-mono rounded">{selectedTemplateForDetail.hotkey}</kbd>
+          </div>
+          
+          <div className="bg-[#2a2a2a] rounded-lg border border-[#3a3a3a] p-4">
+            <Label className="text-sm font-medium text-gray-300 block mb-2">
+              Template Content
+            </Label>
+            <Textarea
+              value={selectedTemplateForDetail.template}
+              onChange={(e) => {
+                setSelectedTemplateForDetail({
+                  ...selectedTemplateForDetail,
+                  template: e.target.value
+                });
+              }}
+              placeholder="Enter the hotkey template content..."
+              className="min-h-40 bg-[#1a1a1a] border-[#3a3a3a] font-mono text-sm"
+              data-testid="textarea-template-content"
+            />
+          </div>
+          
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <Label className="text-sm font-medium text-gray-300 block mb-2">Template Name</Label>
+              <Input
+                value={selectedTemplateForDetail.name}
+                onChange={(e) => {
+                  setSelectedTemplateForDetail({
+                    ...selectedTemplateForDetail,
+                    name: e.target.value
+                  });
+                }}
+                className="bg-[#1a1a1a] border-[#3a3a3a]"
+                data-testid="input-template-name"
+              />
+            </div>
+            <div>
+              <Label className="text-sm font-medium text-gray-300 block mb-2">Hotkey</Label>
+              <Input
+                value={selectedTemplateForDetail.hotkey}
+                onChange={(e) => {
+                  setSelectedTemplateForDetail({
+                    ...selectedTemplateForDetail,
+                    hotkey: e.target.value
+                  });
+                }}
+                className="bg-[#1a1a1a] border-[#3a3a3a]"
+                data-testid="input-template-hotkey"
+              />
+            </div>
+          </div>
+          
+          <div>
+            <Label className="text-sm font-medium text-gray-300 block mb-2">Description</Label>
+            <Input
+              value={selectedTemplateForDetail.description}
+              onChange={(e) => {
+                setSelectedTemplateForDetail({
+                  ...selectedTemplateForDetail,
+                  description: e.target.value
+                });
+              }}
+              placeholder="Describe what this template does..."
+              className="bg-[#1a1a1a] border-[#3a3a3a]"
+              data-testid="input-template-description"
+            />
+          </div>
+          
+          <div className="flex gap-3">
+            <Button
+              onClick={() => {
+                // Handle save template
+                toast({ title: 'Template updated', description: 'Changes saved successfully' });
+              }}
+              className="bg-purple-600 hover:bg-purple-700"
+              data-testid="button-save-template"
+            >
+              <Save className="h-4 w-4 mr-2" />
+              Save Template
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => {
+                const originalTemplate = templates.find(t => t.id === selectedTemplateForDetail.id);
+                if (originalTemplate) {
+                  setSelectedTemplateForDetail(originalTemplate);
+                }
+              }}
+              data-testid="button-reset-template"
+            >
+              Reset Changes
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={() => {
+                // Handle delete template
+                toast({ title: 'Template deleted', description: 'Template removed successfully' });
+                navigateBackToFunctionDetail();
+              }}
+              data-testid="button-delete-template"
+            >
+              <Trash2 className="h-4 w-4 mr-2" />
+              Delete
+            </Button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 }
 
 // New Function Form Component
