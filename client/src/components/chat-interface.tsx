@@ -6,7 +6,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useToast } from '@/hooks/use-toast';
 import { apiRequest, queryClient } from '@/lib/queryClient';
-import type { Message, Conversation, PromptTemplate } from '@shared/schema';
+import type { Message, Conversation, PromptTemplate, ApplicationFunction } from '@shared/schema';
 import { UploadedImage } from '@/types';
 import { ImagePopup } from './image-popup';
 import { PromptTemplateButtons } from './prompt-template-buttons';
@@ -17,6 +17,7 @@ interface ChatInterfaceProps {
   onImageProcessed: (originalUrl: string, processedUrl: string) => void;
   onSaveToLibrary?: (imageUrl: string, title: string) => void;
   onImageSelected?: (imageUrl: string) => void; // New prop for selecting images for editing
+  selectedFunction?: 'image-enhancement' | 'image-to-video'; // Current application function
 }
 
 export default function ChatInterface({ 
@@ -24,7 +25,8 @@ export default function ChatInterface({
   onConversationCreate,
   onImageProcessed,
   onSaveToLibrary,
-  onImageSelected
+  onImageSelected,
+  selectedFunction
 }: ChatInterfaceProps) {
   const { toast } = useToast();
   const [input, setInput] = useState('');
@@ -35,6 +37,13 @@ export default function ChatInterface({
   const [popupMessageId, setPopupMessageId] = useState<string | null>(null);
   const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  // Fetch enabled application functions for default template lookup
+  const { data: applicationFunctions = [] } = useQuery<ApplicationFunction[]>({
+    queryKey: ['/api/application-functions'],
+    enabled: !!selectedFunction, // Only fetch when a function is selected
+    staleTime: 5 * 60 * 1000, // Cache for 5 minutes
+  });
 
   // Fetch messages for current conversation
   const { data: messages = [], isLoading: messagesLoading } = useQuery<Message[]>({
@@ -186,13 +195,52 @@ export default function ChatInterface({
   };
 
   const handleSendMessage = async () => {
-    if (!input.trim() && !selectedTemplateId) return;
+    // Determine message content from various sources
+    let messageContent = input.trim();
+    
+    // If user selected a template but didn't provide custom input, use template content
+    if (selectedTemplateId && !messageContent) {
+      try {
+        const response = await fetch('/api/prompt-templates');
+        const templates = await response.json();
+        const selectedTemplate = templates.find((t: PromptTemplate) => t.id === selectedTemplateId);
+        if (selectedTemplate?.template) {
+          messageContent = selectedTemplate.template;
+        }
+      } catch (error) {
+        console.error('Failed to fetch template:', error);
+        toast({
+          title: 'Failed to load template',
+          description: 'Please try again or enter your prompt manually.',
+          variant: 'destructive',
+        });
+        return;
+      }
+    }
+    
+    // If no input and no template selected, try to use default template for current function
+    if (!messageContent && selectedFunction && !selectedTemplateId) {
+      const currentFunction = applicationFunctions.find((f: any) => f.functionKey === selectedFunction);
+      if (currentFunction?.defaultTemplate) {
+        messageContent = currentFunction.defaultTemplate;
+      }
+    }
+    
+    // Validate that we have content to send
+    if (!messageContent) {
+      toast({
+        title: 'No prompt provided',
+        description: 'Please enter a prompt or select a template before sending.',
+        variant: 'destructive',
+      });
+      return;
+    }
     
     let currentConversationId = conversationId;
     
     // Create conversation if it doesn't exist
     if (!currentConversationId) {
-      const title = input.length > 50 ? `${input.substring(0, 50)}...` : input;
+      const title = messageContent.length > 50 ? `${messageContent.substring(0, 50)}...` : messageContent;
       currentConversationId = await new Promise((resolve) => {
         createConversationMutation.mutate(title, {
           onSuccess: (conversation) => resolve(conversation.id),
@@ -201,22 +249,6 @@ export default function ChatInterface({
     }
 
     if (currentConversationId) {
-      // Use template content if a template is selected, otherwise use input
-      let messageContent = input;
-      if (selectedTemplateId && !input.trim()) {
-        // Find the selected template and use its content
-        try {
-          const response = await fetch('/api/prompt-templates');
-          const templates = await response.json();
-          const selectedTemplate = templates.find((t: PromptTemplate) => t.id === selectedTemplateId);
-          if (selectedTemplate) {
-            messageContent = selectedTemplate.template;
-          }
-        } catch (error) {
-          console.error('Failed to fetch template:', error);
-        }
-      }
-
       // Send with uploaded image (if any) or use conversation context
       processImageMutation.mutate({
         conversationId: currentConversationId,

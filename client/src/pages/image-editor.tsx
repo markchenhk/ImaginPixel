@@ -170,6 +170,7 @@ export default function ImageEditor() {
                 onConversationCreate={handleConversationCreate}
                 onImageProcessed={handleImageProcessed}
                 onImageSelected={handleImageSelected}
+                selectedFunction={selectedFunction}
                 onSaveToLibrary={async (imageUrl, title) => {
                   try {
                     const response = await fetch('/api/library/save', {
