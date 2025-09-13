@@ -1040,22 +1040,12 @@ function NewTemplateForm({
             type="button"
             variant="outline"
             size="sm"
-            onClick={onEnhance}
-            disabled={!newTemplate.template.trim() || isEnhancing}
+            disabled={!newTemplate.template.trim()}
             className="text-xs"
             data-testid="button-enhance-template"
           >
-            {isEnhancing ? (
-              <>
-                <div className="animate-spin h-3 w-3 mr-1 border border-current border-t-transparent rounded-full" />
-                Enhancing...
-              </>
-            ) : (
-              <>
-                <Sparkles className="h-3 w-3 mr-1" />
-                Enhance with AI
-              </>
-            )}
+            <Sparkles className="h-3 w-3 mr-1" />
+            Enhance with AI
           </Button>
         </div>
         <Textarea
@@ -1065,11 +1055,23 @@ function NewTemplateForm({
             template: e.target.value,
             variables: e.target.value.match(/\{([^}]+)\}/g)?.map(match => match.slice(1, -1)) || []
           })}
-          placeholder="Enter your prompt template here..."
-          className="min-h-[200px]"
+          placeholder="Enter your prompt template here...\n\nExample:\nAnalyze this {image_type} image and provide {analysis_depth} analysis focusing on {focus_areas}."
+          className="min-h-[200px] font-mono"
           data-testid="textarea-template-content"
         />
-        <p className="text-xs text-gray-500 mt-1">Use {`{variable}`} for dynamic content</p>
+        <div className="mt-2 space-y-2">
+          <p className="text-xs text-gray-500">Use {`{variable}`} for dynamic content</p>
+          {newTemplate.variables && newTemplate.variables.length > 0 && (
+            <div className="flex flex-wrap gap-1">
+              <span className="text-xs text-gray-400">Variables found:</span>
+              {newTemplate.variables.map((variable: string, index: number) => (
+                <span key={index} className="inline-flex items-center px-2 py-1 rounded text-xs bg-blue-500/20 text-blue-400 border border-blue-500/30">
+                  {`{${variable}}`}
+                </span>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
 
       <div className="flex items-center space-x-2">
@@ -1113,7 +1115,7 @@ function EditTemplateForm({
   isDeleting,
   isEnhancing,
   wasCopied,
-  categories,
+  templateCategories,
   functions
 }: any) {
   return (
@@ -1244,16 +1246,44 @@ function EditTemplateForm({
             template: e.target.value,
             variables: e.target.value.match(/\{([^}]+)\}/g)?.map(match => match.slice(1, -1)) || []
           })}
-          className="min-h-[200px]"
+          className="min-h-[200px] font-mono"
+          placeholder="Enter your prompt template here...\n\nExample:\nAnalyze this {image_type} image and provide {analysis_depth} analysis focusing on {focus_areas}."
           data-testid="textarea-edit-template-content"
         />
+        <div className="mt-2 space-y-2">
+          <p className="text-xs text-gray-500">Use {`{variable}`} for dynamic content</p>
+          {template.variables && template.variables.length > 0 && (
+            <div className="flex flex-wrap gap-1">
+              <span className="text-xs text-gray-400">Variables found:</span>
+              {template.variables.map((variable: string, index: number) => (
+                <span key={index} className="inline-flex items-center px-2 py-1 rounded text-xs bg-blue-500/20 text-blue-400 border border-blue-500/30">
+                  {`{${variable}}`}
+                </span>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
+
+      {/* Template Preview Section */}
+      {template.template && template.variables && template.variables.length > 0 && (
+        <div className="border-t pt-4">
+          <Label className="text-sm font-medium text-gray-300 mb-2 block">Template Preview</Label>
+          <div className="bg-gray-800/50 p-3 rounded-lg border">
+            <p className="text-sm text-gray-300 mb-2">How this template will appear with sample values:</p>
+            <div className="bg-gray-900 p-3 rounded text-sm font-mono text-green-400 border">
+              {template.template.replace(/\{([^}]+)\}/g, (match: string, variable: string) => `[${variable.toUpperCase()}]`)}
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="flex items-center justify-between">
         <div className="flex items-center space-x-4 text-sm text-gray-400">
           <span>Usage: {template.usage || 0}</span>
           <span>Variables: {template.variables?.length || 0}</span>
-          <span>ID: {template.id}</span>
+          <span>Created: {template.createdAt ? new Date(template.createdAt).toLocaleDateString() : 'N/A'}</span>
+          <span className="text-xs opacity-60">ID: {template.id?.slice(0, 8)}...</span>
         </div>
         
         <div className="flex space-x-2">
