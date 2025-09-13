@@ -25,23 +25,27 @@ import { ObjectPermission } from "./objectAcl.js";
 // @ts-ignore - FFmpeg types are installed but may not be loading properly
 import ffmpeg from "fluent-ffmpeg";
 import ffmpegPath from "ffmpeg-static";
+import sharp from "sharp";
 
 // Configure ffmpeg with the static binary path
 if (ffmpegPath) {
   ffmpeg.setFfmpegPath(ffmpegPath);
 }
 
-// Video generation function
+// Frame-based Ken Burns video generation using Sharp + FFmpeg
 async function generateVideoFromImage(
   imageUrl: string, 
   analysis: string, 
   outputPath: string
 ): Promise<void> {
   return new Promise(async (resolve, reject) => {
+    const frameDir = path.join(process.cwd(), 'temp_videos', `frames_${Date.now()}`);
+    let tempImagePath: string | null = null;
+    
     try {
-      console.log('[Video Generation] Creating MP4 from image:', imageUrl);
+      console.log('[Video Generation] Creating dynamic MP4 from image:', imageUrl);
       
-      // Download image locally first to avoid HTTPS issues
+      // Download image locally first
       console.log('[Video Generation] Downloading image locally...');
       const response = await fetch(imageUrl);
       if (!response.ok) {
@@ -49,31 +53,82 @@ async function generateVideoFromImage(
       }
       
       const imageBuffer = await response.arrayBuffer();
-      const tempImagePath = path.join(process.cwd(), 'temp_videos', `temp_image_${Date.now()}.png`);
+      tempImagePath = path.join(process.cwd(), 'temp_videos', `temp_image_${Date.now()}.png`);
       await fs.promises.writeFile(tempImagePath, Buffer.from(imageBuffer));
       
       console.log('[Video Generation] Image downloaded to:', tempImagePath);
       
-      // Create a simple video with basic effects (no complex time-based filters)
-      ffmpeg(tempImagePath)
+      // Create frames directory
+      await fs.promises.mkdir(frameDir, { recursive: true });
+      
+      // Generate frames with Ken Burns effect using Sharp
+      console.log('[Video Generation] Generating motion frames...');
+      const frameCount = 300; // 10 seconds at 30 FPS
+      const targetWidth = 1280;
+      const targetHeight = 720;
+      
+      // Get source image dimensions
+      const metadata = await sharp(tempImagePath).metadata();
+      const sourceWidth = metadata.width || 1280;
+      const sourceHeight = metadata.height || 720;
+      
+      // Ensure image is large enough for Ken Burns effect
+      const scaledWidth = Math.max(sourceWidth, targetWidth * 1.5);
+      const scaledHeight = Math.max(sourceHeight, targetHeight * 1.5);
+      
+      // Create Ken Burns motion: slow zoom from wide to close
+      for (let frame = 0; frame < frameCount; frame++) {
+        const progress = frame / (frameCount - 1); // 0 to 1
+        
+        // Calculate zoom: start wide (1.0), end closer (1.3)
+        const zoom = 1.0 + (progress * 0.3);
+        
+        // Calculate crop dimensions
+        const cropWidth = Math.round(targetWidth / zoom);
+        const cropHeight = Math.round(targetHeight / zoom);
+        
+        // Center the crop with slight drift for motion
+        const maxDriftX = Math.max(0, scaledWidth - cropWidth);
+        const maxDriftY = Math.max(0, scaledHeight - cropHeight);
+        const cropX = Math.round((maxDriftX / 2) + (progress * maxDriftX * 0.1));
+        const cropY = Math.round((maxDriftY / 2) + (progress * maxDriftY * 0.1));
+        
+        // Generate frame with Sharp
+        const framePath = path.join(frameDir, `frame_${frame.toString().padStart(4, '0')}.jpg`);
+        
+        await sharp(tempImagePath)
+          .resize(scaledWidth, scaledHeight, { 
+            fit: 'cover', 
+            position: 'center' 
+          })
+          .extract({ 
+            left: Math.max(0, cropX), 
+            top: Math.max(0, cropY), 
+            width: Math.min(cropWidth, scaledWidth), 
+            height: Math.min(cropHeight, scaledHeight) 
+          })
+          .resize(targetWidth, targetHeight, { fit: 'fill' })
+          .jpeg({ quality: 85 })
+          .toFile(framePath);
+      }
+      
+      console.log('[Video Generation] Generated', frameCount, 'motion frames');
+      
+      // Assemble frames into video using FFmpeg (stable, no complex filters)
+      console.log('[Video Generation] Assembling video from frames...');
+      
+      ffmpeg()
+        .input(path.join(frameDir, 'frame_%04d.jpg'))
         .inputOptions([
-          '-loop 1',           // Loop the input image
-          '-t 10'              // Duration: 10 seconds
+          '-framerate 30'        // Input frame rate
         ])
         .videoCodec('libx264')
-        .size('1280x720')     // HD resolution
-        .fps(30)              // 30 FPS
         .outputOptions([
-          '-movflags +faststart',  // Web optimization
-          '-pix_fmt yuv420p',      // Compatibility
-          '-preset fast',          // Encoding speed
-          '-crf 23'               // Quality (lower = better)
-        ])
-        // Simplified effects - no complex time expressions
-        .videoFilters([
-          'scale=1280:720',        // Simple scaling
-          'fade=t=in:st=0:d=1',    // Fade in
-          'fade=t=out:st=9:d=1'    // Fade out
+          '-r 30',              // Output frame rate
+          '-preset medium',     // Encoding quality
+          '-crf 22',           // Quality (lower = better)
+          '-pix_fmt yuv420p',  // Compatibility
+          '-movflags +faststart' // Web optimization
         ])
         .output(outputPath)
         .on('start', (commandLine: string) => {
@@ -83,30 +138,36 @@ async function generateVideoFromImage(
           console.log(`[Video Generation] Progress: ${Math.round(progress.percent || 0)}%`);
         })
         .on('end', async () => {
-          console.log('[Video Generation] Video created successfully');
-          // Clean up temp image
+          console.log('[Video Generation] Ken Burns video created successfully');
+          
+          // Cleanup
           try {
-            await fs.promises.unlink(tempImagePath);
-          } catch (err) {
-            console.warn('[Video Generation] Failed to clean up temp image:', err);
+            if (tempImagePath) await fs.promises.unlink(tempImagePath);
+            await fs.promises.rm(frameDir, { recursive: true });
+          } catch (cleanupError) {
+            console.warn('[Video Generation] Failed to cleanup temp files:', cleanupError);
           }
+          
           resolve();
         })
-        .on('error', async (err: Error) => {
-          console.error('[Video Generation] Error:', err);
-          // Clean up temp image on error
-          try {
-            await fs.promises.unlink(tempImagePath);
-          } catch (cleanupErr) {
-            console.warn('[Video Generation] Failed to clean up temp image after error:', cleanupErr);
-          }
+        .on('error', (err: Error) => {
+          console.log('[Video Generation] Error during video assembly:', err);
           reject(err);
         })
         .run();
         
-    } catch (err) {
-      console.error('[Video Generation] Setup error:', err);
-      reject(err);
+    } catch (error) {
+      console.log('[Video Generation] Error:', error);
+      
+      // Cleanup on error
+      try {
+        if (tempImagePath) await fs.promises.unlink(tempImagePath);
+        await fs.promises.rm(frameDir, { recursive: true });
+      } catch (cleanupError) {
+        console.warn('[Video Generation] Failed to cleanup after error:', cleanupError);
+      }
+      
+      reject(error);
     }
   });
 }
