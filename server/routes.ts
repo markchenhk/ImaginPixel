@@ -533,16 +533,21 @@ Provide a JSON response with this structure:
     const aiAnalysis = data.choices[0].message.content;
     console.log('[Video Processing] AI Analysis:', aiAnalysis);
 
+    console.log('[Video Processing] Starting FFmpeg video generation process...');
+    
     // Generate real video using FFmpeg
     const tempDir = path.join(process.cwd(), 'temp_videos');
+    console.log('[Video Processing] Creating temp directory:', tempDir);
     if (!fs.existsSync(tempDir)) {
       fs.mkdirSync(tempDir, { recursive: true });
+      console.log('[Video Processing] Temp directory created');
     }
     
     const videoFilename = `video_${Date.now()}_${Math.random().toString(36).substring(7)}.mp4`;
     const tempVideoPath = path.join(tempDir, videoFilename);
     
-    console.log('[Video Processing] Generating real MP4 video...');
+    console.log('[Video Processing] Generating real MP4 video at:', tempVideoPath);
+    console.log('[Video Processing] Source image URL:', fullImageUrl);
     
     // Generate video from image using FFmpeg
     await generateVideoFromImage(fullImageUrl, aiAnalysis, tempVideoPath);
