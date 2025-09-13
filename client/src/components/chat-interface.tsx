@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { useQuery, useMutation } from '@tanstack/react-query';
-import { Send, Bot, User, ImageIcon, Download, Heart } from 'lucide-react';
+import { Send, Bot, User, ImageIcon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -15,8 +15,10 @@ interface ChatInterfaceProps {
   conversationId: string | null;
   onConversationCreate: (conversation: Conversation) => void;
   onImageProcessed: (originalUrl: string, processedUrl: string) => void;
+  onVideoProcessed?: (originalUrl: string, processedUrl: string) => void; // New prop for video processing
   onSaveToLibrary?: (imageUrl: string, title: string) => void;
   onImageSelected?: (imageUrl: string) => void; // New prop for selecting images for editing
+  onVideoSelected?: (videoUrl: string) => void; // New prop for selecting videos for editing
   selectedFunction?: 'image-enhancement' | 'image-to-video'; // Current application function
 }
 
@@ -24,8 +26,10 @@ export default function ChatInterface({
   conversationId, 
   onConversationCreate,
   onImageProcessed,
+  onVideoProcessed,
   onSaveToLibrary,
   onImageSelected,
+  onVideoSelected,
   selectedFunction
 }: ChatInterfaceProps) {
   const { toast } = useToast();
@@ -50,8 +54,9 @@ export default function ChatInterface({
     queryKey: ['/api/conversations', conversationId, 'messages'],
     enabled: !!conversationId,
     staleTime: 0, // Always fetch fresh data
-    refetchInterval: (data) => {
+    refetchInterval: (query) => {
       // Keep polling if any message is still processing
+      const data = query.state.data as Message[] | undefined;
       const hasProcessing = Array.isArray(data) && data.some(msg => msg.processingStatus === 'processing');
       return hasProcessing ? 2000 : false;
     },
@@ -169,6 +174,71 @@ export default function ChatInterface({
     },
   });
 
+  // Process video mutation
+  const processVideoMutation = useMutation({
+    mutationFn: async ({ conversationId, imageUrl, prompt }: { 
+      conversationId: string; 
+      imageUrl?: string; 
+      prompt: string; 
+    }) => {
+      const response = await apiRequest('POST', '/api/process-video', {
+        conversationId,
+        imageUrl,
+        prompt,
+      });
+      return response.json();
+    },
+    onSuccess: (result) => {
+      queryClient.invalidateQueries({ queryKey: ['/api/conversations', conversationId, 'messages'] });
+      
+      // Start optimized polling for video processing job completion
+      let pollCount = 0;
+      const pollJob = () => {
+        // Bypass QueryClient cache and fetch directly to avoid stale data
+        fetch(`/api/video-processing-jobs/${result.aiMessage.id}`, {
+          credentials: 'include'
+        }).then(res => res.json()).then((job: any) => {
+          console.log('Polling video job:', result.aiMessage.id, 'Status:', job?.status);
+          console.log('Full video job data:', job);
+          if (job.status === 'completed') {
+            if (job.processedVideoUrl && onVideoProcessed) {
+              onVideoProcessed(job.originalImageUrl, job.processedVideoUrl);
+            }
+            // Force refresh messages to show updated AI response
+            queryClient.invalidateQueries({ 
+              queryKey: ['/api/conversations', conversationId, 'messages']
+            });
+          } else if (job.status === 'failed') {
+            console.error('Video job failed:', job.error);
+            // Refresh messages to show failure status
+            queryClient.invalidateQueries({ 
+              queryKey: ['/api/conversations', conversationId, 'messages']
+            });
+          } else if (job.status === 'processing' && pollCount < 60) {
+            pollCount++;
+            setTimeout(pollJob, 2000); // Poll every 2 seconds
+          }
+        }).catch(err => {
+          console.error('Video polling error:', err);
+          if (pollCount < 60) {
+            pollCount++;
+            setTimeout(pollJob, 2000);
+          }
+        });
+      };
+      
+      // Start polling after a short delay
+      setTimeout(pollJob, 1000);
+    },
+    onError: (error: Error) => {
+      toast({
+        title: 'Video processing failed',
+        description: error.message,
+        variant: 'destructive',
+      });
+    },
+  });
+
   const handleImageUpload = async (file: File) => {
     // Validate file type
     if (!file.type.startsWith('image/')) {
@@ -249,12 +319,22 @@ export default function ChatInterface({
     }
 
     if (currentConversationId) {
-      // Send with uploaded image (if any) or use conversation context
-      processImageMutation.mutate({
-        conversationId: currentConversationId,
-        imageUrl: uploadedImage?.imageUrl, // Optional - backend will use conversation context if not provided
-        prompt: messageContent,
-      });
+      // Choose the appropriate processing based on selected function
+      if (selectedFunction === 'image-to-video') {
+        // Send for video processing
+        processVideoMutation.mutate({
+          conversationId: currentConversationId,
+          imageUrl: uploadedImage?.imageUrl, // Optional - backend will use conversation context if not provided
+          prompt: messageContent,
+        });
+      } else {
+        // Default to image processing
+        processImageMutation.mutate({
+          conversationId: currentConversationId,
+          imageUrl: uploadedImage?.imageUrl, // Optional - backend will use conversation context if not provided
+          prompt: messageContent,
+        });
+      }
       
       setInput('');
       setUploadedImage(null);
@@ -378,19 +458,6 @@ export default function ChatInterface({
                           }`}
                           data-testid={`message-image-${message.id}`}
                         />
-                        <div 
-                          className={`absolute inset-0 bg-black/0 hover:bg-black/10 rounded-xl transition-colors ${
-                            message.role === 'assistant' && message.processingStatus === 'completed' ? 'cursor-pointer' : ''
-                          }`}
-                          onClick={(e) => {
-                            e.preventDefault();
-                            e.stopPropagation();
-                            if (message.role === 'assistant' && message.processingStatus === 'completed') {
-                              setPopupImageUrl(message.imageUrl!);
-                              setPopupMessageId(message.id);
-                            }
-                          }}
-                        />
                         {message.role === 'user' && (
                           <div className="absolute top-2 left-2 border border-[#666666] bg-black/60 text-[#e0e0e0] text-xs px-2 py-1 rounded-full font-medium shadow-sm">
                             📷 Your Image
@@ -417,6 +484,56 @@ export default function ChatInterface({
                                 data-testid={`button-edit-image-${message.id}`}
                               >
                                 Edit Image
+                              </Button>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {message.videoUrl && (
+                    <div className="mb-3">
+                      <div className="relative group">
+                        <video 
+                          src={message.videoUrl} 
+                          controls
+                          className={`rounded-xl transition-transform hover:scale-[1.02] shadow-lg border border-[#3a3a3a] ${
+                            message.role === 'user' ? 'w-full max-w-xs mb-2' : 'w-full max-w-sm mb-3'
+                          }`}
+                          data-testid={`message-video-${message.id}`}
+                        />
+                        <div 
+                          className={`absolute inset-0 bg-black/0 hover:bg-black/10 rounded-xl transition-colors ${
+                            message.role === 'assistant' && message.processingStatus === 'completed' ? 'cursor-pointer' : ''
+                          }`}
+                        />
+                        {message.role === 'user' && (
+                          <div className="absolute top-2 left-2 border border-[#666666] bg-black/60 text-[#e0e0e0] text-xs px-2 py-1 rounded-full font-medium shadow-sm">
+                            🎬 Your Video
+                          </div>
+                        )}
+                        {message.role === 'assistant' && message.processingStatus === 'completed' && (
+                          <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity rounded-xl bg-black/20">
+                            <div className="flex flex-col gap-2 items-center">
+                              <span className="text-white text-sm font-medium bg-black/50 px-3 py-1 rounded-full">Click to edit video</span>
+                              <Button
+                                size="sm"
+                                onClick={(e) => {
+                                  e.preventDefault();
+                                  e.stopPropagation();
+                                  if (onVideoSelected && message.videoUrl) {
+                                    onVideoSelected(message.videoUrl);
+                                    toast({
+                                      title: "Video loaded",
+                                      description: "Generated video loaded into Video Editor",
+                                    });
+                                  }
+                                }}
+                                className="border border-[#ff6b6b] bg-[#ff6b6b]/10 hover:bg-[#ff6b6b]/20 text-[#ff6b6b] px-3 py-1 text-sm font-medium rounded-full"
+                                data-testid={`button-edit-video-${message.id}`}
+                              >
+                                Edit Video
                               </Button>
                             </div>
                           </div>
@@ -530,7 +647,7 @@ export default function ChatInterface({
           
           <Button
             onClick={handleSendMessage}
-            disabled={(!input.trim() && !selectedTemplateId) || processImageMutation.isPending}
+            disabled={(!input.trim() && !selectedTemplateId) || processImageMutation.isPending || processVideoMutation.isPending}
             className="border border-[#ffd700] bg-[#ffd700]/10 hover:bg-[#ffd700]/20 text-[#ffd700] font-medium"
             data-testid="send-message-button"
           >
