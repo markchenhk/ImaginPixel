@@ -44,7 +44,9 @@ import {
   MoreVertical,
   ChevronUp,
   ChevronDown,
-  FileText
+  FileText,
+  ArrowLeft,
+  ChevronRight
 } from 'lucide-react';
 
 interface EnhancedPromptEngineeringProps {
@@ -54,8 +56,17 @@ interface EnhancedPromptEngineeringProps {
   isAdmin: boolean;
 }
 
+type ViewState = 'functionsList' | 'functionDetail' | 'templateDetail';
+
 export function EnhancedPromptEngineering({ isOpen, onClose, selectedFunction = 'image-enhancement', isAdmin }: EnhancedPromptEngineeringProps) {
   const { toast } = useToast();
+  
+  // New hierarchical view state management
+  const [currentView, setCurrentView] = useState<ViewState>('functionsList');
+  const [selectedFunctionForDetail, setSelectedFunctionForDetail] = useState<ApplicationFunction | null>(null);
+  const [selectedTemplateForDetail, setSelectedTemplateForDetail] = useState<PromptTemplate | null>(null);
+  
+  // Legacy states for forms - keeping for compatibility during transition
   const [activeTab, setActiveTab] = useState<'functions' | 'templates'>('functions');
   const [selectedFunctionId, setSelectedFunctionId] = useState<string>('all');
   const [editingTemplate, setEditingTemplate] = useState<PromptTemplate | null>(null);
@@ -65,16 +76,20 @@ export function EnhancedPromptEngineering({ isOpen, onClose, selectedFunction = 
   const [enhancingTemplate, setEnhancingTemplate] = useState<string | null>(null);
   const [copiedTemplate, setCopiedTemplate] = useState<string | null>(null);
   
-  // Effect to clear editing states when modal closes
+  // Effect to clear all states when modal closes
   useEffect(() => {
     if (!isOpen) {
+      setCurrentView('functionsList');
+      setSelectedFunctionForDetail(null);
+      setSelectedTemplateForDetail(null);
+      setActiveTab('functions');
+      setSelectedFunctionId('all');
       setEditingTemplate(null);
       setEditingFunction(null);
       setShowNewTemplateForm(false);
       setShowNewFunctionForm(false);
       setEnhancingTemplate(null);
       setCopiedTemplate(null);
-      setSelectedFunctionId('all');
     }
   }, [isOpen]);
   
@@ -94,8 +109,31 @@ export function EnhancedPromptEngineering({ isOpen, onClose, selectedFunction = 
     functionKey: '',
     icon: 'Wand2',
     enabled: true,
-    sortOrder: 0
+    sortOrder: 0,
+    defaultTemplate: ''
   });
+
+  // Navigation functions
+  const navigateToFunctionDetail = (func: ApplicationFunction) => {
+    setSelectedFunctionForDetail(func);
+    setCurrentView('functionDetail');
+  };
+
+  const navigateToTemplateDetail = (template: PromptTemplate) => {
+    setSelectedTemplateForDetail(template);
+    setCurrentView('templateDetail');
+  };
+
+  const navigateBackToFunctionsList = () => {
+    setSelectedFunctionForDetail(null);
+    setSelectedTemplateForDetail(null);
+    setCurrentView('functionsList');
+  };
+
+  const navigateBackToFunctionDetail = () => {
+    setSelectedTemplateForDetail(null);
+    setCurrentView('functionDetail');
+  };
 
   // Template categories based on common use cases
   const templateCategories = [
@@ -305,7 +343,8 @@ export function EnhancedPromptEngineering({ isOpen, onClose, selectedFunction = 
       functionKey: '',
       icon: 'Wand2',
       enabled: true,
-      sortOrder: Math.max(...functions.map(f => f.sortOrder || 0), 0) + 1
+      sortOrder: Math.max(...functions.map(f => f.sortOrder || 0), 0) + 1,
+      defaultTemplate: ''
     });
   };
 
@@ -378,6 +417,54 @@ export function EnhancedPromptEngineering({ isOpen, onClose, selectedFunction = 
 
   if (!isOpen) return null;
 
+  // Breadcrumb component
+  const Breadcrumb = () => {
+    return (
+      <div className="flex items-center gap-2 text-sm text-gray-300 px-6 py-3 bg-[#151515] border-b border-[#2a2a2a]">
+        {currentView === 'functionsList' && (
+          <span className="font-medium text-white">Application Functions</span>
+        )}
+        
+        {currentView === 'functionDetail' && selectedFunctionForDetail && (
+          <>
+            <button 
+              onClick={navigateBackToFunctionsList}
+              className="text-blue-400 hover:text-blue-300 flex items-center gap-1"
+              data-testid="breadcrumb-back-to-functions"
+            >
+              <ArrowLeft className="h-3 w-3" />
+              Application Functions
+            </button>
+            <ChevronRight className="h-3 w-3 text-gray-500" />
+            <span className="font-medium text-white">{selectedFunctionForDetail.name}</span>
+          </>
+        )}
+        
+        {currentView === 'templateDetail' && selectedFunctionForDetail && selectedTemplateForDetail && (
+          <>
+            <button 
+              onClick={navigateBackToFunctionsList}
+              className="text-blue-400 hover:text-blue-300"
+              data-testid="breadcrumb-back-to-functions"
+            >
+              Application Functions
+            </button>
+            <ChevronRight className="h-3 w-3 text-gray-500" />
+            <button 
+              onClick={navigateBackToFunctionDetail}
+              className="text-blue-400 hover:text-blue-300"
+              data-testid="breadcrumb-back-to-function"
+            >
+              {selectedFunctionForDetail.name}
+            </button>
+            <ChevronRight className="h-3 w-3 text-gray-500" />
+            <span className="font-medium text-white">{selectedTemplateForDetail.name}</span>
+          </>
+        )}
+      </div>
+    );
+  };
+
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
       <div className="bg-[#1a1a1a] rounded-lg w-full max-w-7xl h-[90vh] flex flex-col border border-[#2a2a2a]">
@@ -401,6 +488,9 @@ export function EnhancedPromptEngineering({ isOpen, onClose, selectedFunction = 
           </Button>
         </div>
 
+        {/* Breadcrumb Navigation */}
+        <Breadcrumb />
+
         {/* Content */}
         <div className="flex-1 flex overflow-hidden">
           <div className="flex-1 flex flex-col">
@@ -416,307 +506,15 @@ export function EnhancedPromptEngineering({ isOpen, onClose, selectedFunction = 
             </div>
 
             <div className="flex-1 flex overflow-hidden">
-              {/* Main Content */}
+              {/* Legacy Tab-Based View (Fallback) */}
               <div className="flex-1 flex overflow-hidden">
-                {/* Sidebar */}
-                <div className="w-80 border-r border-[#2a2a2a] p-4 space-y-4">
-                  <Button
-                    onClick={() => {
-                      resetNewFunction();
-                      setShowNewFunctionForm(true);
-                      setEditingFunction(null);
-                    }}
-                    className="w-full bg-[#ffd700] text-black hover:bg-[#ffd700]/90"
-                    data-testid="button-new-function"
-                  >
-                    <Plus className="h-4 w-4 mr-2" />
-                    New Function
-                  </Button>
-
-                  <div className="space-y-2 max-h-96 overflow-y-auto">
-                    <Label className="text-sm font-medium text-gray-300">
-                      Application Functions ({functions.length})
-                    </Label>
-                    {functions
-                      .sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0))
-                      .map(func => {
-                        const displayFunction = editingFunction && editingFunction.id === func.id ? editingFunction : func;
-                        
-                        return (
-                          <div key={func.id} className="space-y-2">
-                            <Card
-                              className={`p-3 border-[#3a3a3a] cursor-pointer hover:bg-[#3a3a3a] transition-colors ${
-                                displayFunction.enabled === "false" ? 'bg-[#2a2a2a]/50 opacity-60' : 'bg-[#2a2a2a]'
-                              }`}
-                              onClick={() => {
-                                setEditingFunction(func);
-                                setShowNewFunctionForm(false);
-                              }}
-                              data-testid={`card-function-${func.functionKey}`}
-                            >
-                              <div className="space-y-2">
-                                <div className="flex items-center justify-between">
-                                  <span className="font-medium text-white text-sm truncate">{displayFunction.name}</span>
-                                  <div className="flex items-center gap-1">
-                                    {displayFunction.enabled === "false" ? (
-                                      <div className="flex items-center gap-1">
-                                        <EyeOff className="h-3 w-3 text-gray-500" />
-                                        <span className="text-xs text-gray-500">Disabled</span>
-                                      </div>
-                                    ) : (
-                                      <div className="flex items-center gap-1">
-                                        <Eye className="h-3 w-3 text-green-500" />
-                                        <span className="text-xs text-green-500">Enabled</span>
-                                      </div>
-                                    )}
-                                  </div>
-                                </div>
-                                <p className="text-xs text-gray-400 line-clamp-2">{displayFunction.description}</p>
-                                
-                                {/* Default Template Preview */}
-                                {displayFunction.defaultTemplate && (
-                                  <div className="mt-2 p-2 bg-gray-800/40 rounded border border-gray-700/30">
-                                    <div className="text-xs font-medium text-blue-400 mb-1">🎯 Default Template</div>
-                                    <div className="text-xs text-gray-300 font-mono line-clamp-2">
-                                      {displayFunction.defaultTemplate.substring(0, 100)}{displayFunction.defaultTemplate.length > 100 ? '...' : ''}
-                                    </div>
-                                  </div>
-                                )}
-                                
-                                <div className="flex items-center justify-between text-xs text-gray-500">
-                                  <span>Key: {displayFunction.functionKey}</span>
-                                  <span>Order: {displayFunction.sortOrder || 0}</span>
-                                </div>
-                              </div>
-                            </Card>
-                            
-                            {/* Hot Keys (Templates) */}
-                            {templatesByFunction[func.id] && templatesByFunction[func.id].length > 0 && (
-                              <div className="ml-2 space-y-1">
-                                <div className="flex items-center gap-1 mb-2">
-                                  <Hash className="h-3 w-3 text-[#ffd700]" />
-                                  <span className="text-xs font-medium text-[#ffd700]">Hot Keys ({templatesByFunction[func.id].length})</span>
-                                </div>
-                                {templatesByFunction[func.id]
-                                  .filter(template => template.enabled !== "false")
-                                  .sort((a, b) => a.name.localeCompare(b.name)) // Stable alphabetical sort until sortOrder migration
-                                  .slice(0, 3) // Show only first 3 templates
-                                  .map((template, index) => (
-                                    <div
-                                      key={template.id}
-                                      className="group flex items-center justify-between p-2 bg-[#1a1a1a] border border-[#333] rounded text-xs hover:bg-[#2a2a2a] transition-colors"
-                                      data-testid={`hotkey-template-${template.id}`}
-                                    >
-                                      <div
-                                        className="flex items-center gap-2 flex-1 cursor-pointer"
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          setEditingTemplate(template);
-                                          setActiveTab('templates');
-                                          setShowNewTemplateForm(false);
-                                        }}
-                                      >
-                                        <Sparkles className="h-3 w-3 text-[#ffd700]" />
-                                        <span className="text-white truncate">{template.name}</span>
-                                        {template.isSystem === "true" && (
-                                          <Badge className="h-4 text-[8px] bg-blue-500/20 text-blue-400 border-blue-500/30 px-1">
-                                            SYS
-                                          </Badge>
-                                        )}
-                                      </div>
-                                      <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                        <span className="text-[10px] text-gray-500 mr-1">{template.usage}</span>
-                                        
-                                        {/* Template actions dropdown */}
-                                        <DropdownMenu>
-                                          <DropdownMenuTrigger asChild>
-                                            <Button
-                                              variant="ghost"
-                                              size="sm"
-                                              className="h-5 w-5 p-0 hover:bg-[#3a3a3a]"
-                                              onClick={(e) => e.stopPropagation()}
-                                              data-testid={`button-template-menu-${template.id}`}
-                                            >
-                                              <MoreVertical className="h-3 w-3 text-gray-400" />
-                                            </Button>
-                                          </DropdownMenuTrigger>
-                                          <DropdownMenuContent align="end" className="w-36">
-                                            <DropdownMenuItem
-                                              onClick={(e) => {
-                                                e.stopPropagation();
-                                                setEditingTemplate(template);
-                                                setActiveTab('templates');
-                                              }}
-                                              className="flex items-center gap-2"
-                                              data-testid={`menu-edit-${template.id}`}
-                                            >
-                                              <Edit3 className="h-3 w-3" />
-                                              Edit
-                                            </DropdownMenuItem>
-                                            <DropdownMenuItem
-                                              onClick={(e) => {
-                                                e.stopPropagation();
-                                                handleCopyTemplate(template);
-                                              }}
-                                              className="flex items-center gap-2"
-                                              data-testid={`menu-duplicate-${template.id}`}
-                                            >
-                                              <Copy className="h-3 w-3" />
-                                              Duplicate
-                                            </DropdownMenuItem>
-                                            <DropdownMenuItem
-                                              onClick={(e) => {
-                                                e.stopPropagation();
-                                                handleToggleTemplateEnabled(template);
-                                              }}
-                                              className="flex items-center gap-2"
-                                              data-testid={`menu-toggle-${template.id}`}
-                                            >
-                                              {template.enabled === "true" ? (
-                                                <>
-                                                  <EyeOff className="h-3 w-3" />
-                                                  Disable
-                                                </>
-                                              ) : (
-                                                <>
-                                                  <Eye className="h-3 w-3" />
-                                                  Enable
-                                                </>
-                                              )}
-                                            </DropdownMenuItem>
-                                            <DropdownMenuSeparator />
-                                            <DropdownMenuItem
-                                              onClick={(e) => {
-                                                e.stopPropagation();
-                                                if (confirm(`Are you sure you want to delete "${template.name}"?`)) {
-                                                  deleteTemplateMutation.mutate(template.id);
-                                                }
-                                              }}
-                                              className="flex items-center gap-2 text-red-400 focus:text-red-300"
-                                              data-testid={`menu-delete-${template.id}`}
-                                            >
-                                              <Trash2 className="h-3 w-3" />
-                                              Delete
-                                            </DropdownMenuItem>
-                                          </DropdownMenuContent>
-                                        </DropdownMenu>
-                                      </div>
-                                    </div>
-                                  ))}
-                                
-                                {templatesByFunction[func.id].length > 3 && (
-                                  <div className="text-xs text-gray-500 ml-2">
-                                    +{templatesByFunction[func.id].length - 3} more templates...
-                                  </div>
-                                )}
-                                
-                                {/* Quick Add Template Button */}
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  className="w-full h-6 text-xs text-[#ffd700] hover:bg-[#ffd700]/10 border border-[#ffd700]/30"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    resetNewTemplate();
-                                    setNewTemplate(prev => ({ ...prev, functionId: func.id }));
-                                    setShowNewTemplateForm(true);
-                                    setActiveTab('templates');
-                                    setEditingTemplate(null);
-                                  }}
-                                  data-testid={`button-add-template-${func.functionKey}`}
-                                >
-                                  <Plus className="h-3 w-3 mr-1" />
-                                  Add Template
-                                </Button>
-                              </div>
-                            )}
-                            
-                            {/* Show Add Template button even if no templates exist */}
-                            {(!templatesByFunction[func.id] || templatesByFunction[func.id].length === 0) && (
-                              <div className="ml-2">
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  className="w-full h-6 text-xs text-gray-500 hover:bg-[#ffd700]/10 hover:text-[#ffd700] border border-gray-600 hover:border-[#ffd700]/30"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    resetNewTemplate();
-                                    setNewTemplate(prev => ({ ...prev, functionId: func.id }));
-                                    setShowNewTemplateForm(true);
-                                    setActiveTab('templates');
-                                    setEditingTemplate(null);
-                                  }}
-                                  data-testid={`button-add-first-template-${func.functionKey}`}
-                                >
-                                  <Plus className="h-3 w-3 mr-1" />
-                                  Add First Template
-                                </Button>
-                              </div>
-                            )}
-                          </div>
-                        );
-                      })}
-                  </div>
-                </div>
-
-                {/* Main Content - Functions */}
                 <div className="flex-1 p-6 overflow-y-auto">
-                  {/* Template Forms */}
-                  {showNewTemplateForm ? (
-                    <NewTemplateForm 
-                      newTemplate={newTemplate}
-                      setNewTemplate={setNewTemplate}
-                      onSave={handleSaveTemplate}
-                      onCancel={() => { setShowNewTemplateForm(false); resetNewTemplate(); }}
-                      isSaving={createTemplateMutation.isPending}
-                      functions={functions}
-                      templateCategories={templateCategories}
-                    />
-                  ) : editingTemplate ? (
-                    <EditTemplateForm 
-                      template={editingTemplate}
-                      setTemplate={setEditingTemplate}
-                      onUpdate={handleUpdateTemplate}
-                      onDelete={() => deleteTemplateMutation.mutate(editingTemplate.id)}
-                      onCancel={() => setEditingTemplate(null)}
-                      isUpdating={updateTemplateMutation.isPending}
-                      isDeleting={deleteTemplateMutation.isPending}
-                      functions={functions}
-                      templateCategories={templateCategories}
-                      onEnhance={handleEnhanceTemplate}
-                      isEnhancing={enhanceTemplateMutation.isPending}
-                      enhancingTemplate={enhancingTemplate}
-                    />
-                  ) : 
-                  /* Function Forms */
-                  showNewFunctionForm ? (
-                    <NewFunctionForm 
-                      newFunction={newFunction}
-                      setNewFunction={setNewFunction}
-                      onSave={handleSaveFunction}
-                      onCancel={() => { setShowNewFunctionForm(false); resetNewFunction(); }}
-                      isSaving={createFunctionMutation.isPending}
-                      availableIcons={availableIcons}
-                    />
-                  ) : editingFunction ? (
-                    <EditFunctionForm 
-                      func={editingFunction}
-                      setFunction={setEditingFunction}
-                      onUpdate={handleUpdateFunction}
-                      onDelete={() => deleteFunctionMutation.mutate(editingFunction.id)}
-                      onCancel={() => setEditingFunction(null)}
-                      isUpdating={updateFunctionMutation.isPending}
-                      isDeleting={deleteFunctionMutation.isPending}
-                      availableIcons={availableIcons}
-                    />
-                  ) : (
-                    <div className="flex items-center justify-center h-full">
-                      <div className="text-center text-gray-400">
-                        <Settings className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                        <p>{activeTab === 'templates' ? 'Select a template to edit or create a new one' : 'Select a function to edit or create a new one'}</p>
-                      </div>
+                  <div className="flex items-center justify-center h-full">
+                    <div className="text-center text-gray-400">
+                      <Settings className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                      <p>Hierarchical view is being restructured. Please use the legacy interface for now.</p>
                     </div>
-                  )}
+                  </div>
                 </div>
               </div>
             </div>
