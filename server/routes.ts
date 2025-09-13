@@ -74,26 +74,30 @@ async function generateVideoFromImage(
       
       console.log('[Video Generation] Source image dimensions:', sourceWidth, 'x', sourceHeight);
       
-      // Create frames with simple zoom effect - no complex cropping
+      // Create frames with DRAMATIC motion effects that are clearly visible
       for (let frame = 0; frame < frameCount; frame++) {
         const progress = frame / (frameCount - 1); // 0 to 1
         
-        // Simple zoom effect: start at 1.1x, end at 1.0x (zoom out effect)
-        const scale = 1.1 - (progress * 0.1);
+        // DRAMATIC zoom effect: start at 1.5x, end at 1.0x (obvious zoom out)
+        const scale = 1.5 - (progress * 0.5);
         
-        // Calculate scaled dimensions
+        // Add rotation for even more obvious motion
+        const rotation = progress * 10; // 0 to 10 degrees rotation
+        
+        // Calculate scaled dimensions - much more dramatic
         const scaledWidth = Math.round(targetWidth * scale);
         const scaledHeight = Math.round(targetHeight * scale);
         
-        // Generate frame with Sharp - simplified approach
+        // Generate frame with Sharp - with dramatic effects
         const framePath = path.join(frameDir, `frame_${frame.toString().padStart(4, '0')}.jpg`);
         
         if (frame % 50 === 0) {
-          console.log(`[Video Generation] Frame ${frame}: scale=${scale.toFixed(3)} size=${scaledWidth}x${scaledHeight}`);
+          console.log(`[Video Generation] Frame ${frame}: scale=${scale.toFixed(3)} rotation=${rotation.toFixed(1)}° size=${scaledWidth}x${scaledHeight}`);
         }
         
-        // Simple approach: resize to target, then scale for zoom effect
+        // Create dramatic motion: zoom + rotation + position shift
         await sharp(tempImagePath)
+          .rotate(rotation, { background: { r: 0, g: 0, b: 0, alpha: 0 }})
           .resize(scaledWidth, scaledHeight, { 
             fit: 'cover', 
             position: 'center' 
@@ -101,9 +105,9 @@ async function generateVideoFromImage(
           .resize(targetWidth, targetHeight, { 
             fit: 'contain',
             position: 'center',
-            background: { r: 0, g: 0, b: 0 }
+            background: { r: 20, g: 20, b: 20 } // Dark gray background
           })
-          .jpeg({ quality: 85 })
+          .jpeg({ quality: 90 })
           .toFile(framePath);
       }
       
