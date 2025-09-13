@@ -70,23 +70,96 @@ function needsOfficeBackground(visualEffects: string[]): boolean {
   return officeKeywords.some(keyword => effectsText.includes(keyword));
 }
 
+function checkNeedsOfficeBackground(aiPlan: AiVideoPlan | null, originalPrompt: string): boolean {
+  const officeKeywords = ['office', 'desk', 'workspace', 'professional', 'modern office', 'employee', 'background'];
+  
+  // Check original prompt first (most reliable)
+  const promptLower = originalPrompt.toLowerCase();
+  if (officeKeywords.some(keyword => promptLower.includes(keyword))) {
+    console.log('[Scene Enhancement] Office background detected in original prompt');
+    return true;
+  }
+  
+  // Check AI plan if available
+  if (aiPlan) {
+    // Check visual effects
+    if (aiPlan.visualEffects && needsOfficeBackground(aiPlan.visualEffects)) {
+      console.log('[Scene Enhancement] Office background detected in AI visual effects');
+      return true;
+    }
+    
+    // Check description and marketing angle
+    const allText = [aiPlan.description, aiPlan.marketingAngle].join(' ').toLowerCase();
+    if (officeKeywords.some(keyword => allText.includes(keyword))) {
+      console.log('[Scene Enhancement] Office background detected in AI description/marketing');
+      return true;
+    }
+  }
+  
+  return false;
+}
+
+function parseAiVideoPlanFlexible(analysis: string): AiVideoPlan | null {
+  try {
+    // First try standard fenced JSON
+    let jsonMatch = analysis.match(/```json\s*([\s\S]*?)\s*```/);
+    let jsonText = '';
+    
+    if (jsonMatch) {
+      jsonText = jsonMatch[1];
+    } else {
+      // Try to find first balanced JSON object
+      const jsonStart = analysis.indexOf('{');
+      if (jsonStart !== -1) {
+        let braceCount = 0;
+        let jsonEnd = jsonStart;
+        
+        for (let i = jsonStart; i < analysis.length; i++) {
+          if (analysis[i] === '{') braceCount++;
+          if (analysis[i] === '}') braceCount--;
+          if (braceCount === 0) {
+            jsonEnd = i;
+            break;
+          }
+        }
+        
+        if (braceCount === 0) {
+          jsonText = analysis.substring(jsonStart, jsonEnd + 1);
+        }
+      }
+    }
+    
+    if (jsonText) {
+      const aiData = JSON.parse(jsonText);
+      return {
+        description: aiData.description || '',
+        cameraMovements: aiData.cameraMovements || [],
+        visualEffects: aiData.visualEffects || [],
+        textOverlays: aiData.textOverlays || [],
+        duration: aiData.duration || 10,
+        marketingAngle: aiData.marketingAngle || ''
+      };
+    }
+    
+    return null;
+  } catch (error) {
+    console.warn('[Video Planning] Could not parse AI analysis JSON:', error);
+    return null;
+  }
+}
+
 async function ensureSceneMatchesPrompt(
   imageUrl: string, 
   aiPlan: AiVideoPlan | null, 
-  model: string, 
+  originalPrompt: string,
   apiKey?: string
 ): Promise<{ enhancedImageUrl: string; enhancementsApplied: string[] }> {
   console.log('[Scene Enhancement] Checking if scene enhancement is needed...');
   
-  // Check if we need office background and have a generation-capable model
-  if (!aiPlan || !aiPlan.visualEffects || !model.includes('google/gemini-2.5-flash-image')) {
-    console.log('[Scene Enhancement] No enhancement needed - no AI plan or incompatible model');
-    return { enhancedImageUrl: imageUrl, enhancementsApplied: [] };
-  }
-  
-  const needsOffice = needsOfficeBackground(aiPlan.visualEffects);
+  // Check if office background is needed (multiple sources)
+  const needsOffice = checkNeedsOfficeBackground(aiPlan, originalPrompt);
   if (!needsOffice) {
-    console.log('[Scene Enhancement] No office background requested in visual effects');
+    console.log('[Scene Enhancement] No office background requested');
     return { enhancedImageUrl: imageUrl, enhancementsApplied: [] };
   }
   
@@ -94,14 +167,17 @@ async function ensureSceneMatchesPrompt(
     console.log('[Scene Enhancement] Generating office background scene...');
     
     // Extract office-specific requirements from visual effects
-    const officeElements = aiPlan.visualEffects
-      .filter(effect => effect.toLowerCase().includes('office') || 
-                       effect.toLowerCase().includes('desk') ||
-                       effect.toLowerCase().includes('workspace'))
-      .join('. ');
+    let officeElements = '';
+    if (aiPlan && aiPlan.visualEffects) {
+      officeElements = aiPlan.visualEffects
+        .filter(effect => effect.toLowerCase().includes('office') || 
+                         effect.toLowerCase().includes('desk') ||
+                         effect.toLowerCase().includes('workspace'))
+        .join('. ');
+    }
     
     // Create focused prompt for office background generation
-    const scenePrompt = `Place this product in a clean, modern office environment. Requirements: ${officeElements}. 
+    const scenePrompt = `Place this product in a clean, modern office environment. ${officeElements ? `Requirements: ${officeElements}.` : ''}
     
 Specific elements to add:
 - Clean, modern office desk or workspace surface
@@ -112,8 +188,12 @@ Specific elements to add:
 
 Keep the product exactly as shown but place it naturally in an office setting.`;
 
-    // Use existing AI image generation
-    const result = await processImageWithOpenRouter(imageUrl, scenePrompt, model, apiKey, 120);
+    // Force use of generation-capable model (ignore original analysis model)
+    const generationModel = 'google/gemini-2.5-flash-image-preview';
+    console.log('[Scene Enhancement] Using forced generation model:', generationModel);
+    
+    // Use existing AI image generation with generation-capable model
+    const result = await processImageWithOpenRouter(imageUrl, scenePrompt, generationModel, apiKey, 120);
     
     console.log('[Scene Enhancement] Office background generated successfully');
     return {
@@ -765,13 +845,17 @@ Provide a JSON response with this structure:
     const aiAnalysis = data.choices[0].message.content;
     console.log('[Video Processing] AI Analysis:', aiAnalysis);
 
-    // Parse AI analysis for scene enhancement
-    const aiPlan = parseAiVideoPlan(aiAnalysis);
+    // Parse AI analysis for scene enhancement (flexible parsing)
+    const aiPlan = parseAiVideoPlanFlexible(aiAnalysis);
     console.log('[Video Processing] Parsed AI plan:', aiPlan ? 'Success' : 'Failed to parse');
     
     // Enhance scene if office background is needed
-    const sceneResult = await ensureSceneMatchesPrompt(fullImageUrl, aiPlan, model, keyToUse);
-    const finalImageUrl = sceneResult.enhancedImageUrl;
+    const sceneResult = await ensureSceneMatchesPrompt(fullImageUrl, aiPlan, prompt, keyToUse);
+    
+    // Ensure enhanced URL is absolute (reuse existing baseUrl)
+    const finalImageUrl = sceneResult.enhancedImageUrl.startsWith('http') 
+      ? sceneResult.enhancedImageUrl 
+      : `${baseUrl}${sceneResult.enhancedImageUrl}`;
     const sceneEnhancements = sceneResult.enhancementsApplied;
     
     if (sceneEnhancements.length > 0) {
