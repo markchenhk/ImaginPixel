@@ -22,6 +22,65 @@ import {
   ObjectNotFoundError,
 } from "./objectStorage.js";
 import { ObjectPermission } from "./objectAcl.js";
+// @ts-ignore - FFmpeg types are installed but may not be loading properly
+import ffmpeg from "fluent-ffmpeg";
+import ffmpegPath from "ffmpeg-static";
+
+// Configure ffmpeg with the static binary path
+if (ffmpegPath) {
+  ffmpeg.setFfmpegPath(ffmpegPath);
+}
+
+// Video generation function
+async function generateVideoFromImage(
+  imageUrl: string, 
+  analysis: string, 
+  outputPath: string
+): Promise<void> {
+  return new Promise((resolve, reject) => {
+    console.log('[Video Generation] Creating MP4 from image:', imageUrl);
+    
+    // Create a simple video from the image with Ken Burns effect
+    ffmpeg(imageUrl)
+      .inputOptions([
+        '-loop 1',           // Loop the input image
+        '-t 10'              // Duration: 10 seconds
+      ])
+      .videoCodec('libx264')
+      .audioCodec('aac')
+      .size('1280x720')     // HD resolution
+      .fps(30)              // 30 FPS
+      .outputOptions([
+        '-movflags +faststart',  // Web optimization
+        '-pix_fmt yuv420p',      // Compatibility
+        '-preset fast',          // Encoding speed
+        '-crf 23'               // Quality (lower = better)
+      ])
+      // Add Ken Burns pan/zoom effect
+      .videoFilters([
+        'scale=1440:810',        // Scale up for cropping
+        'crop=1280:720:160*t:90*t', // Slow pan effect
+        'fade=t=in:st=0:d=1',    // Fade in
+        'fade=t=out:st=9:d=1'    // Fade out
+      ])
+      .output(outputPath)
+      .on('start', (commandLine: string) => {
+        console.log('[Video Generation] FFmpeg started:', commandLine);
+      })
+      .on('progress', (progress: any) => {
+        console.log(`[Video Generation] Progress: ${Math.round(progress.percent || 0)}%`);
+      })
+      .on('end', () => {
+        console.log('[Video Generation] Video created successfully');
+        resolve();
+      })
+      .on('error', (err: Error) => {
+        console.error('[Video Generation] Error:', err);
+        reject(err);
+      })
+      .run();
+  });
+}
 
 interface MulterRequest extends Request {
   file?: Express.Multer.File;
@@ -474,21 +533,52 @@ Provide a JSON response with this structure:
     const aiAnalysis = data.choices[0].message.content;
     console.log('[Video Processing] AI Analysis:', aiAnalysis);
 
-    // For now, create a simple video URL that shows the original image
-    // In a full implementation, this would generate an actual video file
-    const videoFilename = `video_${Date.now()}_${Math.random().toString(36).substring(7)}.mp4`;
-    const processedVideoUrl = `/api/videos/${videoFilename}?image=${encodeURIComponent(imageUrl)}&analysis=${encodeURIComponent(aiAnalysis)}`;
+    // Generate real video using FFmpeg
+    const tempDir = path.join(process.cwd(), 'temp_videos');
+    if (!fs.existsSync(tempDir)) {
+      fs.mkdirSync(tempDir, { recursive: true });
+    }
     
+    const videoFilename = `video_${Date.now()}_${Math.random().toString(36).substring(7)}.mp4`;
+    const tempVideoPath = path.join(tempDir, videoFilename);
+    
+    console.log('[Video Processing] Generating real MP4 video...');
+    
+    // Generate video from image using FFmpeg
+    await generateVideoFromImage(fullImageUrl, aiAnalysis, tempVideoPath);
+    
+    console.log('[Video Processing] Uploading video to S3...');
+    
+    // Upload to S3
+    const objectStorage = new ObjectStorageService();
+    
+    // Read the generated video file
+    const videoBuffer = await fs.promises.readFile(tempVideoPath);
+    
+    // Upload to S3 (returns the S3 path)
+    const s3Path = await objectStorage.uploadToS3(videoBuffer, videoFilename, 'video/mp4');
+    
+    console.log('[Video Processing] Video uploaded to S3:', s3Path);
+    
+    // Clean up temp file
+    try {
+      await fs.promises.unlink(tempVideoPath);
+    } catch (err) {
+      console.warn('[Video Processing] Failed to clean up temp file:', err);
+    }
+    
+    const processedVideoUrl = s3Path;
     const processingTime = Math.round((Date.now() - startTime) / 1000);
     
-    console.log('[Video Processing] Video generation completed');
+    console.log('[Video Processing] Video generation completed, uploaded to:', processedVideoUrl);
     
     return {
       processedVideoUrl,
       enhancementsApplied: [
         "AI-powered video analysis",
-        "Product showcase optimization",
-        "Marketing-focused presentation"
+        "FFmpeg video generation", 
+        "Ken Burns camera effect",
+        "Professional video encoding"
       ],
       videoDuration: 10,
       processingTime
@@ -786,67 +876,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Video serving endpoint for generated videos
-  app.get("/api/videos/:filename", async (req, res) => {
-    try {
-      const { filename } = req.params;
-      const { image, analysis } = req.query;
-      
-      // Set appropriate headers for video streaming
-      res.setHeader('Content-Type', 'video/mp4');
-      res.setHeader('Content-Disposition', 'inline');
-      res.setHeader('Accept-Ranges', 'bytes');
-      
-      // For now, create a minimal valid MP4 with metadata
-      // In a full implementation, this would serve actual generated video files
-      const videoMetadata = `AI Analysis: ${analysis || 'No analysis available'}`;
-      console.log('[Video Serving] Serving video:', filename, 'for image:', image);
-      console.log('[Video Serving] Analysis:', videoMetadata);
-      
-      // Create a more complete MP4 structure that browsers can handle
-      // This is a minimal but valid MP4 with basic structure
-      const validMp4 = Buffer.from([
-        // ftyp box
-        0x00, 0x00, 0x00, 0x20, 0x66, 0x74, 0x79, 0x70, 0x69, 0x73, 0x6F, 0x6D,
-        0x00, 0x00, 0x02, 0x00, 0x69, 0x73, 0x6F, 0x6D, 0x69, 0x73, 0x6F, 0x32,
-        0x61, 0x76, 0x63, 0x31, 0x6D, 0x70, 0x34, 0x31,
-        // mdat box (minimal data)
-        0x00, 0x00, 0x00, 0x08, 0x6D, 0x64, 0x61, 0x74
-      ]);
-      
-      res.setHeader('Content-Length', validMp4.length.toString());
-      res.setHeader('Cache-Control', 'no-store'); // Prevent caching issues
-      res.status(200).send(validMp4);
-      
-    } catch (error) {
-      console.error('[Video Serving] Error:', error);
-      res.status(500).json({ message: 'Failed to serve video' });
-    }
-  });
+  // Note: Videos are now served through /objects/ route after being uploaded to S3
 
-  // Legacy mock video endpoint for testing
-  app.get("/api/mock-video.mp4", (req, res) => {
-    // Return a minimal valid MP4 header that video players can handle gracefully
-    res.setHeader('Content-Type', 'video/mp4');
-    res.setHeader('Content-Disposition', 'inline');
-    res.setHeader('Accept-Ranges', 'bytes');
-    
-    // Minimal MP4 file structure (just headers, no actual video content)
-    // This prevents player errors while indicating the video is a placeholder
-    const minimalMp4 = Buffer.from([
-      0x00, 0x00, 0x00, 0x20, // Box size
-      0x66, 0x74, 0x79, 0x70, // 'ftyp' box
-      0x69, 0x73, 0x6F, 0x6D, // 'isom' brand
-      0x00, 0x00, 0x02, 0x00, // Version
-      0x69, 0x73, 0x6F, 0x6D, // Compatible brands
-      0x69, 0x73, 0x6F, 0x32,
-      0x61, 0x76, 0x63, 0x31,
-      0x6D, 0x70, 0x34, 0x31
-    ]);
-    
-    res.setHeader('Content-Length', minimalMp4.length.toString());
-    res.status(200).send(minimalMp4);
-  });
 
   // Process image with AI
   app.post("/api/process-image", isAuthenticated, async (req: any, res) => {
