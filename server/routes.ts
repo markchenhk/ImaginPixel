@@ -17,6 +17,7 @@ import multer from "multer";
 import path from "path";
 import fs from "fs";
 import crypto from "crypto";
+import { spawn } from "child_process";
 import {
   ObjectStorageService,
   ObjectNotFoundError,
@@ -220,9 +221,304 @@ class KenBurnsProvider implements IVideoProvider {
   }
 }
 
+// Multi-Frame Real Video Provider - Creates actual video by generating multiple AI frames
+class MultiFrameVideoProvider implements IVideoProvider {
+  async generate(params: {
+    imageUrl: string;
+    prompt: string;
+    duration: number;
+    model: string;
+    apiKey?: string;
+  }): Promise<{
+    videoUrl: string;
+    processingTime: number;
+    enhancementsApplied: string[];
+    providerUsed: string;
+    modelUsed: string;
+  }> {
+    const startTime = Date.now();
+    console.log('[MultiFrame Video] Starting real video generation with multiple AI frames');
+    
+    try {
+      const keyToUse = params.apiKey || process.env.OPENROUTER_API_KEY || process.env.OPENROUTER_KEY;
+      if (!keyToUse) {
+        throw new Error('OpenRouter API key required for multi-frame video generation');
+      }
+
+      const domain = process.env.REPLIT_DOMAINS?.split(',')[0];
+      const baseUrl = domain ? `https://${domain}` : 'http://localhost:5000';
+      
+      // Generate multiple camera perspectives
+      const frameCount = Math.max(5, Math.ceil(params.duration / 2)); // Generate 5-8 frames depending on duration
+      const frames = await this.generateMultipleFrames(params.imageUrl, params.prompt, frameCount, params.model, keyToUse, baseUrl);
+      
+      if (frames.length < 2) {
+        throw new Error('Failed to generate enough frames for video creation');
+      }
+      
+      // Create smooth video transitions between frames
+      const videoUrl = await this.createVideoFromFrames(frames, params.duration);
+      
+      const processingTime = Math.round((Date.now() - startTime) / 1000);
+      
+      return {
+        videoUrl,
+        processingTime,
+        enhancementsApplied: [
+          'Multi-frame AI generation',
+          `Generated ${frames.length} unique camera perspectives`,
+          'Smooth frame interpolation',
+          'Real video sequence creation',
+          `AI model: ${params.model}`
+        ],
+        providerUsed: 'Multi-Frame AI Video',
+        modelUsed: params.model
+      };
+      
+    } catch (error) {
+      console.warn('[MultiFrame Video] Generation failed:', error);
+      throw error;
+    }
+  }
+  
+  private async generateMultipleFrames(
+    originalImageUrl: string,
+    originalPrompt: string,
+    frameCount: number,
+    model: string,
+    apiKey: string,
+    baseUrl: string
+  ): Promise<string[]> {
+    console.log(`[MultiFrame Video] Generating ${frameCount} unique camera perspectives...`);
+    
+    const frames: string[] = [];
+    const cameraAngles = [
+      'slightly to the left angle',
+      'slightly to the right angle', 
+      'slightly elevated perspective',
+      'slightly closer zoom',
+      'slightly wider angle',
+      'subtle rotation clockwise',
+      'subtle rotation counterclockwise',
+      'gentle forward movement perspective'
+    ];
+    
+    for (let i = 0; i < frameCount; i++) {
+      try {
+        const angle = cameraAngles[i % cameraAngles.length];
+        const framePrompt = `${originalPrompt}. Generate this scene from a ${angle}. Maintain the exact same objects, lighting, and style but show from this new camera perspective. Keep consistent positioning and proportions.`;
+        
+        console.log(`[MultiFrame Video] Generating frame ${i + 1}/${frameCount} with ${angle}...`);
+        
+        const frameResponse = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${apiKey}`,
+            'Content-Type': 'application/json',
+            'HTTP-Referer': baseUrl,
+            'X-Title': 'AI Visual Studio'
+          },
+          body: JSON.stringify({
+            model: model,
+            messages: [{
+              role: 'user',
+              content: [
+                { type: 'text', text: framePrompt },
+                { type: 'image_url', image_url: { url: originalImageUrl } }
+              ]
+            }],
+            max_tokens: 1000,
+            temperature: 0.7
+          })
+        });
+        
+        if (!frameResponse.ok) {
+          console.warn(`[MultiFrame Video] Frame ${i + 1} generation failed: ${frameResponse.status}`);
+          continue;
+        }
+        
+        const frameData = await frameResponse.json();
+        const frameImages = this.extractGeneratedImages(frameData);
+        
+        if (frameImages.length > 0) {
+          // Save the generated frame
+          const savedFrameUrl = await this.saveGeneratedFrame(frameImages[0], i);
+          frames.push(savedFrameUrl);
+          console.log(`[MultiFrame Video] Frame ${i + 1} generated successfully`);
+        }
+        
+        // Small delay to avoid rate limiting
+        if (i < frameCount - 1) {
+          await new Promise(resolve => setTimeout(resolve, 500));
+        }
+        
+      } catch (error) {
+        console.warn(`[MultiFrame Video] Failed to generate frame ${i + 1}:`, error);
+        continue;
+      }
+    }
+    
+    console.log(`[MultiFrame Video] Successfully generated ${frames.length}/${frameCount} frames`);
+    return frames;
+  }
+  
+  private extractGeneratedImages(responseData: any): string[] {
+    const images: string[] = [];
+    
+    if (responseData.choices && responseData.choices[0]?.message?.content) {
+      const content = responseData.choices[0].message.content;
+      
+      // Extract base64 images from Gemini response
+      if (Array.isArray(content)) {
+        content.forEach((item: any) => {
+          if (item.type === 'image' && item.source?.data) {
+            images.push(`data:image/png;base64,${item.source.data}`);
+          }
+        });
+      }
+      
+      // Extract from text content containing base64
+      if (typeof content === 'string') {
+        const base64Matches = content.match(/data:image\/[^;]+;base64,[A-Za-z0-9+/=]+/g);
+        if (base64Matches) {
+          images.push(...base64Matches);
+        }
+      }
+    }
+    
+    return images;
+  }
+  
+  private async saveGeneratedFrame(base64Image: string, frameIndex: number): Promise<string> {
+    try {
+      const base64Data = base64Image.replace(/^data:image\/[^;]+;base64,/, '');
+      const imageBuffer = Buffer.from(base64Data, 'base64');
+      
+      const frameFilename = `frame_${frameIndex}_${Date.now()}.png`;
+      const objectStorage = new ObjectStorageService();
+      return await objectStorage.uploadToS3(imageBuffer, frameFilename, 'image/png');
+      
+    } catch (error) {
+      console.error('[MultiFrame Video] Failed to save frame:', error);
+      throw error;
+    }
+  }
+  
+  private async createVideoFromFrames(frameUrls: string[], duration: number): Promise<string> {
+    console.log(`[MultiFrame Video] Creating video from ${frameUrls.length} frames with ${duration}s duration...`);
+    
+    if (!fs.existsSync('temp_videos')) {
+      fs.mkdirSync('temp_videos', { recursive: true });
+    }
+    
+    const videoId = `multiframe_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
+    const framesDir = `temp_videos/frames_${videoId}`;
+    const outputPath = `temp_videos/video_${videoId}.mp4`;
+    
+    try {
+      // Create frames directory
+      fs.mkdirSync(framesDir, { recursive: true });
+      
+      // Download and prepare frames
+      const framePaths: string[] = [];
+      for (let i = 0; i < frameUrls.length; i++) {
+        const frameResponse = await fetch(frameUrls[i]);
+        if (!frameResponse.ok) continue;
+        
+        const frameBuffer = Buffer.from(await frameResponse.arrayBuffer());
+        const framePath = path.join(framesDir, `frame_${i.toString().padStart(4, '0')}.jpg`);
+        await fs.promises.writeFile(framePath, frameBuffer);
+        framePaths.push(framePath);
+      }
+      
+      if (framePaths.length < 2) {
+        throw new Error('Not enough frames downloaded for video creation');
+      }
+      
+      // Calculate frame rate for smooth playback
+      const framesPerSecond = Math.max(2, Math.min(30, framePaths.length / duration));
+      
+      // Create video with smooth transitions and interpolation
+      const ffmpegCommand = [
+        'ffmpeg',
+        '-framerate', framesPerSecond.toString(),
+        '-i', path.join(framesDir, 'frame_%04d.jpg'),
+        '-vf', `scale=1920:1080:force_original_aspect_ratio=decrease,pad=1920:1080:-1:-1:black,minterpolate='mi_mode=mci:mc_mode=aobmc:vsbmc=1:fps=30'`,
+        '-t', duration.toString(),
+        '-c:v', 'libx264',
+        '-preset', 'medium',
+        '-crf', '23',
+        '-pix_fmt', 'yuv420p',
+        '-movflags', '+faststart',
+        '-y',
+        outputPath
+      ];
+      
+      console.log('[MultiFrame Video] Starting FFmpeg with frame interpolation...');
+      await this.runFFmpegCommand(ffmpegCommand);
+      
+      // Upload to S3
+      const videoFilename = `multiframe_video_${videoId}.mp4`;
+      const objectStorage = new ObjectStorageService();
+      const videoBuffer = await fs.promises.readFile(outputPath);
+      const s3VideoPath = await objectStorage.uploadToS3(videoBuffer, videoFilename, 'video/mp4');
+      
+      // Cleanup
+      await this.cleanupTempFiles([outputPath, framesDir]);
+      
+      console.log('[MultiFrame Video] Video created successfully with real frame transitions');
+      return s3VideoPath;
+      
+    } catch (error) {
+      console.error('[MultiFrame Video] Video creation failed:', error);
+      await this.cleanupTempFiles([outputPath, framesDir]);
+      throw error;
+    }
+  }
+  
+  private async runFFmpegCommand(command: string[]): Promise<void> {
+    return new Promise((resolve, reject) => {
+      const process = spawn(command[0], command.slice(1));
+      
+      process.stderr.on('data', (data: Buffer) => {
+        const message = data.toString();
+        if (message.includes('frame=')) {
+          console.log('[MultiFrame Video] FFmpeg progress:', message.trim());
+        }
+      });
+      
+      process.on('close', (code: number | null) => {
+        if (code === 0) {
+          resolve();
+        } else {
+          reject(new Error(`FFmpeg failed with code ${code}`));
+        }
+      });
+    });
+  }
+  
+  private async cleanupTempFiles(paths: string[]): Promise<void> {
+    for (const filePath of paths) {
+      try {
+        if (fs.existsSync(filePath)) {
+          const stat = await fs.promises.stat(filePath);
+          if (stat.isDirectory()) {
+            await fs.promises.rmdir(filePath, { recursive: true });
+          } else {
+            await fs.promises.unlink(filePath);
+          }
+        }
+      } catch (error) {
+        console.warn('[MultiFrame Video] Failed to cleanup:', filePath, error);
+      }
+    }
+  }
+}
+
 // Video Provider Selection and Management
 class VideoProviderManager {
   private openRouterProvider = new OpenRouterVideoProvider();
+  private multiFrameProvider = new MultiFrameVideoProvider();
   private kenBurnsProvider = new KenBurnsProvider();
   
   async generateVideo(params: {
@@ -262,14 +558,17 @@ class VideoProviderManager {
   private getProviderSequence(preferredMode?: 'real' | 'enhanced' | 'simple'): IVideoProvider[] {
     switch (preferredMode) {
       case 'real':
-        // Try real video first, fallback to Ken Burns
-        return [this.openRouterProvider, this.kenBurnsProvider];
+        // Try real video first, then multi-frame AI video, fallback to Ken Burns
+        return [this.openRouterProvider, this.multiFrameProvider, this.kenBurnsProvider];
+      case 'enhanced':
+        // Use multi-frame AI video as primary, fallback to Ken Burns
+        return [this.multiFrameProvider, this.kenBurnsProvider];
       case 'simple':
         // Only use Ken Burns
         return [this.kenBurnsProvider];
       default:
-        // Default: try real video, fallback to Ken Burns
-        return [this.openRouterProvider, this.kenBurnsProvider];
+        // Default: try real video, then multi-frame AI video, fallback to Ken Burns
+        return [this.openRouterProvider, this.multiFrameProvider, this.kenBurnsProvider];
     }
   }
 }
