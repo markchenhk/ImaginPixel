@@ -14,6 +14,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+  DropdownMenuSeparator,
+} from '@/components/ui/dropdown-menu';
 import { useToast } from '@/hooks/use-toast';
 import { apiRequest, queryClient } from '@/lib/queryClient';
 import { PromptTemplate, ApplicationFunction } from '@shared/schema';
@@ -33,7 +40,11 @@ import {
   Save,
   AlertTriangle,
   Hash,
-  ArrowUpDown
+  ArrowUpDown,
+  MoreVertical,
+  ChevronUp,
+  ChevronDown,
+  FileText
 } from 'lucide-react';
 
 interface EnhancedPromptEngineeringProps {
@@ -351,6 +362,42 @@ export function EnhancedPromptEngineering({ isOpen, onClose, selectedFunction = 
     });
   };
 
+  const handleToggleTemplateEnabled = (template: PromptTemplate) => {
+    const newEnabled = template.enabled === "true" ? "false" : "true";
+    const updates = { enabled: newEnabled };
+    updateTemplateMutation.mutate({ id: template.id, updates });
+  };
+
+  const handleReorderTemplate = (templateId: string, direction: 'up' | 'down') => {
+    // Find the template and its function's templates
+    const template = templates.find(t => t.id === templateId);
+    if (!template) return;
+
+    const functionTemplates = templatesByFunction[template.functionId] || [];
+    const sortedTemplates = functionTemplates
+      .filter(t => t.enabled !== "false")
+      .sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0));
+    
+    const currentIndex = sortedTemplates.findIndex(t => t.id === templateId);
+    if (currentIndex === -1) return;
+
+    const targetIndex = direction === 'up' ? currentIndex - 1 : currentIndex + 1;
+    if (targetIndex < 0 || targetIndex >= sortedTemplates.length) return;
+
+    // Swap sort orders
+    const currentSortOrder = sortedTemplates[currentIndex].sortOrder || currentIndex;
+    const targetSortOrder = sortedTemplates[targetIndex].sortOrder || targetIndex;
+
+    updateTemplateMutation.mutate({ 
+      id: templateId, 
+      updates: { sortOrder: targetSortOrder }
+    });
+    updateTemplateMutation.mutate({ 
+      id: sortedTemplates[targetIndex].id, 
+      updates: { sortOrder: currentSortOrder }
+    });
+  };
+
   if (!isOpen) return null;
 
   return (
@@ -463,23 +510,107 @@ export function EnhancedPromptEngineering({ isOpen, onClose, selectedFunction = 
                                 </div>
                                 {templatesByFunction[func.id]
                                   .filter(template => template.enabled !== "false")
+                                  .sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0))
                                   .slice(0, 3) // Show only first 3 templates
-                                  .map(template => (
+                                  .map((template, index) => (
                                     <div
                                       key={template.id}
-                                      className="flex items-center justify-between p-2 bg-[#1a1a1a] border border-[#333] rounded text-xs cursor-pointer hover:bg-[#2a2a2a] transition-colors"
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        setEditingTemplate(template);
-                                        setActiveTab('templates');
-                                        setShowNewTemplateForm(false);
-                                      }}
+                                      className="group flex items-center justify-between p-2 bg-[#1a1a1a] border border-[#333] rounded text-xs hover:bg-[#2a2a2a] transition-colors"
                                       data-testid={`hotkey-template-${template.id}`}
                                     >
-                                      <span className="text-gray-300 truncate flex-1">{template.name}</span>
-                                      <div className="flex items-center gap-1 text-gray-500">
-                                        <span>{template.usage || 0}</span>
-                                        <Sparkles className="h-3 w-3" />
+                                      <div
+                                        className="flex items-center gap-2 flex-1 cursor-pointer"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          setEditingTemplate(template);
+                                          setActiveTab('templates');
+                                          setShowNewTemplateForm(false);
+                                        }}
+                                      >
+                                        <Sparkles className="h-3 w-3 text-[#ffd700]" />
+                                        <span className="text-white truncate">{template.name}</span>
+                                        {template.isSystem === "true" && (
+                                          <Badge className="h-4 text-[8px] bg-blue-500/20 text-blue-400 border-blue-500/30 px-1">
+                                            SYS
+                                          </Badge>
+                                        )}
+                                      </div>
+                                      <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                        <span className="text-[10px] text-gray-500 mr-1">{template.usage}</span>
+                                        
+                                        {/* Template actions dropdown */}
+                                        <DropdownMenu>
+                                          <DropdownMenuTrigger asChild>
+                                            <Button
+                                              variant="ghost"
+                                              size="sm"
+                                              className="h-5 w-5 p-0 hover:bg-[#3a3a3a]"
+                                              onClick={(e) => e.stopPropagation()}
+                                              data-testid={`button-template-menu-${template.id}`}
+                                            >
+                                              <MoreVertical className="h-3 w-3 text-gray-400" />
+                                            </Button>
+                                          </DropdownMenuTrigger>
+                                          <DropdownMenuContent align="end" className="w-36">
+                                            <DropdownMenuItem
+                                              onClick={(e) => {
+                                                e.stopPropagation();
+                                                setEditingTemplate(template);
+                                                setActiveTab('templates');
+                                              }}
+                                              className="flex items-center gap-2"
+                                              data-testid={`menu-edit-${template.id}`}
+                                            >
+                                              <Edit3 className="h-3 w-3" />
+                                              Edit
+                                            </DropdownMenuItem>
+                                            <DropdownMenuItem
+                                              onClick={(e) => {
+                                                e.stopPropagation();
+                                                handleCopyTemplate(template);
+                                              }}
+                                              className="flex items-center gap-2"
+                                              data-testid={`menu-duplicate-${template.id}`}
+                                            >
+                                              <Copy className="h-3 w-3" />
+                                              Duplicate
+                                            </DropdownMenuItem>
+                                            <DropdownMenuItem
+                                              onClick={(e) => {
+                                                e.stopPropagation();
+                                                handleToggleTemplateEnabled(template);
+                                              }}
+                                              className="flex items-center gap-2"
+                                              data-testid={`menu-toggle-${template.id}`}
+                                            >
+                                              {template.enabled === "true" ? (
+                                                <>
+                                                  <EyeOff className="h-3 w-3" />
+                                                  Disable
+                                                </>
+                                              ) : (
+                                                <>
+                                                  <Eye className="h-3 w-3" />
+                                                  Enable
+                                                </>
+                                              )}
+                                            </DropdownMenuItem>
+                                            <DropdownMenuSeparator />
+                                            <DropdownMenuItem
+                                              onClick={(e) => {
+                                                e.stopPropagation();
+                                                if (confirm(`Are you sure you want to delete "${template.name}"?`)) {
+                                                  deleteTemplateMutation.mutate(template.id);
+                                                }
+                                              }}
+                                              className="flex items-center gap-2 text-red-400 focus:text-red-300"
+                                              data-testid={`menu-delete-${template.id}`}
+                                            >
+                                              <Trash2 className="h-3 w-3" />
+                                              Delete
+                                            </DropdownMenuItem>
+                                          </DropdownMenuContent>
+                                        </DropdownMenu>
                                       </div>
                                     </div>
                                   ))}

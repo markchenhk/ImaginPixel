@@ -121,7 +121,7 @@ export const promptTemplates = pgTable("prompt_templates", {
   isSystem: text("is_system").notNull().default("false"), // System templates vs custom
   enabled: text("enabled").notNull().default("true"), // Enable/disable template visibility
   usage: integer("usage").notNull().default(0), // Number of times used
-  sortOrder: integer("sort_order").notNull().default(0), // Order of templates within a function
+  // sortOrder: integer("sort_order").notNull().default(0), // Order of templates within a function - temporarily disabled until DB migration
   createdBy: varchar("created_by").notNull().references(() => users.id),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),

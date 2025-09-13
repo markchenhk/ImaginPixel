@@ -808,7 +808,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.log('[Config] Loading for user:', userId);
       
       const config = await storage.getModelConfiguration(userId);
-      console.log('[Config] Loaded from database:', config);
+      console.log('[Config] Loaded from database:', config ? { ...config, apiKey: config.apiKey ? '***HIDDEN***' : 'none' } : 'none');
       
       // Create proper default configuration with Google Gemini models
       const defaultConfig = {
