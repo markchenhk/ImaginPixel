@@ -2,7 +2,7 @@ import React from "react";
 import { useQuery } from '@tanstack/react-query';
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { cn } from "@/lib/utils";
 import { ApplicationFunction } from '@shared/schema';
 import * as LucideIcons from "lucide-react";
 import {
@@ -38,17 +38,17 @@ export function LeftSidebar({
     return key === 'image-enhancement' || key === 'image-to-video' || key === 'multiple-images-llm';
   };
 
-  // Helper function to get features based on function key
-  const getFunctionFeatures = (functionKey: string) => {
+  // Helper function to get short descriptions
+  const getShortDescription = (functionKey: string) => {
     switch (functionKey) {
       case 'image-enhancement':
-        return ['Background removal', 'Lighting enhancement', 'Color correction', 'Style transfer'];
+        return 'Background removal, lighting & style enhancement';
       case 'image-to-video':
-        return ['Animation effects', '3D transforms', 'Motion graphics', 'Promotional clips'];
+        return 'Create engaging videos with animations & effects';
       case 'multiple-images-llm':
-        return ['Multiple image upload', 'AI composition', 'Smart blending', 'Custom layouts'];
+        return 'Combine multiple images using AI composition';
       default:
-        return ['AI-powered processing', 'Professional results', 'Easy to use'];
+        return 'AI-powered processing';
     }
   };
 
@@ -74,13 +74,13 @@ export function LeftSidebar({
   return (
     <div className="w-80 h-full bg-[#1a1a1a] border-r border-[#2a2a2a] flex flex-col">
       {/* Header */}
-      <div className="p-4 border-b border-[#2a2a2a]">
-        <div className="flex items-center gap-3 mb-4">
-          <div className="w-8 h-8 border border-[#ffd700] bg-[#ffd700]/10 rounded-lg flex items-center justify-center">
-            <ImageIcon className="w-4 h-4 text-[#ffd700]" />
+      <div className="p-3 border-b border-[#2a2a2a]">
+        <div className="flex items-center gap-2">
+          <div className="w-7 h-7 border border-[#ffd700] bg-[#ffd700]/10 rounded-lg flex items-center justify-center">
+            <Sparkles className="w-3.5 h-3.5 text-[#ffd700]" />
           </div>
           <div>
-            <h2 className="font-semibold text-white">AI Functions</h2>
+            <h2 className="font-semibold text-white text-sm">AI Functions</h2>
             <p className="text-xs text-[#888888]">Select your workflow</p>
           </div>
         </div>
@@ -88,76 +88,68 @@ export function LeftSidebar({
 
       {/* Function Selection */}
       <ScrollArea className="flex-1">
-        <div className="p-4 space-y-4">
+        <div className="p-3 space-y-2">
           {functions.map((func) => {
             const IconComponent = getIconComponent(func.icon);
             const isSelected = selectedFunction === func.functionKey;
-            const features = getFunctionFeatures(func.functionKey);
+            const shortDesc = getShortDescription(func.functionKey);
             
             return (
-              <Card 
+              <div
                 key={func.id}
-                className={`cursor-pointer transition-all duration-200 ${
+                className={cn(
+                  "relative cursor-pointer transition-all duration-200 rounded-lg p-3",
+                  "border border-transparent hover:border-[#3a3a3a]",
                   isSelected 
-                    ? 'bg-[#2a2a2a] border-[#ffd700] border-2' 
-                    : 'bg-[#0f0f0f] border-[#2a2a2a] hover:border-[#3a3a3a]'
-                }`}
+                    ? "bg-[#ffd700] text-black border-[#ffd700]" 
+                    : "bg-[#0f0f0f] hover:bg-[#1a1a1a]"
+                )}
                 onClick={() => {
                   if (isValidFunctionKey(func.functionKey)) {
                     onFunctionSelect(func.functionKey);
                   }
                 }}
-                data-testid={`function-card-${func.functionKey}`}
+                data-testid={`function-item-${func.functionKey}`}
               >
-                <CardHeader className="pb-3">
-                  <div className="flex items-start justify-between">
-                    <div className="flex items-center gap-3">
-                      <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
-                        isSelected ? 'bg-[#ffd700]/20 border border-[#ffd700]' : 'bg-[#2a2a2a]'
-                      }`}>
-                        <IconComponent className={`w-5 h-5 ${
-                          isSelected ? 'text-[#ffd700]' : 'text-[#e0e0e0]'
-                        }`} />
-                      </div>
-                      <div className="flex-1">
-                        <CardTitle className={`text-sm ${
-                          isSelected ? 'text-[#ffd700]' : 'text-white'
-                        }`}>
-                          {func.name}
-                        </CardTitle>
-                      </div>
-                    </div>
-                    {isSelected && (
-                      <Sparkles className="w-4 h-4 text-[#ffd700]" />
-                    )}
+                <div className="flex items-center gap-3">
+                  <div className={cn(
+                    "w-8 h-8 rounded-lg flex items-center justify-center",
+                    isSelected ? "bg-black/10" : "bg-[#2a2a2a]"
+                  )}>
+                    <IconComponent className={cn(
+                      "w-4 h-4",
+                      isSelected ? "text-black" : "text-[#e0e0e0]"
+                    )} />
                   </div>
-                </CardHeader>
-                <CardContent className="pt-0">
-                  <p className="text-xs text-[#888888] mb-3 leading-relaxed">
-                    {func.description || `Advanced ${func.name.toLowerCase()} capabilities`}
-                  </p>
-                  <div className="space-y-1">
-                    {features.map((feature, index) => (
-                      <div key={index} className="flex items-center gap-2">
-                        <div className="w-1 h-1 bg-[#666666] rounded-full" />
-                        <span className="text-xs text-[#aaaaaa]">{feature}</span>
-                      </div>
-                    ))}
+                  <div className="flex-1 min-w-0">
+                    <h3 className={cn(
+                      "font-medium text-sm leading-tight",
+                      isSelected ? "text-black" : "text-white"
+                    )}>
+                      {func.name}
+                    </h3>
+                    <p className={cn(
+                      "text-xs mt-1 leading-tight",
+                      isSelected ? "text-black/70" : "text-[#888888]"
+                    )}>
+                      {shortDesc}
+                    </p>
                   </div>
-                  
-                </CardContent>
-              </Card>
+                  {isSelected && (
+                    <Sparkles className="w-4 h-4 text-black flex-shrink-0" />
+                  )}
+                </div>
+              </div>
             );
           })}
         </div>
       </ScrollArea>
 
       {/* Help Section */}
-      <div className="p-4 border-t border-[#2a2a2a]">
-        <div className="text-xs text-[#888888] text-center">
-          <p>Select a function above to get started</p>
-          <p className="mt-1">Configure prompts for optimal results</p>
-        </div>
+      <div className="px-3 py-2 border-t border-[#2a2a2a]">
+        <p className="text-xs text-[#888888] text-center leading-relaxed">
+          Select a function to get started
+        </p>
       </div>
     </div>
   );
