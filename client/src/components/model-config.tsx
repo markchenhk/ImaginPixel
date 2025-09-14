@@ -253,7 +253,6 @@ export default function ModelConfig({ isOpen, onClose }: ModelConfigProps) {
     }
     
     
-    console.log('Saving configuration:', configToSave);
     updateConfigMutation.mutate(configToSave);
   };
 
