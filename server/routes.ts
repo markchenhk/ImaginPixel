@@ -981,7 +981,7 @@ async function processImageWithFailover(
   
   // If no models configured in priorities, fallback to selectedModel
   if (modelPriorities.length === 0) {
-    const fallbackModel = modelConfig?.selectedModel || 'google/gemini-2.5-flash-image';
+    const fallbackModel = modelConfig?.selectedModel || 'google/gemini-2.0-flash-exp';
     console.log(`[Failover] No model priorities configured, using fallback: ${fallbackModel}`);
     const result = await processImageWithOpenRouter(imageUrl, prompt, fallbackModel, modelConfig?.apiKey, timeoutSeconds);
     return { ...result, modelUsed: fallbackModel };
@@ -1032,7 +1032,7 @@ async function processMultipleImagesWithFailover(
   
   // If no models configured in priorities, fallback to selectedModel
   if (modelPriorities.length === 0) {
-    const fallbackModel = modelConfig?.selectedModel || 'google/gemini-2.5-flash-image';
+    const fallbackModel = modelConfig?.selectedModel || 'google/gemini-2.0-flash-exp';
     console.log(`[Multiple Images Failover] No model priorities configured, using fallback: ${fallbackModel}`);
     const result = await processMultipleImagesWithOpenRouter(imageUrls, prompt, fallbackModel, modelConfig?.apiKey, timeoutSeconds);
     return { ...result, modelUsed: fallbackModel };
@@ -2001,7 +2001,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       // Use admin's configuration for API access, but allow fallback model selection
-      const selectedModel = adminConfig.selectedModel || 'google/gemini-2.5-flash-image';
+      const selectedModel = adminConfig.selectedModel || 'google/gemini-2.0-flash-exp';
       const modelConfig = adminConfig; // Use admin config for all processing
 
       // Create user message (only include imageUrl if it's a new upload)
@@ -2136,7 +2136,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       // Use admin's configuration for API access
-      const selectedModel = adminConfig.selectedModel || 'google/gemini-2.5-flash-image';
+      const selectedModel = adminConfig.selectedModel || 'google/gemini-2.0-flash-exp';
       const modelConfig = adminConfig;
 
       // Create user message with multiple images (store as JSON in enhancementsApplied)
@@ -2315,7 +2315,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       // Use resolved configuration for API access
       // For video processing, use a model that supports image analysis
-      let selectedModel = modelConfig.selectedModel || 'google/gemini-2.5-flash-image';
+      let selectedModel = modelConfig.selectedModel || 'google/gemini-2.0-flash-exp';
       
       // Fix model name for video processing - remove :free suffix which may not be valid
       if (selectedModel.includes(':free')) {
@@ -2323,8 +2323,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       // Ensure we use a model that supports vision tasks
-      if (!selectedModel.includes('gemini-2.5-flash')) {
-        selectedModel = 'google/gemini-2.5-flash-image';
+      if (!selectedModel.includes('gemini')) {
+        selectedModel = 'google/gemini-2.0-flash-exp';
       }
 
       // Create user message (include the final image URL for traceability)
@@ -2460,15 +2460,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       // Create proper default configuration with Google Gemini models
       const defaultConfig = {
-        selectedModel: 'google/gemini-2.5-flash-image',
+        selectedModel: 'google/gemini-2.0-flash-exp',
         outputQuality: 'high',
         maxResolution: 4096,
         timeout: 120,
         apiKeyConfigured: process.env.OPENROUTER_API_KEY ? 'true' : 'false',
         modelPriorities: [
-          { model: 'google/gemini-2.5-flash-image', priority: 1, enabled: true },
-          { model: 'openai/gpt-4o', priority: 2, enabled: true },
-          { model: 'anthropic/claude-3.5-sonnet', priority: 3, enabled: true }
+          { model: 'google/gemini-2.0-flash-exp', priority: 1, enabled: true },
+          { model: 'google/gemini-flash-1.5', priority: 2, enabled: true },
+          { model: 'openai/gpt-4o', priority: 3, enabled: true },
+          { model: 'anthropic/claude-3.5-sonnet', priority: 4, enabled: true }
         ]
       };
       
