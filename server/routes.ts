@@ -7,6 +7,7 @@ import {
   insertMessageSchema, 
   insertImageProcessingJobSchema,
   insertVideoProcessingJobSchema,
+  insertMultiImageProcessingJobSchema,
   insertModelConfigurationSchema,
   insertSavedImageSchema,
   insertApplicationFunctionSchema,
@@ -2231,6 +2232,182 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       res.status(500).json({ 
         message: error instanceof Error ? error.message : "Failed to process multiple images" 
+      });
+    }
+  });
+
+  // Multi-image generate with analysis → generation pipeline
+  app.post("/api/multi-image-generate", isAuthenticated, async (req: any, res) => {
+    try {
+      // Validate request body
+      const multiImageRequestSchema = z.object({
+        conversationId: z.string(),
+        imageUrls: z.array(z.string()).min(2).max(10),
+        userPrompt: z.string().min(1),
+        imageRoles: z.array(z.object({
+          url: z.string(),
+          role: z.enum(['content', 'style', 'palette', 'reference']),
+          weight: z.number().min(0.1).max(1.0)
+        })).optional(),
+      });
+
+      const validatedData = multiImageRequestSchema.parse(req.body);
+      const { conversationId, imageUrls, userPrompt, imageRoles = [] } = validatedData;
+      
+      const userId = req.user?.claims?.sub || req.user?.id || 'default';
+      console.log('[Multi-Image Generate] Request from user:', userId, 'Images:', imageUrls.length);
+
+      // Verify conversation ownership
+      const conversation = await storage.getConversation(conversationId);
+      if (!conversation || conversation.userId !== userId) {
+        return res.status(403).json({ 
+          message: "Unauthorized: You don't have access to this conversation" 
+        });
+      }
+
+      // Get admin model configuration (API key is admin-controlled)
+      const adminUser = await storage.getUserByRole('admin');
+      if (!adminUser?.id) {
+        return res.status(500).json({ message: "Admin user not found" });
+      }
+      
+      const adminConfig = await storage.getModelConfiguration(adminUser.id);
+      if (!adminConfig || !adminConfig.apiKey) {
+        return res.status(500).json({ 
+          message: "OpenRouter API key not configured by admin. Please contact administrator." 
+        });
+      }
+
+      // Create user message with multiple images
+      const userMessage = await storage.createMessage({
+        conversationId,
+        role: 'user',
+        content: `${userPrompt} [${imageUrls.length} images for generation]`,
+        imageUrl: imageUrls[0], // Store first image URL for display
+        processingStatus: 'completed'
+      });
+
+      // Create AI message placeholder
+      const aiMessage = await storage.createMessage({
+        conversationId,
+        role: 'assistant',
+        content: `Analyzing ${imageUrls.length} images and generating new image...`,
+        processingStatus: 'processing'
+      });
+
+      // Ensure imageRoles array matches imageUrls
+      const finalImageRoles = imageUrls.map((url, index) => {
+        const existingRole = imageRoles.find(r => r.url === url);
+        return existingRole || {
+          url,
+          role: index === 0 ? 'content' as const : 'reference' as const,
+          weight: 1.0
+        };
+      });
+
+      // Create multi-image processing job
+      const processingJob = await storage.createMultiImageProcessingJob({
+        messageId: aiMessage.id,
+        inputImages: imageUrls,
+        userPrompt,
+        analysisModel: adminConfig.selectedModel || 'openai/gpt-4o',
+        generationModel: null, // Will be set based on capability detection
+        status: 'pending',
+        imageRoles: finalImageRoles,
+        promptBundle: null
+      });
+
+      console.log('[Multi-Image Generate] Created job:', processingJob.id);
+
+      // Return immediate response with job info
+      res.json({
+        message: "Multi-image generation started",
+        messageId: aiMessage.id,
+        jobId: processingJob.id,
+        status: 'processing'
+      });
+
+      // Process asynchronously
+      setImmediate(async () => {
+        try {
+          console.log('[Multi-Image Generate] Starting async processing for job:', processingJob.id);
+
+          // Update job status to analyzing
+          await storage.updateMultiImageProcessingJob(processingJob.id, {
+            status: 'analyzing'
+          });
+
+          // Stage 1: Analyze images to create prompt bundle
+          const promptBundle = await analyzeImagesForGeneration(
+            imageUrls,
+            finalImageRoles,
+            userPrompt,
+            adminConfig.selectedModel || 'openai/gpt-4o',
+            adminConfig.apiKey
+          );
+
+          console.log('[Multi-Image Generate] Analysis complete, prompt bundle created');
+
+          // Update job with prompt bundle
+          await storage.updateMultiImageProcessingJob(processingJob.id, {
+            promptBundle,
+            status: 'generating'
+          });
+
+          // Stage 2: Generate image using prompt bundle
+          const generationResult = await generateImageFromPromptBundle(
+            promptBundle,
+            imageUrls,
+            adminConfig,
+            finalImageRoles
+          );
+
+          console.log('[Multi-Image Generate] Generation complete:', generationResult.success);
+
+          if (generationResult.success) {
+            // Update job with success
+            await storage.updateMultiImageProcessingJob(processingJob.id, {
+              status: 'completed',
+              outputImageUrl: generationResult.imageUrl,
+              generationModel: generationResult.modelUsed
+            });
+
+            // Update AI message with success
+            await storage.updateMessage(aiMessage.id, {
+              content: `✨ Generated new image from ${imageUrls.length} source images`,
+              imageUrl: generationResult.imageUrl,
+              processingStatus: 'completed'
+            });
+          } else {
+            throw new Error(generationResult.error || 'Generation failed');
+          }
+
+        } catch (error) {
+          console.error('[Multi-Image Generate] Error during async processing:', error);
+          
+          try {
+            // Update processing job with error
+            await storage.updateMultiImageProcessingJob(processingJob.id, {
+              status: 'error',
+              errorMessage: error instanceof Error ? error.message : 'Unknown error'
+            });
+
+            // Update AI message with error
+            await storage.updateMessage(aiMessage.id, {
+              content: `Sorry, I encountered an error while generating your image: ${error instanceof Error ? error.message : 'Unknown error'}`,
+              processingStatus: 'error'
+            });
+            
+          } catch (updateError) {
+            console.error('[Multi-Image Generate] Failed to update error status:', updateError);
+          }
+        }
+      });
+
+    } catch (error) {
+      console.error('[Multi-Image Generate] Request error:', error);
+      res.status(500).json({ 
+        message: error instanceof Error ? error.message : "Failed to start multi-image generation" 
       });
     }
   });

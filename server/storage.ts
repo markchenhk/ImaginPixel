@@ -7,6 +7,8 @@ import {
   type InsertImageProcessingJob,
   type VideoProcessingJob,
   type InsertVideoProcessingJob,
+  type MultiImageProcessingJob,
+  type InsertMultiImageProcessingJob,
   type ModelConfiguration,
   type InsertModelConfiguration,
   type ConversationWithMessages,
@@ -23,6 +25,7 @@ import {
   messages,
   imageProcessingJobs,
   videoProcessingJobs,
+  multiImageProcessingJobs,
   modelConfigurations,
   savedImages,
   promptTemplates,
@@ -63,6 +66,12 @@ export interface IStorage {
   getVideoProcessingJobByMessage(messageId: string): Promise<VideoProcessingJob | undefined>;
   createVideoProcessingJob(job: InsertVideoProcessingJob): Promise<VideoProcessingJob>;
   updateVideoProcessingJob(id: string, updates: Partial<VideoProcessingJob>): Promise<VideoProcessingJob | undefined>;
+
+  // Multi-Image Processing Jobs
+  getMultiImageProcessingJob(id: string): Promise<MultiImageProcessingJob | undefined>;
+  getMultiImageProcessingJobByMessage(messageId: string): Promise<MultiImageProcessingJob | undefined>;
+  createMultiImageProcessingJob(job: InsertMultiImageProcessingJob): Promise<MultiImageProcessingJob>;
+  updateMultiImageProcessingJob(id: string, updates: Partial<MultiImageProcessingJob>): Promise<MultiImageProcessingJob | undefined>;
 
   // Model Configuration
   getModelConfiguration(userId?: string): Promise<ModelConfiguration | undefined>;
@@ -281,6 +290,73 @@ export class DatabaseStorage implements IStorage {
       .update(videoProcessingJobs)
       .set(setData)
       .where(eq(videoProcessingJobs.id, id))
+      .returning();
+    return job;
+  }
+
+  // Multi-Image Processing Jobs
+  async getMultiImageProcessingJob(id: string): Promise<MultiImageProcessingJob | undefined> {
+    const [job] = await db.select().from(multiImageProcessingJobs).where(eq(multiImageProcessingJobs.id, id));
+    return job;
+  }
+
+  async getMultiImageProcessingJobByMessage(messageId: string): Promise<MultiImageProcessingJob | undefined> {
+    const [job] = await db
+      .select()
+      .from(multiImageProcessingJobs)
+      .where(eq(multiImageProcessingJobs.messageId, messageId));
+    return job;
+  }
+
+  async createMultiImageProcessingJob(insertJob: InsertMultiImageProcessingJob): Promise<MultiImageProcessingJob> {
+    // Normalize imageRoles field for proper typing
+    const imageRoles: MultiImageProcessingJob["imageRoles"] = Array.isArray(insertJob.imageRoles) 
+      ? Array.from(insertJob.imageRoles).map(r => ({
+          url: String(r.url),
+          role: r.role as "content" | "style" | "palette" | "reference",
+          weight: Number(r.weight)
+        }))
+      : [];
+
+    // Normalize promptBundle field for proper typing
+    const promptBundle: MultiImageProcessingJob["promptBundle"] = insertJob.promptBundle ? {
+      subjectDescription: String(insertJob.promptBundle.subjectDescription),
+      styleElements: Array.from(insertJob.promptBundle.styleElements ?? []) as string[],
+      colorPalette: Array.from(insertJob.promptBundle.colorPalette ?? []) as string[],
+      composition: String(insertJob.promptBundle.composition),
+      negativePrompts: Array.from(insertJob.promptBundle.negativePrompts ?? []) as string[],
+      enhancedPrompt: String(insertJob.promptBundle.enhancedPrompt),
+      confidence: Number(insertJob.promptBundle.confidence)
+    } : null;
+
+    const values: typeof multiImageProcessingJobs.$inferInsert = {
+      messageId: insertJob.messageId,
+      inputImages: Array.from(insertJob.inputImages ?? []),
+      userPrompt: insertJob.userPrompt,
+      analysisModel: insertJob.analysisModel,
+      generationModel: insertJob.generationModel ?? undefined,
+      status: insertJob.status ?? "pending",
+      imageRoles,
+      promptBundle,
+      processingTime: insertJob.processingTime ?? undefined,
+      errorMessage: insertJob.errorMessage ?? undefined,
+      outputImageUrl: insertJob.outputImageUrl ?? undefined
+    };
+
+    const [job] = await db.insert(multiImageProcessingJobs).values(values).returning();
+    return job;
+  }
+
+  async updateMultiImageProcessingJob(id: string, updates: Partial<MultiImageProcessingJob>): Promise<MultiImageProcessingJob | undefined> {
+    const setData: any = { ...updates };
+    if (updates.status === 'completed' || updates.status === 'error') {
+      setData.completedAt = new Date();
+    }
+    
+    const [job] = await db
+      .update(multiImageProcessingJobs)
+      .set(setData)
+      .where(eq(multiImageProcessingJobs.id, id))
       .returning();
     return job;
   }

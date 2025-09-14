@@ -253,7 +253,7 @@ export type VideoProcessingJob = typeof videoProcessingJobs.$inferSelect;
 export type InsertVideoProcessingJob = z.infer<typeof insertVideoProcessingJobSchema>;
 
 export type MultiImageProcessingJob = typeof multiImageProcessingJobs.$inferSelect;
-export type InsertMultiImageProcessingJob = z.infer<typeof insertMultiImageProcessingJobSchema>;
+export type InsertMultiImageProcessingJob = typeof multiImageProcessingJobs.$inferInsert;
 
 export type ModelConfiguration = typeof modelConfigurations.$inferSelect;
 export type InsertModelConfiguration = z.infer<typeof insertModelConfigurationSchema>;
