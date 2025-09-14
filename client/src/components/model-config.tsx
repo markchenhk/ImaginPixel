@@ -99,9 +99,9 @@ export default function ModelConfig({ isOpen, onClose }: ModelConfigProps) {
       } else {
         // Set default fallback models if none configured
         setModelPriorities([
-          { model: 'google/gemini-2.5-flash-image', priority: 1, enabled: true },
-          { model: 'openai/gpt-4o', priority: 2, enabled: true },
-          { model: 'anthropic/claude-3.5-sonnet', priority: 3, enabled: false },
+          { model: 'openai/gpt-4o', priority: 1, enabled: true },
+          { model: 'anthropic/claude-3.5-sonnet', priority: 2, enabled: true },
+          { model: 'google/gemini-pro-vision', priority: 3, enabled: true },
         ]);
       }
       
@@ -113,7 +113,7 @@ export default function ModelConfig({ isOpen, onClose }: ModelConfigProps) {
       }
       
       // Check if using a custom model (check if it's not one of the common predefined models)
-      const commonModels = ['google/gemini-2.5-flash-image', 'openai/gpt-4o', 'anthropic/claude-3.5-sonnet', 'google/gemini-pro-vision'];
+      const commonModels = ['openai/gpt-4o', 'anthropic/claude-3.5-sonnet', 'google/gemini-pro-vision', 'google/gemini-flash-1.5'];
       const isCustom = config.selectedModel && !commonModels.includes(config.selectedModel);
       if (isCustom) {
         setUseCustomModel(true);

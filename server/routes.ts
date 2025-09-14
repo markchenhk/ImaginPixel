@@ -2513,8 +2513,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Fetch available models from OpenRouter (admin only)
-  app.get("/api/models", isAuthenticated, isAdmin, async (req: any, res) => {
+  // Fetch available models from OpenRouter (authenticated users)
+  app.get("/api/models", isAuthenticated, async (req: any, res) => {
     try {
       const { apiKey } = req.query;
       const keyToUse = apiKey || process.env.OPENROUTER_API_KEY || process.env.OPENROUTER_KEY;
