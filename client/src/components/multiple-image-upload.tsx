@@ -109,7 +109,7 @@ export default function MultipleImageUpload({
       <div
         {...getRootProps()}
         className={cn(
-          "upload-zone rounded-lg p-6 text-center transition-all duration-300 cursor-pointer",
+          "upload-zone rounded-lg p-3 text-center transition-all duration-300 cursor-pointer",
           "border-2 border-dashed border-border hover:border-blue-500 hover:bg-blue-500/5",
           dragActive && "drag-active border-blue-500 bg-blue-500/10",
           (isUploading || uploadedImages.length >= maxImages) && "opacity-50 cursor-not-allowed",
@@ -119,7 +119,7 @@ export default function MultipleImageUpload({
       >
         <input {...getInputProps()} data-testid="multiple-file-input" />
         
-        <div className="flex flex-col items-center gap-3">
+        <div className="flex flex-col items-center gap-2">
           {isUploading ? (
             <>
               <div className="processing-animation w-8 h-8 rounded-full" />
@@ -138,26 +138,26 @@ export default function MultipleImageUpload({
           ) : (
             <>
               <CloudUpload className={cn(
-                "w-8 h-8 transition-colors",
+                "w-6 h-6 transition-colors",
                 dragActive ? "text-blue-500" : "text-muted-foreground"
               )} />
               <div>
-                <p className="text-sm text-foreground mb-1">
-                  <span className="font-medium">Drag & drop multiple images here</span> or{" "}
+                <p className="text-xs text-foreground mb-1">
+                  <span className="font-medium">Drag & drop images</span> or{" "}
                   <Button
                     variant="link"
-                    className="p-0 h-auto text-blue-500 hover:text-blue-600"
+                    className="p-0 h-auto text-blue-500 hover:text-blue-600 text-xs"
                     onClick={(e) => {
                       e.stopPropagation();
                       open();
                     }}
                     data-testid="browse-multiple-files-button"
                   >
-                    browse files
+                    browse
                   </Button>
                 </p>
                 <p className="text-xs text-muted-foreground">
-                  Supports JPG, PNG, WebP up to 10MB each ({uploadedImages.length}/{maxImages} images)
+                  JPG, PNG, WebP ≤10MB ({uploadedImages.length}/{maxImages})
                 </p>
               </div>
             </>
