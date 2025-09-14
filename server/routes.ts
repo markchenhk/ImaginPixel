@@ -2162,10 +2162,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Get user's saved images
-  app.get("/api/library/:userId", async (req, res) => {
+  // Get authenticated user's saved images
+  app.get("/api/library", isAuthenticated, async (req: any, res) => {
     try {
-      const { userId } = req.params;
+      // Get user ID from authenticated session  
+      const userId = req.user?.claims?.sub || req.user?.id || 'default';
       const { page = '1', limit = '20', tags } = req.query;
       
       const pageNum = parseInt(page as string);

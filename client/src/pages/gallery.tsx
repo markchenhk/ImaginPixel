@@ -141,7 +141,7 @@ export default function Gallery() {
                   <div className="flex items-center justify-between text-xs text-[#888888] mb-3">
                     <div className="flex items-center gap-1">
                       <Calendar className="w-3 h-3" />
-                      {new Date(image.createdAt).toLocaleDateString()}
+                      {image.createdAt ? new Date(image.createdAt).toLocaleDateString() : 'Unknown date'}
                     </div>
                   </div>
                   {image.tags && image.tags.length > 0 && (
