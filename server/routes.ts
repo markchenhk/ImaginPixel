@@ -1014,6 +1014,57 @@ async function processImageWithFailover(
   throw new Error(`All ${modelPriorities.length} configured models failed. Last error: ${lastError?.message || 'Unknown error'}`);
 }
 
+// Process multiple images with failover sequence
+async function processMultipleImagesWithFailover(
+  imageUrls: string[],
+  prompt: string,
+  modelConfig: any,
+  timeoutSeconds: number = 120
+): Promise<{ processedImageUrl: string; enhancementsApplied: string[]; processingTime: number; modelUsed: string }> {
+  const startTime = Date.now();
+  
+  console.log(`[Multiple Images Failover] Starting processing with ${imageUrls.length} images`);
+  
+  // Get enabled models in priority order
+  const modelPriorities = (modelConfig?.modelPriorities || [])
+    .filter((item: any) => item.enabled)
+    .sort((a: any, b: any) => a.priority - b.priority);
+  
+  // If no models configured in priorities, fallback to selectedModel
+  if (modelPriorities.length === 0) {
+    const fallbackModel = modelConfig?.selectedModel || 'google/gemini-2.5-flash-image';
+    console.log(`[Multiple Images Failover] No model priorities configured, using fallback: ${fallbackModel}`);
+    const result = await processMultipleImagesWithOpenRouter(imageUrls, prompt, fallbackModel, modelConfig?.apiKey, timeoutSeconds);
+    return { ...result, modelUsed: fallbackModel };
+  }
+  
+  console.log(`[Multiple Images Failover] Found ${modelPriorities.length} enabled models in sequence:`, modelPriorities.map((m: any) => `${m.priority}. ${m.model}`));
+  
+  let lastError: Error | null = null;
+  
+  // Try each model in priority order
+  for (const modelItem of modelPriorities) {
+    try {
+      console.log(`[Multiple Images Failover] Attempting model: ${modelItem.model} (priority ${modelItem.priority})`);
+      const result = await processMultipleImagesWithOpenRouter(imageUrls, prompt, modelItem.model, modelConfig?.apiKey, timeoutSeconds);
+      console.log(`[Multiple Images Failover] Success with model: ${modelItem.model}`);
+      return { ...result, modelUsed: modelItem.model };
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      console.log(`[Multiple Images Failover] Model ${modelItem.model} failed: ${errorMessage}`);
+      lastError = error instanceof Error ? error : new Error(errorMessage);
+      
+      // Continue to next model in sequence
+      continue;
+    }
+  }
+  
+  // All models failed
+  const totalTime = Math.round((Date.now() - startTime) / 1000);
+  console.log(`[Multiple Images Failover] All ${modelPriorities.length} models failed after ${totalTime}s`);
+  throw new Error(`All ${modelPriorities.length} configured models failed for multiple images processing. Last error: ${lastError?.message || 'Unknown error'}`);
+}
+
 async function processImageWithOpenRouter(
   imageUrl: string, 
   prompt: string, 
@@ -1217,6 +1268,241 @@ This is product image enhancement, not product generation. Work with what's prov
     }
     
     throw new Error(`Failed to process image: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  }
+}
+
+// Process multiple images with OpenRouter for combination/composition
+async function processMultipleImagesWithOpenRouter(
+  imageUrls: string[],
+  prompt: string,
+  model: string,
+  apiKey?: string,
+  timeoutSeconds: number = 120
+): Promise<{ processedImageUrl: string; enhancementsApplied: string[]; processingTime: number }> {
+  const startTime = Date.now();
+  
+  console.log(`[Multiple Images Processing] Model: ${model}, Images: ${imageUrls.length}, Prompt: "${prompt}", Timeout: ${timeoutSeconds}s`);
+  
+  try {
+    const keyToUse = apiKey || process.env.OPENROUTER_API_KEY || process.env.OPENROUTER_KEY;
+    
+    if (!keyToUse) {
+      throw new Error('OpenRouter API key not configured');
+    }
+
+    const domain = process.env.REPLIT_DOMAINS?.split(',')[0];
+    const baseUrl = domain ? `https://${domain}` : 'http://localhost:5000';
+    
+    // Convert all image URLs to full URLs
+    const fullImageUrls = imageUrls.map(url => 
+      url.startsWith('http') ? url : `${baseUrl}${url}`
+    );
+    
+    console.log('[Multiple Images Processing] Image URLs:', fullImageUrls);
+    
+    // Check if this is Gemini 2.5 Flash Image (image generation model)
+    if (model.includes('google/gemini-2.5-flash-image-preview')) {
+      console.log('[Multiple Images Processing] Using Gemini 2.5 Flash for image combination');
+      
+      // Create a comprehensive prompt for combining multiple images
+      const combinationPrompt = `COMBINE AND COMPOSE: You have ${imageUrls.length} source images that need to be combined into one cohesive image.
+
+Your task: ${prompt}
+
+Rules you MUST follow:
+1. Analyze all ${imageUrls.length} provided images carefully
+2. Create a single, cohesive composition that incorporates elements from all images
+3. Maintain the visual quality and style consistency across the composition
+4. Ensure proper lighting, shadows, and perspective throughout the combined image
+5. Make the combination look natural and professionally composed
+6. Pay attention to scale, proportion, and visual balance
+7. Create smooth transitions between elements from different source images
+
+This is image combination/composition work. Create one unified image from the multiple sources provided.`;
+      
+      console.log('[Debug] Combination prompt:', combinationPrompt);
+
+      // Create AbortController for timeout
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => {
+        controller.abort();
+      }, timeoutSeconds * 1000);
+
+      // Prepare image content for the API - send all images
+      const imageContent = fullImageUrls.map(url => ({
+        type: 'image_url',
+        image_url: { url }
+      }));
+
+      const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${keyToUse}`,
+          'Content-Type': 'application/json',
+          'HTTP-Referer': baseUrl,
+          'X-Title': 'AI Image Editor - Multiple Images'
+        },
+        body: JSON.stringify({
+          model: model,
+          messages: [
+            {
+              role: 'user',
+              content: [
+                {
+                  type: 'text',
+                  text: combinationPrompt
+                },
+                ...imageContent
+              ]
+            }
+          ],
+          max_tokens: 4000,
+          temperature: 0.7
+        }),
+        signal: controller.signal
+      });
+
+      clearTimeout(timeoutId);
+
+      if (!response.ok) {
+        const errorBody = await response.text();
+        throw new Error(`Multiple images generation failed: ${response.statusText} - ${errorBody}`);
+      }
+
+      const result = await response.json();
+      const processingTime = Math.round((Date.now() - startTime) / 1000);
+      
+      // Extract any image URLs from the response
+      const content = result.choices?.[0]?.message?.content || '';
+      const imageUrlMatch = content.match(/!\[.*?\]\((https?:\/\/[^\)]+)\)|https?:\/\/[^\s]+\.(jpg|jpeg|png|webp)/gi);
+      
+      if (imageUrlMatch && imageUrlMatch.length > 0) {
+        // Extract the first valid image URL
+        let generatedImageUrl = imageUrlMatch[0];
+        if (generatedImageUrl.startsWith('![')) {
+          const urlMatch = generatedImageUrl.match(/\((https?:\/\/[^\)]+)\)/);
+          if (urlMatch) {
+            generatedImageUrl = urlMatch[1];
+          }
+        }
+        
+        console.log('[Multiple Images Processing] Generated image URL extracted:', generatedImageUrl);
+        
+        // Save the generated image to our S3 storage
+        try {
+          const imageResponse = await fetch(generatedImageUrl);
+          if (imageResponse.ok) {
+            const imageBuffer = await imageResponse.arrayBuffer();
+            const fileName = `combined-${Date.now()}.png`;
+            
+            console.log('[Multiple Images Processing] Saving combined image to S3...');
+            const savedImagePath = await objectStorageService.uploadToS3(
+              Buffer.from(imageBuffer),
+              fileName,
+              'image/png'
+            );
+            
+            // Set ACL for public access
+            if (savedImagePath.startsWith('/objects/')) {
+              await objectStorageService.trySetObjectEntityAclPolicy(savedImagePath, {
+                owner: 'system',
+                visibility: 'public'
+              });
+            }
+            
+            console.log('[Multiple Images Processing] Combined image saved successfully:', savedImagePath);
+            
+            return {
+              processedImageUrl: savedImagePath,
+              enhancementsApplied: [`Combined ${imageUrls.length} images using ${model}`],
+              processingTime
+            };
+          }
+        } catch (saveError) {
+          console.error('[Multiple Images Processing] Failed to save generated image:', saveError);
+          // Fall back to returning the external URL
+        }
+        
+        return {
+          processedImageUrl: generatedImageUrl,
+          enhancementsApplied: [`Combined ${imageUrls.length} images using ${model}`],
+          processingTime
+        };
+      } else {
+        throw new Error('No image generated in response from AI model');
+      }
+    } else {
+      // For non-generation models, use vision analysis approach
+      console.log('[Multiple Images Processing] Using vision model for analysis of multiple images');
+      
+      // Create AbortController for timeout
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => {
+        controller.abort();
+      }, timeoutSeconds * 1000);
+
+      // Prepare image content for analysis
+      const imageContent = fullImageUrls.map(url => ({
+        type: 'image_url',
+        image_url: { url }
+      }));
+
+      const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${keyToUse}`,
+          'Content-Type': 'application/json',
+          'HTTP-Referer': baseUrl,
+          'X-Title': 'AI Image Editor - Multiple Images Analysis'
+        },
+        body: JSON.stringify({
+          model: model,
+          messages: [
+            {
+              role: 'user',
+              content: [
+                {
+                  type: 'text',
+                  text: `Analyze these ${imageUrls.length} images and provide detailed insights: ${prompt}`
+                },
+                ...imageContent
+              ]
+            }
+          ],
+          max_tokens: 4000,
+          temperature: 0.3
+        }),
+        signal: controller.signal
+      });
+
+      clearTimeout(timeoutId);
+
+      if (!response.ok) {
+        const errorBody = await response.text();
+        throw new Error(`Multiple images analysis failed: ${response.statusText} - ${errorBody}`);
+      }
+
+      const result = await response.json();
+      const processingTime = Math.round((Date.now() - startTime) / 1000);
+      const analysis = result.choices?.[0]?.message?.content || 'No analysis provided';
+      
+      return {
+        processedImageUrl: fullImageUrls[0], // Return first image as primary
+        enhancementsApplied: [`Multi-image analysis (${imageUrls.length} images): ${analysis}`],
+        processingTime
+      };
+    }
+    
+  } catch (error) {
+    const processingTime = Math.round((Date.now() - startTime) / 1000);
+    console.error('[Multiple Images Processing] Error:', error);
+    
+    // Check if it's a timeout error
+    if (error instanceof Error && error.name === 'AbortError') {
+      throw new Error(`Multiple images request timed out after ${timeoutSeconds} seconds`);
+    }
+    
+    throw new Error(`Failed to process multiple images: ${error instanceof Error ? error.message : 'Unknown error'}`);
   }
 }
 
@@ -1809,6 +2095,142 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       res.status(500).json({ 
         message: error instanceof Error ? error.message : "Failed to process image" 
+      });
+    }
+  });
+
+  // Process multiple images with AI for combination/composition
+  app.post("/api/process-multiple-images", isAuthenticated, async (req: any, res) => {
+    try {
+      const { conversationId, imageUrls, prompt } = req.body;
+      const userId = req.user?.claims?.sub || req.user?.id || 'default';
+      console.log('[Multiple Images Processing] Request from user:', userId);
+      
+      if (!conversationId || !prompt || !imageUrls || !Array.isArray(imageUrls) || imageUrls.length === 0) {
+        return res.status(400).json({ 
+          message: "Missing required fields: conversationId, imageUrls (array), prompt" 
+        });
+      }
+
+      if (imageUrls.length > 10) {
+        return res.status(400).json({ 
+          message: "Maximum 10 images allowed for combination processing" 
+        });
+      }
+
+      // Get admin model configuration (API key is admin-controlled for all users)
+      const adminUser = await storage.getUserByRole('admin');
+      const adminUserId = adminUser?.id;
+      
+      if (!adminUserId) {
+        return res.status(500).json({ message: "Admin user not found" });
+      }
+      
+      const adminConfig = await storage.getModelConfiguration(adminUserId);
+      console.log('[Multiple Images Processing] Admin config retrieved:', adminConfig ? 'YES' : 'NO');
+      
+      if (!adminConfig || !adminConfig.apiKey) {
+        return res.status(500).json({ 
+          message: "OpenRouter API key not configured by admin. Please contact administrator." 
+        });
+      }
+      
+      // Use admin's configuration for API access
+      const selectedModel = adminConfig.selectedModel || 'google/gemini-2.5-flash-image';
+      const modelConfig = adminConfig;
+
+      // Create user message with multiple images (store as JSON in enhancementsApplied)
+      const userMessage = await storage.createMessage({
+        conversationId,
+        role: 'user',
+        content: `${prompt} [${imageUrls.length} images uploaded]`,
+        imageUrl: imageUrls[0], // Store first image URL for display
+        processingStatus: 'completed'
+      });
+
+      // Create AI message placeholder
+      const aiMessage = await storage.createMessage({
+        conversationId,
+        role: 'assistant',
+        content: `Processing ${imageUrls.length} images for combination...`,
+        processingStatus: 'processing'
+      });
+
+      // Create processing job (store multiple image URLs in enhancementsApplied)
+      const processingJob = await storage.createImageProcessingJob({
+        messageId: aiMessage.id,
+        originalImageUrl: imageUrls[0], // Primary image for compatibility
+        prompt,
+        model: selectedModel,
+        status: 'processing',
+        enhancementsApplied: imageUrls // Store all image URLs here
+      });
+      
+      console.log('[Multiple Images Processing] Created job:', processingJob.id);
+
+      res.json({ 
+        userMessage, 
+        aiMessage, 
+        processingJob 
+      });
+
+      // Process multiple images asynchronously
+      setImmediate(async () => {
+        try {
+          console.log('[Multiple Images Processing] Starting async processing for job:', processingJob.id);
+          
+          // Get timeout configuration
+          const timeoutSeconds = modelConfig?.timeout || 120;
+          const result = await processMultipleImagesWithFailover(imageUrls, prompt, modelConfig, timeoutSeconds);
+          
+          console.log('[Multiple Images Processing] Failover completed, updating job:', processingJob.id);
+          
+          // Update processing job
+          await storage.updateImageProcessingJob(processingJob.id, {
+            status: 'completed',
+            processedImageUrl: result.processedImageUrl,
+            processingTime: result.processingTime,
+            enhancementsApplied: [...imageUrls, ...result.enhancementsApplied],
+            model: result.modelUsed
+          });
+
+          console.log('[Multiple Images Processing] Job updated successfully:', processingJob.id);
+
+          // Update AI message
+          await storage.updateMessage(aiMessage.id, {
+            content: `✨ Images combined successfully using ${imageUrls.length} source images`,
+            imageUrl: result.processedImageUrl,
+            processingStatus: 'completed'
+          });
+
+          console.log('[Multiple Images Processing] Message updated successfully for job:', processingJob.id);
+
+        } catch (error) {
+          console.error('[Multiple Images Processing] Error during async processing:', error);
+          
+          try {
+            // Update processing job with error
+            await storage.updateImageProcessingJob(processingJob.id, {
+              status: 'error',
+              errorMessage: error instanceof Error ? error.message : 'Unknown error'
+            });
+
+            // Update AI message with error
+            await storage.updateMessage(aiMessage.id, {
+              content: `Sorry, I encountered an error while processing your ${imageUrls.length} images: ${error instanceof Error ? error.message : 'Unknown error'}`,
+              processingStatus: 'error'
+            });
+            
+            console.log('[Multiple Images Processing] Error status updated for job:', processingJob.id);
+          } catch (updateError) {
+            console.error('[Multiple Images Processing] Failed to update error status:', updateError);
+          }
+        }
+      });
+
+    } catch (error) {
+      res.status(500).json({ 
+        message: error instanceof Error ? error.message : "Failed to process multiple images" 
       });
     }
   });

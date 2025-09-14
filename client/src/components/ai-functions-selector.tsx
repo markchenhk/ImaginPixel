@@ -4,16 +4,17 @@ import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Card, CardContent } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
-import { Plus, MessageSquare, Calendar, Search, Wand2, Video, Sparkles, Clock } from 'lucide-react';
+import { Plus, MessageSquare, Calendar, Search, Wand2, Video, Sparkles, Clock, Images } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { apiRequest, queryClient } from '@/lib/queryClient';
 import { useToast } from '@/hooks/use-toast';
-import type { Conversation } from '@shared/schema';
+import type { Conversation, ApplicationFunction } from '@shared/schema';
 import { cn } from '@/lib/utils';
+import * as LucideIcons from 'lucide-react';
 
 interface AIFunctionsSelectorProps {
-  selectedFunction: 'image-enhancement' | 'image-to-video';
-  onFunctionSelect: (functionKey: 'image-enhancement' | 'image-to-video') => void;
+  selectedFunction: 'image-enhancement' | 'image-to-video' | 'multiple-images-llm';
+  onFunctionSelect: (functionKey: 'image-enhancement' | 'image-to-video' | 'multiple-images-llm') => void;
   currentConversationId: string | null;
   onConversationSelect: (conversation: Conversation) => void;
   onNewConversation: () => void;
@@ -29,19 +30,52 @@ export function AIFunctionsSelector({
   const { toast } = useToast();
   const [searchTerm, setSearchTerm] = useState('');
 
+  // Fetch application functions
+  const { data: functions = [], isLoading: functionsLoading } = useQuery<ApplicationFunction[]>({
+    queryKey: ['/api/application-functions'],
+    staleTime: 30000,
+    refetchOnWindowFocus: false,
+  });
+
   // Fetch conversations for current user
-  const { data: conversations = [], isLoading } = useQuery<Conversation[]>({
+  const { data: conversations = [], isLoading: conversationsLoading } = useQuery<Conversation[]>({
     queryKey: ['/api/conversations'],
     staleTime: 30000,
     refetchOnWindowFocus: false,
   });
 
+  const isLoading = functionsLoading || conversationsLoading;
+
+  // Helper function to get icon component from icon name
+  const getIconComponent = (iconName: string) => {
+    const Icon = (LucideIcons as any)[iconName];
+    return Icon || Wand2; // fallback to Wand2 if icon not found
+  };
+
+  // Type guard to ensure function key is valid
+  const isValidFunctionKey = (key: string): key is 'image-enhancement' | 'image-to-video' | 'multiple-images-llm' => {
+    return key === 'image-enhancement' || key === 'image-to-video' || key === 'multiple-images-llm';
+  };
+
+  // Helper function to get function description based on function key
+  const getFunctionDescription = (functionKey: string) => {
+    switch (functionKey) {
+      case 'image-enhancement':
+        return 'Background removal, lighting & style enhancement';
+      case 'image-to-video':
+        return 'Create engaging videos with animations & effects';
+      case 'multiple-images-llm':
+        return 'Combine multiple images using AI composition';
+      default:
+        return 'AI-powered image processing';
+    }
+  };
+
   // Create new conversation mutation
   const createConversationMutation = useMutation({
     mutationFn: async () => {
-      const functionTitle = selectedFunction === 'image-enhancement' 
-        ? 'Image Enhancement' 
-        : 'Image to Video';
+      const selectedFunc = functions.find(f => f.functionKey === selectedFunction);
+      const functionTitle = selectedFunc ? selectedFunc.name : 'AI Function';
       
       const response = await apiRequest('POST', '/api/conversations', {
         title: `New ${functionTitle} Session`
@@ -133,75 +167,54 @@ export function AIFunctionsSelector({
           </div>
         </div>
 
-        {/* Enhanced Function Selection Buttons */}
+        {/* Dynamic Function Selection Buttons */}
         <div className="space-y-3 mb-5">
-          <Button
-            variant="ghost"
-            className={cn(
-              "w-full justify-start p-4 h-auto transition-all duration-300 rounded-xl border",
-              selectedFunction === 'image-enhancement'
-                ? "bg-gradient-to-r from-[#ffd700] to-[#ffed4a] text-black border-[#ffd700] shadow-lg shadow-[#ffd700]/20 scale-[1.02]"
-                : "bg-gradient-to-r from-[#0f0f0f] to-[#1a1a1a] text-white border-[#2a2a2a] hover:border-[#3a3a3a] hover:from-[#2a2a2a] hover:to-[#1f1f1f] hover:scale-[1.01]"
-            )}
-            onClick={() => onFunctionSelect('image-enhancement')}
-            data-testid="button-image-enhancement"
-          >
-            <div className="flex items-center gap-4 w-full">
-              <div className={cn(
-                "w-10 h-10 rounded-lg flex items-center justify-center transition-colors",
-                selectedFunction === 'image-enhancement'
-                  ? "bg-black/20"
-                  : "bg-[#2a2a2a]"
-              )}>
-                <Wand2 className="w-5 h-5" />
-              </div>
-              <div className="text-left flex-1">
-                <div className="font-semibold text-sm">Product Image Enhancement</div>
-                <div className={cn(
-                  "text-xs mt-1 leading-relaxed",
-                  selectedFunction === 'image-enhancement'
-                    ? "text-black/70"
-                    : "text-[#888888]"
-                )}>
-                  Background removal, lighting & style enhancement
+          {functions.map((func) => {
+            const IconComponent = getIconComponent(func.icon);
+            const isSelected = selectedFunction === func.functionKey;
+            const description = getFunctionDescription(func.functionKey);
+            
+            return (
+              <Button
+                key={func.id}
+                variant="ghost"
+                className={cn(
+                  "w-full justify-start p-4 h-auto transition-all duration-300 rounded-xl border",
+                  isSelected
+                    ? "bg-gradient-to-r from-[#ffd700] to-[#ffed4a] text-black border-[#ffd700] shadow-lg shadow-[#ffd700]/20 scale-[1.02]"
+                    : "bg-gradient-to-r from-[#0f0f0f] to-[#1a1a1a] text-white border-[#2a2a2a] hover:border-[#3a3a3a] hover:from-[#2a2a2a] hover:to-[#1f1f1f] hover:scale-[1.01]"
+                )}
+                onClick={() => {
+                  if (isValidFunctionKey(func.functionKey)) {
+                    onFunctionSelect(func.functionKey);
+                  }
+                }}
+                data-testid={`button-${func.functionKey}`}
+              >
+                <div className="flex items-center gap-4 w-full">
+                  <div className={cn(
+                    "w-10 h-10 rounded-lg flex items-center justify-center transition-colors",
+                    isSelected
+                      ? "bg-black/20"
+                      : "bg-[#2a2a2a]"
+                  )}>
+                    <IconComponent className="w-5 h-5" />
+                  </div>
+                  <div className="text-left flex-1">
+                    <div className="font-semibold text-sm">{func.name}</div>
+                    <div className={cn(
+                      "text-xs mt-1 leading-relaxed",
+                      isSelected
+                        ? "text-black/70"
+                        : "text-[#888888]"
+                    )}>
+                      {description}
+                    </div>
+                  </div>
                 </div>
-              </div>
-            </div>
-          </Button>
-
-          <Button
-            variant="ghost"
-            className={cn(
-              "w-full justify-start p-4 h-auto transition-all duration-300 rounded-xl border",
-              selectedFunction === 'image-to-video'
-                ? "bg-gradient-to-r from-[#ffd700] to-[#ffed4a] text-black border-[#ffd700] shadow-lg shadow-[#ffd700]/20 scale-[1.02]"
-                : "bg-gradient-to-r from-[#0f0f0f] to-[#1a1a1a] text-white border-[#2a2a2a] hover:border-[#3a3a3a] hover:from-[#2a2a2a] hover:to-[#1f1f1f] hover:scale-[1.01]"
-            )}
-            onClick={() => onFunctionSelect('image-to-video')}
-            data-testid="button-image-to-video"
-          >
-            <div className="flex items-center gap-4 w-full">
-              <div className={cn(
-                "w-10 h-10 rounded-lg flex items-center justify-center transition-colors",
-                selectedFunction === 'image-to-video'
-                  ? "bg-black/20"
-                  : "bg-[#2a2a2a]"
-              )}>
-                <Video className="w-5 h-5" />
-              </div>
-              <div className="text-left flex-1">
-                <div className="font-semibold text-sm">Product Image to Video</div>
-                <div className={cn(
-                  "text-xs mt-1 leading-relaxed",
-                  selectedFunction === 'image-to-video'
-                    ? "text-black/70"
-                    : "text-[#888888]"
-                )}>
-                  Create engaging videos with animations & effects
-                </div>
-              </div>
-            </div>
-          </Button>
+              </Button>
+            );
+          })}
         </div>
 
         <Separator className="bg-gradient-to-r from-transparent via-[#2a2a2a] to-transparent" />

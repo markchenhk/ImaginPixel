@@ -13,8 +13,8 @@ import {
 } from "lucide-react";
 
 interface LeftSidebarProps {
-  selectedFunction: 'image-enhancement' | 'image-to-video';
-  onFunctionSelect: (functionKey: 'image-enhancement' | 'image-to-video') => void;
+  selectedFunction: 'image-enhancement' | 'image-to-video' | 'multiple-images-llm';
+  onFunctionSelect: (functionKey: 'image-enhancement' | 'image-to-video' | 'multiple-images-llm') => void;
 }
 
 export function LeftSidebar({ 
@@ -34,8 +34,8 @@ export function LeftSidebar({
   };
 
   // Type guard to ensure function key is valid
-  const isValidFunctionKey = (key: string): key is 'image-enhancement' | 'image-to-video' => {
-    return key === 'image-enhancement' || key === 'image-to-video';
+  const isValidFunctionKey = (key: string): key is 'image-enhancement' | 'image-to-video' | 'multiple-images-llm' => {
+    return key === 'image-enhancement' || key === 'image-to-video' || key === 'multiple-images-llm';
   };
 
   // Helper function to get features based on function key
@@ -45,6 +45,8 @@ export function LeftSidebar({
         return ['Background removal', 'Lighting enhancement', 'Color correction', 'Style transfer'];
       case 'image-to-video':
         return ['Animation effects', '3D transforms', 'Motion graphics', 'Promotional clips'];
+      case 'multiple-images-llm':
+        return ['Multiple image upload', 'AI composition', 'Smart blending', 'Custom layouts'];
       default:
         return ['AI-powered processing', 'Professional results', 'Easy to use'];
     }

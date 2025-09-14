@@ -10,6 +10,7 @@ import type { Message, Conversation, PromptTemplate, ApplicationFunction } from 
 import { UploadedImage } from '@/types';
 import { ImagePopup } from './image-popup';
 import { PromptTemplateButtons } from './prompt-template-buttons';
+import MultipleImageUpload from './multiple-image-upload';
 
 interface ChatInterfaceProps {
   conversationId: string | null;
@@ -19,7 +20,7 @@ interface ChatInterfaceProps {
   onSaveToLibrary?: (imageUrl: string, title: string) => void;
   onImageSelected?: (imageUrl: string) => void; // New prop for selecting images for editing
   onVideoSelected?: (videoUrl: string) => void; // New prop for selecting videos for editing
-  selectedFunction?: 'image-enhancement' | 'image-to-video'; // Current application function
+  selectedFunction?: 'image-enhancement' | 'image-to-video' | 'multiple-images-llm'; // Current application function
 }
 
 export default function ChatInterface({ 
@@ -35,6 +36,7 @@ export default function ChatInterface({
   const { toast } = useToast();
   const [input, setInput] = useState('');
   const [uploadedImage, setUploadedImage] = useState<UploadedImage | null>(null);
+  const [uploadedImages, setUploadedImages] = useState<UploadedImage[]>([]);
   const [isUploading, setIsUploading] = useState(false);
   const [isDragOver, setIsDragOver] = useState(false);
   const [popupImageUrl, setPopupImageUrl] = useState<string | null>(null);
@@ -239,6 +241,143 @@ export default function ChatInterface({
     },
   });
 
+  // Upload multiple images mutation
+  const uploadMultipleImagesMutation = useMutation({
+    mutationFn: async (files: File[]) => {
+      const uploadPromises = files.map(async (file) => {
+        const formData = new FormData();
+        formData.append('image', file);
+        
+        const response = await fetch('/api/upload', {
+          method: 'POST',
+          body: formData,
+        });
+        
+        if (!response.ok) {
+          throw new Error(`Failed to upload ${file.name}`);
+        }
+        
+        return response.json();
+      });
+      
+      return Promise.all(uploadPromises);
+    },
+    onSuccess: (uploadResults: UploadedImage[]) => {
+      setUploadedImages(uploadResults);
+      setIsUploading(false);
+      toast({
+        title: `${uploadResults.length} images uploaded successfully`,
+        description: 'You can now describe how you want to combine them.',
+      });
+    },
+    onError: (error: Error) => {
+      setIsUploading(false);
+      toast({
+        title: 'Upload failed',
+        description: error.message,
+        variant: 'destructive',
+      });
+    },
+  });
+
+  // Process multiple images mutation
+  const processMultipleImagesMutation = useMutation({
+    mutationFn: async ({ conversationId, imageUrls, prompt }: { 
+      conversationId: string; 
+      imageUrls: string[]; 
+      prompt: string; 
+    }) => {
+      const response = await apiRequest('POST', '/api/process-multiple-images', {
+        conversationId,
+        imageUrls,
+        prompt,
+      });
+      return response.json();
+    },
+    onSuccess: (result) => {
+      queryClient.invalidateQueries({ queryKey: ['/api/conversations', conversationId, 'messages'] });
+      
+      // Start optimized polling for processing job completion
+      let pollCount = 0;
+      const pollJob = () => {
+        // Bypass QueryClient cache and fetch directly to avoid stale data
+        fetch(`/api/processing-jobs/${result.aiMessage.id}`, {
+          credentials: 'include'
+        }).then(res => res.json()).then((job: any) => {
+          console.log('Polling multiple images job:', result.aiMessage.id, 'Status:', job?.status);
+          console.log('Full multiple images job data:', job);
+          if (job.status === 'completed') {
+            if (job.processedImageUrl) {
+              // Get the original image URLs from the job or use the first uploaded image
+              // Note: We should store original URLs in the job for proper tracking
+              const originalUrl = uploadedImages.length > 0 
+                ? uploadedImages[0].imageUrl 
+                : job.originalImageUrl || '/placeholder-combined.jpg'; // Fallback to stored or placeholder URL
+              onImageProcessed(originalUrl, job.processedImageUrl);
+            }
+            // Force refresh messages to show updated AI response
+            queryClient.invalidateQueries({ 
+              queryKey: ['/api/conversations', conversationId, 'messages']
+            });
+          } else if (job.status === 'failed') {
+            console.error('Multiple images job failed:', job.error);
+            // Refresh messages to show failure status
+            queryClient.invalidateQueries({ 
+              queryKey: ['/api/conversations', conversationId, 'messages']
+            });
+          } else if (job.status === 'processing' && pollCount < 60) {
+            pollCount++;
+            setTimeout(pollJob, 2000); // Poll every 2 seconds
+          }
+        }).catch(err => {
+          console.error('Multiple images polling error:', err);
+          if (pollCount < 60) {
+            pollCount++;
+            setTimeout(pollJob, 2000);
+          }
+        });
+      };
+      
+      // Start polling after a short delay
+      setTimeout(pollJob, 1000);
+    },
+    onError: (error: Error) => {
+      toast({
+        title: 'Multiple images processing failed',
+        description: error.message,
+        variant: 'destructive',
+      });
+    },
+  });
+
+  const handleMultipleImagesUpload = async (files: File[]) => {
+    if (files.length === 0) return;
+    
+    // Validate all files
+    for (const file of files) {
+      if (!file.type.startsWith('image/')) {
+        toast({
+          title: 'Invalid file type',
+          description: `${file.name} is not an image file.`,
+          variant: 'destructive',
+        });
+        return;
+      }
+      
+      if (file.size > 10 * 1024 * 1024) {
+        toast({
+          title: 'File too large',
+          description: `${file.name} is larger than 10MB.`,
+          variant: 'destructive',
+        });
+        return;
+      }
+    }
+
+    setIsUploading(true);
+    uploadMultipleImagesMutation.mutate(files);
+  };
+
   const handleImageUpload = async (file: File) => {
     // Validate file type
     if (!file.type.startsWith('image/')) {
@@ -327,8 +466,26 @@ export default function ChatInterface({
           imageUrl: uploadedImage?.imageUrl, // Optional - backend will use conversation context if not provided
           prompt: messageContent,
         });
+      } else if (selectedFunction === 'multiple-images-llm') {
+        // Validate that we have multiple images
+        if (uploadedImages.length === 0) {
+          toast({
+            title: 'No images uploaded',
+            description: 'Please upload multiple images to combine them.',
+            variant: 'destructive',
+          });
+          return;
+        }
+        
+        // Send for multiple images processing
+        const imageUrls = uploadedImages.map(img => img.imageUrl);
+        processMultipleImagesMutation.mutate({
+          conversationId: currentConversationId,
+          imageUrls,
+          prompt: messageContent,
+        });
       } else {
-        // Default to image processing
+        // Default to single image processing
         processImageMutation.mutate({
           conversationId: currentConversationId,
           imageUrl: uploadedImage?.imageUrl, // Optional - backend will use conversation context if not provided
@@ -338,6 +495,7 @@ export default function ChatInterface({
       
       setInput('');
       setUploadedImage(null);
+      setUploadedImages([]);
       setSelectedTemplateId(null); // Clear template selection after sending
     }
   };
@@ -570,8 +728,8 @@ export default function ChatInterface({
 
       {/* Chat Input */}
       <div className="border-t border-[#2a2a2a] p-6 bg-[#1a1a1a]">
-        {/* Uploaded Image Preview */}
-        {uploadedImage && (
+        {/* Single Image Preview */}
+        {uploadedImage && selectedFunction !== 'multiple-images-llm' && (
           <div className="mb-4 p-4 bg-[#2a2a2a] rounded-xl border border-[#3a3a3a] flex items-center gap-4 shadow-sm">
             <div className="relative">
               <img 
@@ -601,8 +759,49 @@ export default function ChatInterface({
           </div>
         )}
 
+        {/* Multiple Images Preview */}
+        {uploadedImages.length > 0 && selectedFunction === 'multiple-images-llm' && (
+          <div className="mb-4 p-4 bg-[#2a2a2a] rounded-xl border border-[#3a3a3a] shadow-sm">
+            <div className="flex items-center justify-between mb-3">
+              <p className="text-sm font-medium text-[#e0e0e0]">
+                {uploadedImages.length} images uploaded • Ready to combine
+              </p>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setUploadedImages([])}
+                data-testid="remove-all-images-button"
+                className="bg-[#3a3a3a] hover:bg-[#4a4a4a] border-[#4a4a4a] text-[#e0e0e0]"
+              >
+                Remove All
+              </Button>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {uploadedImages.map((image, index) => (
+                <div key={index} className="relative group">
+                  <img 
+                    src={image.imageUrl} 
+                    alt={`Upload preview ${index + 1}`} 
+                    className="w-16 h-16 rounded-lg object-cover border border-[#3a3a3a]"
+                  />
+                  <div className="absolute -top-1 -right-1 w-4 h-4 bg-[#ffd700] rounded-full flex items-center justify-center">
+                    <div className="w-2 h-2 bg-black rounded-full"></div>
+                  </div>
+                  <button
+                    onClick={() => setUploadedImages(prev => prev.filter((_, i) => i !== index))}
+                    className="absolute -top-1 -left-1 w-4 h-4 bg-red-500 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                    data-testid={`remove-image-${index}-button`}
+                  >
+                    <span className="text-white text-xs">×</span>
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* Context Indicator */}
-        {!uploadedImage && messages.length > 0 && (
+        {!uploadedImage && uploadedImages.length === 0 && messages.length > 0 && (
           <div className="mb-4 p-3 bg-[#2a2a2a] rounded-xl border border-[#3a3a3a]">
             <p className="text-sm text-[#ffd700] flex items-center gap-2 font-medium">
               <ImageIcon className="w-4 h-4" />
@@ -611,15 +810,30 @@ export default function ChatInterface({
           </div>
         )}
 
+        {/* Multiple Image Upload Component */}
+        {selectedFunction === 'multiple-images-llm' && uploadedImages.length === 0 && (
+          <div className="mb-4">
+            <MultipleImageUpload
+              onImagesUpload={handleMultipleImagesUpload}
+              isUploading={isUploading}
+            />
+          </div>
+        )}
+
         {/* Message Input */}
         <div className="flex gap-3">
           <div className="flex-1 relative">
             <Textarea
-              placeholder={uploadedImage 
-                ? "Describe how you want to enhance your image... (You can also paste or drag images directly here)"
-                : messages.length > 0 
-                  ? "Continue editing the latest image from this conversation... (Or paste/drag a new image)"
-                  : "Upload an image to get started, or paste/drag images directly here"
+              placeholder={
+                selectedFunction === 'multiple-images-llm'
+                  ? (uploadedImages.length > 0
+                      ? `Describe how you want to combine your ${uploadedImages.length} images...`
+                      : "Upload multiple images to combine them into one...")
+                  : uploadedImage 
+                    ? "Describe how you want to enhance your image... (You can also paste or drag images directly here)"
+                    : messages.length > 0 
+                      ? "Continue editing the latest image from this conversation... (Or paste/drag a new image)"
+                      : "Upload an image to get started, or paste/drag images directly here"
               }
               value={input}
               onChange={(e) => setInput(e.target.value)}
@@ -647,7 +861,13 @@ export default function ChatInterface({
           
           <Button
             onClick={handleSendMessage}
-            disabled={(!input.trim() && !selectedTemplateId) || processImageMutation.isPending || processVideoMutation.isPending}
+            disabled={(
+              (!input.trim() && !selectedTemplateId) || 
+              processImageMutation.isPending || 
+              processVideoMutation.isPending || 
+              processMultipleImagesMutation.isPending ||
+              (selectedFunction === 'multiple-images-llm' && uploadedImages.length === 0)
+            )}
             className="border border-[#ffd700] bg-[#ffd700]/10 hover:bg-[#ffd700]/20 text-[#ffd700] font-medium"
             data-testid="send-message-button"
           >
