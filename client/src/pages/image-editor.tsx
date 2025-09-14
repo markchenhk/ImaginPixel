@@ -28,7 +28,7 @@ export default function ImageEditor() {
   const [promptEngineeringOpen, setPromptEngineeringOpen] = useState(false);
   const [processedImageUrl, setProcessedImageUrl] = useState<string | null>(null);
   const [processedVideoUrl, setProcessedVideoUrl] = useState<string | null>(null);
-  const [selectedFunction, setSelectedFunction] = useState<'image-enhancement' | 'image-to-video'>('image-enhancement');
+  const [selectedFunction, setSelectedFunction] = useState<'image-enhancement' | 'image-to-video' | 'multiple-images-llm'>('image-enhancement');
 
   // Fetch model configuration for header display (admin only)
   const { data: modelConfig } = useQuery<ModelConfiguration>({
@@ -42,7 +42,7 @@ export default function ImageEditor() {
     setCurrentConversation(conversation);
   };
 
-  const handleFunctionSelect = (functionKey: 'image-enhancement' | 'image-to-video') => {
+  const handleFunctionSelect = (functionKey: 'image-enhancement' | 'image-to-video' | 'multiple-images-llm') => {
     setSelectedFunction(functionKey);
     // Reset current conversation when switching functions
     setCurrentConversation(null);
@@ -98,13 +98,22 @@ export default function ImageEditor() {
             </div>
             <div>
               <h1 className="font-semibold text-white">
-                {selectedFunction === 'image-enhancement' ? 'Image Enhancement' : selectedFunction === 'image-to-video' ? 'Image to Video' : 'AI Processing'}
+                {selectedFunction === 'image-enhancement' 
+                  ? 'Image Enhancement' 
+                  : selectedFunction === 'image-to-video' 
+                  ? 'Image to Video' 
+                  : selectedFunction === 'multiple-images-llm'
+                  ? 'Multiple Images LLM'
+                  : 'AI Processing'
+                }
               </h1>
               <p className="text-xs text-[#888888]">
                 {selectedFunction === 'image-enhancement' 
                   ? 'Professional product image enhancement'
                   : selectedFunction === 'image-to-video'
                   ? 'Convert images to promotional videos'
+                  : selectedFunction === 'multiple-images-llm'
+                  ? 'Combine multiple images using AI composition'
                   : 'AI-powered image processing'
                 }
               </p>
@@ -183,7 +192,7 @@ export default function ImageEditor() {
         />
         
         {/* Main Content Area with Resizable Panels */}
-        {selectedFunction === 'image-enhancement' || selectedFunction === 'image-to-video' ? (
+        {selectedFunction === 'image-enhancement' || selectedFunction === 'image-to-video' || selectedFunction === 'multiple-images-llm' ? (
           <ResizablePanels
             defaultLeftWidth={35}
             minLeftWidth={25}
@@ -275,10 +284,58 @@ export default function ImageEditor() {
                     }
                   }}
                 />
-              ) : (
+              ) : selectedFunction === 'image-to-video' ? (
                 <VideoEditorPanel
                   videoUrl={processedVideoUrl}
                 />
+              ) : selectedFunction === 'multiple-images-llm' ? (
+                <ImageEditorPanel
+                  imageUrl={processedImageUrl}
+                  onSaveToLibrary={async (imageUrl, title) => {
+                    try {
+                      const response = await fetch('/api/library/save', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                          title,
+                          objectPath: imageUrl,
+                          prompt: 'AI combined multiple images',
+                          tags: ['ai-generated', 'multiple-images']
+                        })
+                      });
+
+                      if (!response.ok) {
+                        throw new Error('Failed to save image');
+                      }
+
+                      // Refresh the library to show the new saved image
+                      queryClient.invalidateQueries({ queryKey: ['/api/library', user?.id] });
+                      
+                      // Show success message
+                      toast({
+                        title: "Success",
+                        description: "Combined image saved to library",
+                      });
+                    } catch (error) {
+                      console.error('Error saving image:', error);
+                      toast({
+                        title: "Error",
+                        description: "Failed to save combined image to library",
+                        variant: "destructive",
+                      });
+                    }
+                  }}
+                />
+              ) : (
+                <div className="flex-1 flex items-center justify-center text-[#888888] bg-[#1a1a1a]">
+                  <div className="text-center">
+                    <div className="w-16 h-16 border-2 border-dashed border-[#444444] rounded-lg flex items-center justify-center mb-4 mx-auto">
+                      <Wand2 className="w-6 h-6 text-[#666666]" />
+                    </div>
+                    <div className="text-sm font-medium text-[#e0e0e0] mb-2">Feature Not Available</div>
+                    <div className="text-xs text-[#888888]">This feature is not implemented yet</div>
+                  </div>
+                </div>
               )
             }
           />

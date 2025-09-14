@@ -55,7 +55,7 @@ import {
 interface EnhancedPromptEngineeringProps {
   isOpen: boolean;
   onClose: () => void;
-  selectedFunction?: 'image-enhancement' | 'image-to-video';
+  selectedFunction?: 'image-enhancement' | 'image-to-video' | 'multiple-images-llm';
   isAdmin: boolean;
 }
 
