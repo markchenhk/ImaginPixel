@@ -1,15 +1,19 @@
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Trash2, Download, Search, Calendar } from "lucide-react";
 import { useState } from "react";
-import { getQueryFn } from "@/lib/queryClient";
+import { getQueryFn, apiRequest, queryClient } from "@/lib/queryClient";
+import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/hooks/useAuth";
 import { SavedImage } from "@shared/schema";
 
 export default function Gallery() {
   const [searchTerm, setSearchTerm] = useState("");
+  const { toast } = useToast();
+  const { user } = useAuth();
 
   // Fetch user's saved images
   const { data: savedImages = [], isLoading } = useQuery<SavedImage[]>({
@@ -21,6 +25,34 @@ export default function Gallery() {
     image.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
     image.tags?.some(tag => tag.toLowerCase().includes(searchTerm.toLowerCase()))
   );
+
+  // Delete image mutation
+  const deleteImageMutation = useMutation({
+    mutationFn: async (imageId: string) => {
+      const response = await apiRequest('DELETE', `/api/library/${imageId}?userId=${user?.id}`);
+      return response;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/library'] });
+      toast({
+        title: "Success",
+        description: "Image deleted successfully",
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Error",
+        description: "Failed to delete image",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleDelete = async (image: SavedImage) => {
+    if (confirm(`Are you sure you want to delete "${image.title}"? This action cannot be undone.`)) {
+      deleteImageMutation.mutate(image.id);
+    }
+  };
 
   const handleDownload = async (image: SavedImage) => {
     try {
@@ -36,6 +68,11 @@ export default function Gallery() {
       document.body.removeChild(a);
     } catch (error) {
       console.error('Download failed:', error);
+      toast({
+        title: "Error",
+        description: "Download failed",
+        variant: "destructive",
+      });
     }
   };
 
@@ -123,15 +160,30 @@ export default function Gallery() {
                     data-testid={`gallery-image-${image.id}`}
                   />
                   <div className="absolute inset-0 bg-black/0 group-hover:bg-black/50 transition-all duration-200">
-                    <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity space-x-2">
+                    <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity flex space-x-2">
                       <Button
                         size="sm"
                         variant="ghost"
                         className="w-8 h-8 p-0 bg-black/70 hover:bg-black/90"
                         onClick={() => handleDownload(image)}
                         data-testid={`download-${image.id}`}
+                        title="Download image"
                       >
                         <Download className="w-4 h-4" />
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="w-8 h-8 p-0 bg-red-600/70 hover:bg-red-600/90"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDelete(image);
+                        }}
+                        disabled={deleteImageMutation.isPending}
+                        data-testid={`delete-${image.id}`}
+                        title="Delete image"
+                      >
+                        <Trash2 className="w-4 h-4" />
                       </Button>
                     </div>
                   </div>
