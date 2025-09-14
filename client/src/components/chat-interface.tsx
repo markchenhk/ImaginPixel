@@ -399,6 +399,12 @@ export default function ChatInterface({
       return;
     }
 
+    // If in Multiple Images LLM mode, treat single uploads as multiple images
+    if (selectedFunction === 'multiple-images-llm') {
+      handleMultipleImagesUpload([file]);
+      return;
+    }
+
     setIsUploading(true);
     uploadImageMutation.mutate(file);
   };
