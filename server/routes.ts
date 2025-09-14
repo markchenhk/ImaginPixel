@@ -1088,7 +1088,7 @@ async function processImageWithOpenRouter(
     const fullImageUrl = imageUrl.startsWith('http') ? imageUrl : `${baseUrl}${imageUrl}`;
     
     // Check if this is Gemini 2.5 Flash Image (image generation model)
-    if (model.includes('google/gemini-2.5-flash-image-preview')) {
+    if (model.includes('google/gemini-2.5-flash-image')) {
       console.log('[Processing] Using Gemini 2.5 Flash Image for image generation');
       console.log('[Debug] Image URL being sent:', fullImageUrl);
       
@@ -1301,7 +1301,7 @@ async function processMultipleImagesWithOpenRouter(
     console.log('[Multiple Images Processing] Image URLs:', fullImageUrls);
     
     // Check if this is Gemini 2.5 Flash Image (image generation model)
-    if (model.includes('google/gemini-2.5-flash-image-preview')) {
+    if (model.includes('google/gemini-2.5-flash-image')) {
       console.log('[Multiple Images Processing] Using Gemini 2.5 Flash for image combination');
       
       // Create a comprehensive prompt for combining multiple images
@@ -2324,7 +2324,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       // Ensure we use a model that supports vision tasks
       if (!selectedModel.includes('gemini-2.5-flash')) {
-        selectedModel = 'google/gemini-2.5-flash-image-preview';
+        selectedModel = 'google/gemini-2.5-flash-image';
       }
 
       // Create user message (include the final image URL for traceability)
@@ -2460,15 +2460,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       // Create proper default configuration with Google Gemini models
       const defaultConfig = {
-        selectedModel: 'google/gemini-2.5-flash-image-preview:free',
+        selectedModel: 'google/gemini-2.5-flash-image',
         outputQuality: 'high',
         maxResolution: 4096,
         timeout: 120,
         apiKeyConfigured: process.env.OPENROUTER_API_KEY ? 'true' : 'false',
         modelPriorities: [
-          { model: 'google/gemini-2.5-flash-image-preview:free', priority: 1, enabled: true },
-          { model: 'google/gemini-2.5-flash-image', priority: 2, enabled: true },
-          { model: 'google/gemini-2.5-flash-image-preview', priority: 3, enabled: true }
+          { model: 'google/gemini-2.5-flash-image', priority: 1, enabled: true },
+          { model: 'openai/gpt-4o', priority: 2, enabled: true },
+          { model: 'anthropic/claude-3.5-sonnet', priority: 3, enabled: true }
         ]
       };
       
