@@ -263,10 +263,10 @@ export default function ChatInterface({
       return Promise.all(uploadPromises);
     },
     onSuccess: (uploadResults: UploadedImage[]) => {
-      setUploadedImages(uploadResults);
+      setUploadedImages(prev => [...prev, ...uploadResults]);
       setIsUploading(false);
       toast({
-        title: `${uploadResults.length} images uploaded successfully`,
+        title: `${uploadResults.length} image(s) uploaded successfully`,
         description: 'You can now describe how you want to combine them.',
       });
     },
@@ -790,8 +790,9 @@ export default function ChatInterface({
                     alt={`Upload preview ${index + 1}`} 
                     className="w-16 h-16 rounded-lg object-cover border border-[#3a3a3a]"
                   />
-                  <div className="absolute -top-1 -right-1 w-4 h-4 bg-[#ffd700] rounded-full flex items-center justify-center">
-                    <div className="w-2 h-2 bg-black rounded-full"></div>
+                  {/* Numbering indicator */}
+                  <div className="absolute -top-1 -right-1 w-5 h-5 bg-[#ffd700] rounded-full flex items-center justify-center border border-black">
+                    <span className="text-black text-xs font-bold">{index + 1}</span>
                   </div>
                   <button
                     onClick={() => setUploadedImages(prev => prev.filter((_, i) => i !== index))}
