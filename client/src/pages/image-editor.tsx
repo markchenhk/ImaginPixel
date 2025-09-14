@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useLocation } from 'wouter';
-import { Settings, Wand2, Home, ArrowLeft, LogOut, User } from 'lucide-react';
+import { Settings, Wand2, Home, ArrowLeft, LogOut, User, MessageSquare } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
@@ -10,7 +10,8 @@ import ChatInterface from '@/components/chat-interface';
 import ModelConfig from '@/components/model-config';
 import { EnhancedPromptEngineering } from '@/components/enhanced-prompt-engineering';
 import UserLibraryPanel from '@/components/user-library-panel';
-import { LeftSidebar } from '@/components/left-sidebar';
+import { ConversationSidebar } from '@/components/conversation-sidebar';
+import { AIFunctionsSelector } from '@/components/ai-functions-selector';
 import { GalleryView } from '@/components/gallery-view';
 import ImageEditorPanel from '@/components/image-editor-panel';
 import VideoEditorPanel from '@/components/video-editor-panel';
@@ -24,6 +25,7 @@ export default function ImageEditor() {
   const [, setLocation] = useLocation();
   const { user, isAuthenticated, isAdmin } = useAuth();
   const [currentConversation, setCurrentConversation] = useState<Conversation | null>(null);
+  const [showConversations, setShowConversations] = useState(false);
   const [configOpen, setConfigOpen] = useState(false);
   const [promptEngineeringOpen, setPromptEngineeringOpen] = useState(false);
   const [processedImageUrl, setProcessedImageUrl] = useState<string | null>(null);
@@ -46,6 +48,19 @@ export default function ImageEditor() {
     setSelectedFunction(functionKey);
     // Reset current conversation when switching functions
     setCurrentConversation(null);
+  };
+
+  const handleConversationSelect = (conversation: Conversation) => {
+    setCurrentConversation(conversation);
+  };
+
+  const handleNewConversation = () => {
+    // Additional logic for new conversation if needed
+    console.log('New conversation created');
+  };
+
+  const toggleConversationSidebar = () => {
+    setShowConversations(!showConversations);
   };
 
 
@@ -119,6 +134,22 @@ export default function ImageEditor() {
           
           <div className="h-6 w-px bg-[#2a2a2a] mx-2" />
 
+          {/* Conversation Toggle */}
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={toggleConversationSidebar}
+            className={`text-[#e0e0e0] hover:bg-[#2a2a2a] hover:text-white ${
+              showConversations ? 'bg-[#2a2a2a] text-[#ffd700]' : ''
+            }`}
+            data-testid="button-toggle-conversations"
+            title="Toggle Chat History"
+          >
+            <MessageSquare className="w-4 h-4" />
+          </Button>
+          
+          <div className="h-6 w-px bg-[#2a2a2a] mx-2" />
+
 
           {/* Admin-Only Controls */}
           {isAdmin && (
@@ -162,8 +193,18 @@ export default function ImageEditor() {
 
       {/* Main Content Area */}
       <div className="flex-1 flex overflow-hidden">
-        {/* Left Sidebar */}
-        <LeftSidebar 
+        {/* Conversation History Sidebar (conditionally shown) */}
+        {showConversations && (
+          <ConversationSidebar
+            currentConversationId={currentConversation?.id || null}
+            onConversationSelect={handleConversationSelect}
+            onNewConversation={handleNewConversation}
+            selectedFunction={selectedFunction}
+          />
+        )}
+        
+        {/* AI Functions Selector */}
+        <AIFunctionsSelector 
           selectedFunction={selectedFunction}
           onFunctionSelect={handleFunctionSelect}
         />

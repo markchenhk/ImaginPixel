@@ -2,7 +2,7 @@
 
 ## Overview
 
-A comprehensive AI-powered visual content creation SaaS platform designed for businesses across all industries. The application allows users to upload images and transform them into professional-grade visual content using advanced AI models via OpenRouter API (featuring Gemini 2.5 Flash Image, GPT-4o, and Claude 3.5 Sonnet). Supports diverse business applications including e-commerce, corporate presentations, educational materials, marketing campaigns, and professional services - perfect for creating high-quality visual content that drives business results.
+A comprehensive AI-powered visual content creation SaaS platform designed for businesses across all industries. The application allows users to upload images and transform them into professional-grade visual content using advanced AI models via OpenRouter API (featuring Gemini 2.5 Flash Image, GPT-4o, and Claude 3.5 Sonnet). Features multiple chat sessions with full conversation history management, dynamic AI Functions selector for different processing types (Product Image Enhancement, Product Image to Video), and comprehensive chat history management. Supports diverse business applications including e-commerce, corporate presentations, educational materials, marketing campaigns, and professional services - perfect for creating high-quality visual content that drives business results.
 
 ## User Preferences
 
@@ -17,6 +17,8 @@ Preferred communication style: Simple, everyday language.
 - **Styling**: Tailwind CSS with CSS variables for theming
 - **State Management**: TanStack Query for server state management
 - **Build Tool**: Vite with custom configuration for monorepo structure
+- **Conversation Management**: Multiple chat support with history persistence
+- **AI Functions Selector**: Dynamic dropdown interface for application function selection
 
 ### Backend Architecture
 - **Runtime**: Node.js with Express.js server
@@ -33,6 +35,8 @@ Preferred communication style: Simple, everyday language.
 - **Model Configurations**: Store user preferences for AI models and processing settings
 - **Database Relations**: Fully linked schema with conversations→messages→jobs relationships
 - **User Context API**: Endpoints for retrieving conversation history with full message context
+- **Application Functions**: Admin-configurable AI functions (Product Image Enhancement, Product Image to Video)
+- **Multiple Chat Sessions**: Full conversation history management with ability to switch between sessions
 
 ### Image Processing Pipeline
 - **Upload Handling**: Local file storage with type validation (JPEG, PNG, WebP)
@@ -46,6 +50,8 @@ Preferred communication style: Simple, everyday language.
 - **Hot Reloading**: Vite development server with HMR
 - **Type Safety**: Shared TypeScript schemas between frontend and backend
 - **Error Handling**: Comprehensive error boundaries and API error management
+- **Multi-Sidebar Interface**: Conversation history sidebar + AI Functions selector
+- **Conversation API**: Complete conversation management with create/read/list endpoints
 
 ## External Dependencies
 
