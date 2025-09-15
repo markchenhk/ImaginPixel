@@ -17,12 +17,17 @@
  *   npm run db:sync prod-to-dev
  *   npm run db:sync dev-to-prod --confirm
  *   npm run db:sync schema prod-to-dev
+ *
+ * export DATABASE_URL="your-dev-database-url"
+ * export PROD_DATABASE_URL="your-prod-database-url"
+ * node scripts/db-sync.js [command]
+ */
 
 import { spawn, exec } from "child_process";
 import { promises as fs } from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
- */
+
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -35,24 +40,28 @@ function removeSslMode(url) {
   if (!url) return url;
   try {
     const urlObj = new URL(url);
-    urlObj.searchParams.delete('sslmode');
+    urlObj.searchParams.delete("sslmode");
     return urlObj.toString();
   } catch (error) {
     // If URL parsing fails, try simple string replacement
-    return url.replace(/[?&]sslmode=[^&]*/g, '').replace(/\?$/, '');
+    return url.replace(/[?&]sslmode=[^&]*/g, "").replace(/\?$/, "");
   }
 }
 
 // Database connection parameters - read from environment variables (required)
 const DATABASE_URL = removeSslMode(process.env.DATABASE_URL || "");
-const PROD_DATABASE_URL = removeSslMode(process.env.PROD_DATABASE_URL || process.env.DATABASE_URL || "");
+const PROD_DATABASE_URL = removeSslMode(
+  process.env.PROD_DATABASE_URL || process.env.DATABASE_URL || "",
+);
 
 // Validate required environment variables
 if (!DATABASE_URL) {
   throw new Error("DATABASE_URL environment variable is required");
 }
 if (!PROD_DATABASE_URL) {
-  throw new Error("PROD_DATABASE_URL environment variable is required (or falls back to DATABASE_URL)");
+  throw new Error(
+    "PROD_DATABASE_URL environment variable is required (or falls back to DATABASE_URL)",
+  );
 }
 
 // Configuration
