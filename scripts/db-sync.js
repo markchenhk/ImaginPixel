@@ -30,11 +30,30 @@ const __dirname = path.dirname(__filename);
 // Cache for PostgreSQL tool paths
 let postgresToolPaths = null;
 
-// Database connection parameters
-const DATABASE_URL =
-  "postgresql://neondb_owner:npg_tcl1B3JLIQbk@ep-lucky-bread-af8a9r1d.c-2.us-west-2.aws.neon.tech/neondb";
-const PROD_DATABASE_URL =
-  "postgresql://neondb_owner:npg_tBdgl5NrHW6E@ep-falling-base-afh5c406.c-2.us-west-2.aws.neon.tech/neondb?sslmode=require";
+// Utility function to remove sslmode parameter from database URL
+function removeSslMode(url) {
+  if (!url) return url;
+  try {
+    const urlObj = new URL(url);
+    urlObj.searchParams.delete('sslmode');
+    return urlObj.toString();
+  } catch (error) {
+    // If URL parsing fails, try simple string replacement
+    return url.replace(/[?&]sslmode=[^&]*/g, '').replace(/\?$/, '');
+  }
+}
+
+// Database connection parameters - read from environment variables (required)
+const DATABASE_URL = removeSslMode(process.env.DATABASE_URL || "");
+const PROD_DATABASE_URL = removeSslMode(process.env.PROD_DATABASE_URL || process.env.DATABASE_URL || "");
+
+// Validate required environment variables
+if (!DATABASE_URL) {
+  throw new Error("DATABASE_URL environment variable is required");
+}
+if (!PROD_DATABASE_URL) {
+  throw new Error("PROD_DATABASE_URL environment variable is required (or falls back to DATABASE_URL)");
+}
 
 // Configuration
 const config = {
