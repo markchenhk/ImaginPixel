@@ -30,14 +30,18 @@ const __dirname = path.dirname(__filename);
 // Cache for PostgreSQL tool paths
 let postgresToolPaths = null;
 
+// Database connection parameters
+const DATABASE_URL = "postgresql://neondb_owner:npg_tcl1B3JLIQbk@ep-lucky-bread-af8a9r1d.c-2.us-west-2.aws.neon.tech/neondb";
+const PROD_DATABASE_URL = "postgresql://neondb_owner:npg_tBdgl5NrHW6E@ep-falling-base-afh5c406.c-2.us-west-2.aws.neon.tech/neondb?sslmode=require";
+
 // Configuration
 const config = {
   dev: {
-    url: process.env.DATABASE_URL,
+    url: DATABASE_URL,
     name: 'Development'
   },
   prod: {
-    url: process.env.PROD_DATABASE_URL || process.env.DATABASE_URL,
+    url: PROD_DATABASE_URL,
     name: 'Production'
   },
   backupDir: path.join(__dirname, '../backups'),
