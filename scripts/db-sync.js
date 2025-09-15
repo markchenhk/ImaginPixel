@@ -27,6 +27,9 @@ import { fileURLToPath } from 'url';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+// Cache for PostgreSQL tool paths
+let postgresToolPaths = null;
+
 // Configuration
 const config = {
   dev: {
@@ -103,6 +106,59 @@ function execShellCommand(command, options = {}) {
   });
 }
 
+// Find PostgreSQL tool paths
+async function findPostgreSQLTools() {
+  if (postgresToolPaths) {
+    return postgresToolPaths;
+  }
+
+  const tools = ['psql', 'pg_dump', 'pg_restore'];
+  const paths = {};
+
+  // First try known Nix store path (typical in Replit environment)
+  const nixPostgresPath = '/nix/store/w7ldv9b1vc48a235g7ib2kjyqlrzfv0s-postgresql-16.9/bin';
+  try {
+    await fs.access(nixPostgresPath);
+    for (const tool of tools) {
+      const toolPath = path.join(nixPostgresPath, tool);
+      try {
+        await fs.access(toolPath);
+        paths[tool] = toolPath;
+      } catch {
+        // Tool not found in this path
+      }
+    }
+  } catch {
+    // Nix path doesn't exist
+  }
+
+  // Fall back to which command for any missing tools
+  for (const tool of tools) {
+    if (!paths[tool]) {
+      try {
+        const { stdout } = await execShellCommand(`which ${tool}`);
+        const toolPath = stdout.trim();
+        if (toolPath) {
+          await fs.access(toolPath);
+          paths[tool] = toolPath;
+        }
+      } catch {
+        // which command failed or tool not found
+      }
+    }
+  }
+
+  // Check if all required tools were found
+  const missingTools = tools.filter(tool => !paths[tool]);
+  if (missingTools.length > 0) {
+    throw new Error(`PostgreSQL tools not found: ${missingTools.join(', ')}. Please ensure PostgreSQL client tools are installed.`);
+  }
+
+  postgresToolPaths = paths;
+  log(`Found PostgreSQL tools: ${Object.entries(paths).map(([tool, path]) => `${tool}=${path}`).join(', ')}`);
+  return paths;
+}
+
 async function ensureBackupDir() {
   try {
     await fs.mkdir(config.backupDir, { recursive: true });
@@ -120,8 +176,9 @@ async function validateDatabaseUrl(url, name) {
   
   // Test connection using environment variables for security
   try {
+    const tools = await findPostgreSQLTools();
     const dbEnv = parseDbUrl(url);
-    await execCommand('psql', ['-c', 'SELECT 1;', '-t', '-A'], { 
+    await execCommand(tools.psql, ['-c', 'SELECT 1;', '-t', '-A'], { 
       timeout: 10000,
       verbose: false,
       env: dbEnv
@@ -199,10 +256,11 @@ async function backupDatabase(env) {
   log(`Creating backup of ${dbConfig.name} database...`);
   
   try {
+    const tools = await findPostgreSQLTools();
     const dbEnv = parseDbUrl(dbConfig.url);
     
     // Use pg_dump with comprehensive options - custom format
-    await execCommand('pg_dump', [
+    await execCommand(tools.pg_dump, [
       '--verbose',
       '--no-owner',
       '--no-acl', 
@@ -211,7 +269,7 @@ async function backupDatabase(env) {
     ], { verbose: true, env: dbEnv });
     
     // Also create a plain SQL version for manual inspection
-    await execCommand('pg_dump', [
+    await execCommand(tools.pg_dump, [
       '--verbose',
       '--no-owner',
       '--no-acl',
@@ -259,12 +317,13 @@ async function restoreDatabase(env, backupFile) {
   }
 
   try {
+    const tools = await findPostgreSQLTools();
     const dbEnv = parseDbUrl(dbConfig.url);
     const isCustomFormat = backupFile.endsWith('.dump');
     
     if (isCustomFormat) {
       // Use pg_restore for custom format with proper flags
-      await execCommand('pg_restore', [
+      await execCommand(tools.pg_restore, [
         '--verbose',
         '--clean',
         '--if-exists',
@@ -277,7 +336,7 @@ async function restoreDatabase(env, backupFile) {
       ], { verbose: true, env: dbEnv });
     } else {
       // Use psql for SQL format
-      await execCommand('psql', [
+      await execCommand(tools.psql, [
         '-f', backupPath,
         '--set=ON_ERROR_STOP=1'
       ], { verbose: true, env: dbEnv });
@@ -341,7 +400,8 @@ async function syncDatabase(from, to, schemaOnly = false) {
       }
     }
 
-    await execCommand('pg_dump', dumpArgs, { verbose: true, env: fromDbEnv });
+    const tools = await findPostgreSQLTools();
+    await execCommand(tools.pg_dump, dumpArgs, { verbose: true, env: fromDbEnv });
 
     // Restore to destination using pg_restore with proper cleanup
     log('Restoring to destination with cleanup...');
@@ -362,7 +422,7 @@ async function syncDatabase(from, to, schemaOnly = false) {
     
     restoreArgs.push(tempFile);
     
-    await execCommand('pg_restore', restoreArgs, { verbose: true, env: toDbEnv });
+    await execCommand(tools.pg_restore, restoreArgs, { verbose: true, env: toDbEnv });
 
     // Clean up
     await fs.unlink(tempFile);
