@@ -17,12 +17,12 @@
  *   npm run db:sync prod-to-dev
  *   npm run db:sync dev-to-prod --confirm
  *   npm run db:sync schema prod-to-dev
- */
 
 import { spawn, exec } from "child_process";
 import { promises as fs } from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
+ */
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
