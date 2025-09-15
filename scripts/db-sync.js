@@ -34,7 +34,7 @@ let postgresToolPaths = null;
 const DATABASE_URL =
   "postgresql://neondb_owner:npg_tcl1B3JLIQbk@ep-lucky-bread-af8a9r1d.c-2.us-west-2.aws.neon.tech/neondb";
 const PROD_DATABASE_URL =
-  "postgresql://neondb_owner:npg_tBdgl5NrHW6E@ep-falling-base-afh5c406.c-2.us-west-2.aws.neon.tech/neondb";
+  "postgresql://neondb_owner:npg_tBdgl5NrHW6E@ep-falling-base-afh5c406.c-2.us-west-2.aws.neon.tech/neondb?sslmode=require";
 
 // Configuration
 const config = {
